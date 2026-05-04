@@ -1,0 +1,75 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "Quant.Core/1.0.0": {
+        "dependencies": {
+          "Dapper": "2.1.72",
+          "DuckDB.NET.Data": "1.5.2"
+        },
+        "runtime": {
+          "Quant.Core.dll": {}
+        }
+      },
+      "Dapper/2.1.72": {
+        "runtime": {
+          "lib/net8.0/Dapper.dll": {
+            "assemblyVersion": "2.0.0.0",
+            "fileVersion": "2.1.72.10375"
+          }
+        }
+      },
+      "DuckDB.NET.Bindings/1.5.2": {
+        "runtime": {
+          "lib/net8.0/DuckDB.NET.Bindings.dll": {
+            "assemblyVersion": "1.5.2.0",
+            "fileVersion": "1.5.2.0"
+          }
+        }
+      },
+      "DuckDB.NET.Data/1.5.2": {
+        "dependencies": {
+          "DuckDB.NET.Bindings": "1.5.2"
+        },
+        "runtime": {
+          "lib/net8.0/DuckDB.NET.Data.dll": {
+            "assemblyVersion": "1.5.2.0",
+            "fileVersion": "1.5.2.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "Quant.Core/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Dapper/2.1.72": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-ns4mGqQd9a/MhP8m6w556vVlZIa0/MfUu03zrxjZC/jlr1uVCsUac8bkdB+Fs98Llbd56rRSo1eZH5VVmeGZyw==",
+      "path": "dapper/2.1.72",
+      "hashPath": "dapper.2.1.72.nupkg.sha512"
+    },
+    "DuckDB.NET.Bindings/1.5.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-opMkp8rGpTrCqM5eYCh0laHul7+O/nkzZinG7DurkScQdg7/UbeduL2lK0t5BVPlRNaIGz573wv/wDXUTMSVqw==",
+      "path": "duckdb.net.bindings/1.5.2",
+      "hashPath": "duckdb.net.bindings.1.5.2.nupkg.sha512"
+    },
+    "DuckDB.NET.Data/1.5.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-/bD/MOctFi4dU81igYSuYE9HM3RKZtJ4dtB6cTO6AnQmszlcefgo0dDk4Eb5Fs6sfuYwqPXNNMKxGkxZsLdzbg==",
+      "path": "duckdb.net.data/1.5.2",
+      "hashPath": "duckdb.net.data.1.5.2.nupkg.sha512"
+    }
+  }
+}
