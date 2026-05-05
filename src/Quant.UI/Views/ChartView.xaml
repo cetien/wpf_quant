@@ -1,0 +1,93 @@
+<UserControl x:Class="Quant.UI.Views.ChartView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
+             Background="#1E1E2E">
+
+    <!-- Resources는 반드시 Content(Grid) 보다 먼저 -->
+    <UserControl.Resources>
+        <Style x:Key="PeriodBtn" TargetType="Button">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="#6C7086"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="8,4"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="FontFamily"      Value="Consolas"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Margin"          Value="2,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#313244"/>
+                                <Setter Property="Foreground" Value="#CDD6F4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="44"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="22"/>
+        </Grid.RowDefinitions>
+
+        <!-- 헤더: ticker 입력 + 기간 버튼 -->
+        <Border Grid.Row="0" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1">
+            <Grid Margin="10,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="CHART" FontSize="11" FontWeight="Bold"
+                               Foreground="#6C7086" VerticalAlignment="Center"
+                               FontFamily="Consolas" Margin="0,0,12,0"/>
+                    <TextBlock Text="Ticker:" FontSize="11" Foreground="#6C7086"
+                               VerticalAlignment="Center" FontFamily="Consolas" Margin="0,0,6,0"/>
+                    <TextBox x:Name="TxtTicker" Width="80" Height="26"
+                             Background="#313244" Foreground="#CDD6F4"
+                             BorderBrush="#45475A" BorderThickness="1"
+                             FontFamily="Consolas" FontSize="12" Padding="4,2"
+                             VerticalContentAlignment="Center"
+                             Text="005930"
+                             KeyDown="TxtTicker_KeyDown"/>
+                    <Button Content="Load" Width="48" Height="26" Margin="4,0,16,0"
+                            Background="#89B4FA" Foreground="#1E1E2E"
+                            BorderThickness="0" FontWeight="Bold" FontSize="11"
+                            Cursor="Hand" Click="BtnLoad_Click"/>
+                    <!-- 기간 버튼 -->
+                    <Button x:Name="Btn1M"  Content="1M"  Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="30"/>
+                    <Button x:Name="Btn3M"  Content="3M"  Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="90"/>
+                    <Button x:Name="Btn6M"  Content="6M"  Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="180"/>
+                    <Button x:Name="Btn1Y"  Content="1Y"  Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="365"/>
+                    <Button x:Name="Btn2Y"  Content="2Y"  Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="730"/>
+                    <Button x:Name="BtnAll" Content="ALL" Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="0"/>
+                </StackPanel>
+                <TextBlock x:Name="TxtInfo" HorizontalAlignment="Right"
+                           FontSize="10" FontFamily="Consolas"
+                           Foreground="#6C7086" VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <!-- LiveCharts -->
+        <lvc:CartesianChart x:Name="Chart" Grid.Row="1"
+                            Background="#1E1E2E"
+                            Series="{Binding Series}"
+                            XAxes="{Binding XAxes}"
+                            YAxes="{Binding YAxes}"
+                            ZoomMode="X"
+                            TooltipPosition="Top"/>
+
+        <Border Grid.Row="2" Background="#252536" Padding="10,0">
+            <TextBlock x:Name="TxtStatus" Text=""
+                       FontSize="10" FontFamily="Consolas"
+                       Foreground="#6C7086" VerticalAlignment="Center"/>
+        </Border>
+    </Grid>
+</UserControl>

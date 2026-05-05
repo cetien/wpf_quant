@@ -1,0 +1,119 @@
+<UserControl x:Class="Quant.UI.Views.EditGroupView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#1E1E2E">
+    <UserControl.Resources>
+        <Style x:Key="QuantDataGrid" TargetType="DataGrid">
+            <Setter Property="Background"               Value="#181825"/>
+            <Setter Property="Foreground"               Value="#CDD6F4"/>
+            <Setter Property="BorderBrush"              Value="#45475A"/>
+            <Setter Property="BorderThickness"          Value="1"/>
+            <Setter Property="GridLinesVisibility"      Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="#313244"/>
+            <Setter Property="RowBackground"            Value="#181825"/>
+            <Setter Property="AlternatingRowBackground" Value="#1E1E2E"/>
+            <Setter Property="ColumnHeaderHeight"       Value="32"/>
+            <Setter Property="RowHeight"                Value="26"/>
+            <Setter Property="FontSize"                 Value="12"/>
+            <Setter Property="FontFamily"               Value="Consolas"/>
+            <Setter Property="SelectionMode"            Value="Single"/>
+            <Setter Property="IsReadOnly"               Value="True"/>
+            <Setter Property="AutoGenerateColumns"      Value="True"/>
+            <Setter Property="CanUserSortColumns"       Value="True"/>
+            <Setter Property="CanUserResizeColumns"     Value="True"/>
+        </Style>
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background"      Value="#252536"/>
+            <Setter Property="Foreground"      Value="#89B4FA"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="Padding"         Value="8,0"/>
+            <Setter Property="BorderBrush"     Value="#45475A"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+        </Style>
+        <Style TargetType="DataGridRow">
+            <Setter Property="Background" Value="Transparent"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#313244"/>
+                    <Setter Property="Foreground" Value="#CDD6F4"/>
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#2A2A3C"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style TargetType="DataGridCell">
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="6,0"/>
+            <Setter Property="Foreground"      Value="#CDD6F4"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="BorderBrush" Value="Transparent"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ActionBtn" TargetType="Button">
+            <Setter Property="Background"      Value="#313244"/>
+            <Setter Property="Foreground"      Value="#CDD6F4"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="14,6"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Margin"          Value="4,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#45475A"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#585b70"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="44"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="22"/>
+        </Grid.RowDefinitions>
+
+        <!-- 헤더 툴바 -->
+        <Border Grid.Row="0" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1">
+            <Grid Margin="10,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="🏷 GROUPS" FontSize="11" FontWeight="Bold"
+                               Foreground="#6C7086" VerticalAlignment="Center"
+                               FontFamily="Consolas" Margin="0,0,16,0"/>
+                    <Button Content="＋ New"    Style="{StaticResource ActionBtn}" Click="BtnNew_Click"/>
+                    <Button Content="✎ Edit"   Style="{StaticResource ActionBtn}" Click="BtnEdit_Click"/>
+                    <Button x:Name="BtnDel" Content="✕ Delete" Style="{StaticResource ActionBtn}"
+                            Click="BtnDelete_Click" Foreground="#F38BA8"/>
+                </StackPanel>
+                <TextBlock x:Name="TxtRowCount" HorizontalAlignment="Right"
+                           FontSize="10" FontFamily="Consolas"
+                           Foreground="#6C7086" VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <DataGrid x:Name="Grid" Grid.Row="1" Style="{StaticResource QuantDataGrid}"/>
+
+        <Border Grid.Row="2" Background="#252536" Padding="10,0">
+            <TextBlock x:Name="TxtStatus" Text=""
+                       FontSize="10" FontFamily="Consolas"
+                       Foreground="#6C7086" VerticalAlignment="Center"/>
+        </Border>
+    </Grid>
+</UserControl>

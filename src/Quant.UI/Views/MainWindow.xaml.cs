@@ -1,30 +1,31 @@
-using DuckDB.NET.Data;
-using System.Data;
-using System.Diagnostics;
 using System.IO;
-using System.Runtime.InteropServices;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
 
 namespace Quant.UI.Views;
 
 public partial class MainWindow : Window
 {
-    //private static bool _duckDbNativeReady;
-
     private static readonly string DbPath =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                      "quant", "quant.duckdb");
 
-    private static readonly string[] KnownTables =
-    [
-        "stocks", "groups", "stock_group_map",
-        "fundamentals", "daily_prices", "supply", 
-        "watchlists", "watchlist_items", "pdf_reports",
-        "data_update_log", "trading_calendar"
-    ];
+    // 뷰 캐시
+    private DbBrowserView?       _dbBrowserView;
+    private ChartView?           _chartView;
+    private ReportView?          _reportView;
+    private EditGroupView?       _editGroupView;
+    private EditWatchlistView?   _editWatchlistView;
+    private PlaceholderView?     _dashboardView;
+    private PlaceholderView?     _searchView;
+
+    // 툴버튼 목록 (활성 표시용)
+    private Button[] _toolButtons = [];
+
+    // 사이드패널 표시 여부
+    private bool _sidePanelVisible = true;
 
     public MainWindow()
     {
@@ -35,153 +36,146 @@ public partial class MainWindow : Window
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         TxtDbPath.Text = ShortenPath(DbPath);
-        BuildTableButtons();
-        CheckDbConnection();
+        _toolButtons   = [BtnDashboard, BtnChart, BtnSearch, BtnDbBrowser];
+        ShowDashboard();
     }
 
-    private void BuildTableButtons()
+    // ── LeftSidePanel 이벤트 핸들러 ──────────────────────────
+    private void SidePanel_StockSelected(string ticker)
     {
-        TableList.Children.Clear();
-        foreach (var tbl in KnownTables)
+        // ChartView가 현재 활성 뷰이면 바로 로드
+        if (MainContent.Content is ChartView cv)
         {
-            var btn = new Button { Content = tbl, Style = (Style)Resources["TableButton"], Tag = tbl };
-            btn.Click += TableBtn_Click;
-            TableList.Children.Add(btn);
+            cv.LoadTicker(ticker);
         }
+        // EditWatchlistView가 활성이면 선택 ticker를 상태바에 표시
+        SetStatus($"선택: {ticker}", "#CDD6F4");
     }
 
-    private void TableBtn_Click(object sender, RoutedEventArgs e)
+    private void SidePanel_GroupSelected(int groupId)
     {
-        if (sender is not Button btn) return;
-        foreach (Button b in TableList.Children)
-        {
-            b.Background = Brushes.Transparent;
-            b.Foreground = MakeBrush("#CDD6F4");
-        }
-        btn.Background = MakeBrush("#313244");
-        btn.Foreground = MakeBrush("#89B4FA");
-        TxtSql.Text = $"SELECT * FROM {btn.Tag} LIMIT 500";
-        RunQuery(TxtSql.Text);
+        // 향후 그룹 분석 뷰 등에서 활용
+        // 현재는 상태바 업데이트만
     }
 
-    private void BtnRun_Click(object sender, RoutedEventArgs e) => RunQuery(TxtSql.Text);
-
-    private void TxtSql_KeyDown(object sender, KeyEventArgs e)
+    // ── 메뉴: Side Panel 토글 ───────────────────────────────
+    private void MenuSidePanel_Click(object sender, RoutedEventArgs e)
     {
-        if (e.Key == Key.Return && Keyboard.Modifiers == ModifierKeys.Control)
-            RunQuery(TxtSql.Text);
+        _sidePanelVisible = !_sidePanelVisible;
+        SideColumn.Width  = _sidePanelVisible
+            ? new GridLength(222)
+            : new GridLength(0);
+        SidePanel.Visibility = _sidePanelVisible ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void RunQuery(string sql)
+    // ── 메뉴 핸들러 ──────────────────────────────────────────
+    private void MenuExit_Click(object sender, RoutedEventArgs e)         => Close();
+    private void MenuReport_Click(object sender, RoutedEventArgs e)       => ShowReport();
+    private void MenuEditGroup_Click(object sender, RoutedEventArgs e)    => ShowEditGroup();
+    private void MenuEditWatchlist_Click(object sender, RoutedEventArgs e) => ShowEditWatchlist();
+    private void MenuDbBrowser_Click(object sender, RoutedEventArgs e)    => ShowDbBrowser();
+
+    // ── 툴바 핸들러 ──────────────────────────────────────────
+    private void BtnDashboard_Click(object sender, RoutedEventArgs e) => ShowDashboard();
+    private void BtnChart_Click(object sender, RoutedEventArgs e)     => ShowChart();
+    private void BtnSearch_Click(object sender, RoutedEventArgs e)    => ShowSearch();
+    private void BtnDbBrowser_Click(object sender, RoutedEventArgs e) => ShowDbBrowser();
+
+    // ── 뷰 전환 ──────────────────────────────────────────────
+    private void ShowDashboard()
     {
-        if (string.IsNullOrWhiteSpace(sql)) return;
-        var sw = Stopwatch.StartNew();
-        ShowMsg("실행 중...", "#89B4FA");
-        TxtRowCount.Text = "";
-        try
-        {
-            if (!File.Exists(DbPath))
-            {
-                MainGrid.ItemsSource = null;
-                ShowMsg($"DB 없음: {DbPath}", "#F38BA8");
-                return;
-            }
-            var dt = FetchDataTable(sql);
-            sw.Stop();
-            MainGrid.ItemsSource = dt.DefaultView;
-            TxtRowCount.Text = $"{dt.Rows.Count:N0} rows  |  {dt.Columns.Count} cols";
-            ShowMsg("완료", "#A6E3A1");
-            TxtElapsed.Text = $"{sw.ElapsedMilliseconds} ms";
-        }
-        catch (Exception ex)
-        {
-            sw.Stop();
-            MainGrid.ItemsSource = null;
-            ShowMsg($"오류: {ex.Message}", "#F38BA8");
-            TxtElapsed.Text = $"{sw.ElapsedMilliseconds} ms";
-        }
+        _dashboardView ??= new PlaceholderView("⊞", "Dashboard");
+        SwitchView(_dashboardView, BtnDashboard, "Dashboard");
     }
 
-    private DataTable FetchDataTable(string sql)
+    private void ShowChart()
     {
-        //EnsureDuckDbNativeLoaded();
-        var dt = new DataTable();
-        using var conn = new DuckDBConnection($"Data Source={DbPath}");
-        conn.Open();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = sql;
-        using var reader = cmd.ExecuteReader();
-        for (int i = 0; i < reader.FieldCount; i++)
-            dt.Columns.Add(reader.GetName(i), typeof(string));
-        while (reader.Read())
+        if (_chartView is null)
         {
-            var row = dt.NewRow();
-            for (int i = 0; i < reader.FieldCount; i++)
-                row[i] = reader.IsDBNull(i) ? "NULL" : reader.GetValue(i)?.ToString() ?? "";
-            dt.Rows.Add(row);
+            _chartView = new ChartView();
+            _chartView.StatusChanged += SetStatus;
         }
-        return dt;
+        SwitchView(_chartView, BtnChart, "Chart");
     }
 
-    //private static void EnsureDuckDbNativeLoaded()
-    //{
-    //    if (_duckDbNativeReady) return;
-
-    //    var baseDir = AppContext.BaseDirectory;
-    //    var candidates = new[]
-    //    {
-    //        Path.Combine(baseDir, "duckdb.dll"),
-    //        Path.Combine(baseDir, "runtimes", "win-x64", "native", "duckdb.dll"),
-    //        Path.Combine(baseDir, "runtimes", "win-x86", "native", "duckdb.dll")
-    //    };
-
-    //    foreach (var path in candidates)
-    //    {
-    //        if (!File.Exists(path)) continue;
-    //        if (NativeLibrary.TryLoad(path, out _))
-    //        {
-    //            _duckDbNativeReady = true;
-    //            return;
-    //        }
-    //    }
-
-    //    throw new DllNotFoundException(
-    //        $"duckdb.dll not found. Checked: {string.Join(", ", candidates)}");
-    //}
-
-    private void CheckDbConnection()
+    private void ShowSearch()
     {
-        if (!File.Exists(DbPath))
-        {
-            TxtStatus.Text = "DB 없음";
-            ShowMsg($"DB 파일 없음: {DbPath}", "#F9E2AF");
-            return;
-        }
-        try
-        {
-            var dt = FetchDataTable(
-                "SELECT table_name FROM information_schema.tables WHERE table_schema='main' ORDER BY table_name");
-            var tables = dt.Rows.Cast<DataRow>().Select(r => r[0]?.ToString() ?? "").ToList();
-            TxtStatus.Text = $"  DB 연결됨  |  테이블 {tables.Count}개";
-            ShowMsg("DB 연결 성공. 테이블 선택 또는 Ctrl+Enter로 SQL 실행", "#A6E3A1");
-            foreach (Button btn in TableList.Children)
-                btn.Opacity = tables.Contains(btn.Tag?.ToString() ?? "") ? 1.0 : 0.35;
-        }
-        catch (Exception ex)
-        {
-            TxtStatus.Text = "DB 연결 실패";
-            ShowMsg($"오류: {ex.Message}", "#F38BA8");
-        }
+        _searchView ??= new PlaceholderView("🔍", "Search");
+        SwitchView(_searchView, BtnSearch, "Search");
     }
 
-    private void ShowMsg(string msg, string hex)
+    private void ShowDbBrowser()
     {
-        TxtMsg.Text = msg;
-        TxtMsg.Foreground = MakeBrush(hex);
+        if (_dbBrowserView is null)
+        {
+            _dbBrowserView = new DbBrowserView();
+            _dbBrowserView.StatusChanged  += SetStatus;
+            _dbBrowserView.ElapsedChanged += ms => TxtElapsed.Text = ms;
+        }
+        SwitchView(_dbBrowserView, BtnDbBrowser, "DB Browser");
     }
 
-    private static SolidColorBrush MakeBrush(string hex) =>
-        (SolidColorBrush)new BrushConverter().ConvertFrom(hex)!;
+    private void ShowReport()
+    {
+        if (_reportView is null)
+        {
+            _reportView = new ReportView();
+            _reportView.StatusChanged += SetStatus;
+        }
+        SwitchView(_reportView, null, "Report");
+    }
+
+    private void ShowEditGroup()
+    {
+        if (_editGroupView is null)
+        {
+            _editGroupView = new EditGroupView();
+            _editGroupView.StatusChanged += SetStatus;
+        }
+        SwitchView(_editGroupView, null, "Edit Group");
+    }
+
+    private void ShowEditWatchlist()
+    {
+        if (_editWatchlistView is null)
+        {
+            _editWatchlistView = new EditWatchlistView();
+            _editWatchlistView.StatusChanged += SetStatus;
+        }
+        SwitchView(_editWatchlistView, null, "Edit Watchlist");
+    }
+
+    // ── 공통 뷰 스위치 ────────────────────────────────────────
+    private void SwitchView(object view, Button? activeBtn, string label)
+    {
+        MainContent.Content = view;
+        TxtStatus.Text      = label;
+        TxtElapsed.Text     = "";
+        HighlightToolButton(activeBtn);
+    }
+
+    private void HighlightToolButton(Button? active)
+    {
+        foreach (var btn in _toolButtons)
+        {
+            var isActive  = ReferenceEquals(btn, active);
+            var fg        = isActive ? "#89B4FA" : "#6C7086";
+            var brush     = new SolidColorBrush((Color)ColorConverter.ConvertFromString(fg));
+            var underline = isActive ? brush : Brushes.Transparent;
+
+            btn.BorderBrush = underline;
+
+            if (btn.Content is StackPanel sp)
+                foreach (var child in sp.Children.OfType<TextBlock>())
+                    child.Foreground = brush;
+        }
+    }
+
+    private void SetStatus(string msg, string hex)
+    {
+        TxtMsg.Text       = msg;
+        TxtMsg.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+    }
 
     private static string ShortenPath(string path)
     {

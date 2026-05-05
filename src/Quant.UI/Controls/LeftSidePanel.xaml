@@ -1,0 +1,320 @@
+<UserControl x:Class="Quant.UI.Controls.LeftSidePanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Quant.UI.Controls"
+             Width="220"
+             Background="#181825">
+
+    <UserControl.Resources>
+
+        <!-- ── 공통 DataGrid 스타일 ─────────────────────────── -->
+        <Style x:Key="SideGrid" TargetType="DataGrid">
+            <Setter Property="Background"               Value="#181825"/>
+            <Setter Property="Foreground"               Value="#CDD6F4"/>
+            <Setter Property="BorderThickness"          Value="0"/>
+            <Setter Property="GridLinesVisibility"      Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="#252536"/>
+            <Setter Property="RowBackground"            Value="Transparent"/>
+            <Setter Property="AlternatingRowBackground" Value="#1A1A2E"/>
+            <Setter Property="ColumnHeaderHeight"       Value="24"/>
+            <Setter Property="RowHeight"                Value="24"/>
+            <Setter Property="FontSize"                 Value="11"/>
+            <Setter Property="FontFamily"               Value="Consolas"/>
+            <Setter Property="SelectionMode"            Value="Single"/>
+            <Setter Property="IsReadOnly"               Value="True"/>
+            <Setter Property="AutoGenerateColumns"      Value="False"/>
+            <Setter Property="CanUserSortColumns"       Value="True"/>
+            <Setter Property="CanUserResizeColumns"     Value="True"/>
+            <Setter Property="HeadersVisibility"        Value="Column"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility"   Value="Auto"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="SelectionUnit"            Value="FullRow"/>
+        </Style>
+
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background"      Value="#1E1E2E"/>
+            <Setter Property="Foreground"      Value="#585B70"/>
+            <Setter Property="FontSize"        Value="10"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="Padding"         Value="6,0"/>
+            <Setter Property="BorderBrush"     Value="#313244"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="Height"          Value="22"/>
+        </Style>
+
+        <Style TargetType="DataGridRow">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#313244"/>
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#252536"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="DataGridCell">
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="4,0"/>
+            <Setter Property="Foreground"      Value="#CDD6F4"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="BorderBrush" Value="Transparent"/>
+                    <Setter Property="Foreground" Value="#CDD6F4"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- ── 섹션 헤더 스타일 ───────────────────────────────── -->
+        <Style x:Key="SectionHeader" TargetType="TextBlock">
+            <Setter Property="FontSize"     Value="9"/>
+            <Setter Property="FontWeight"   Value="Bold"/>
+            <Setter Property="Foreground"   Value="#45475A"/>
+            <Setter Property="FontFamily"   Value="Consolas"/>
+            <Setter Property="Margin"       Value="8,6,0,3"/>
+        </Style>
+
+        <!-- ── 옵션 체크박스 스타일 ─────────────────────────────── -->
+        <Style x:Key="SideCheckBox" TargetType="CheckBox">
+            <Setter Property="Foreground"  Value="#6C7086"/>
+            <Setter Property="FontSize"    Value="10"/>
+            <Setter Property="FontFamily"  Value="Consolas"/>
+            <Setter Property="Margin"      Value="2,1"/>
+            <Setter Property="Cursor"      Value="Hand"/>
+        </Style>
+
+        <!-- ── 소형 아이콘 버튼 ──────────────────────────────────── -->
+        <Style x:Key="IconBtn" TargetType="Button">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="Foreground"      Value="#45475A"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Padding"         Value="4,2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                CornerRadius="3" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#313244"/>
+                                <Setter Property="Foreground" Value="#89B4FA"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </UserControl.Resources>
+
+    <DockPanel>
+
+        <!-- ── 패널 타이틀 바 ────────────────────────────────── -->
+        <Border DockPanel.Dock="Top"
+                Background="#1E1E2E"
+                BorderBrush="#313244" BorderThickness="0,0,0,1"
+                Height="36">
+            <DockPanel Margin="8,0">
+                <TextBlock Text="◈ WATCHPANEL"
+                           FontSize="10" FontWeight="Bold" FontFamily="Consolas"
+                           Foreground="#585B70" VerticalAlignment="Center"/>
+                <!-- 새로고침 버튼 -->
+                <Button DockPanel.Dock="Right"
+                        Content="⟳" Style="{StaticResource IconBtn}"
+                        ToolTip="Reload Groups"
+                        Command="{Binding LoadGroupsCommand}"
+                        VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
+
+        <!-- ── 하단 상태바 ───────────────────────────────────── -->
+        <Border DockPanel.Dock="Bottom"
+                Background="#1E1E2E"
+                BorderBrush="#313244" BorderThickness="0,1,0,0"
+                Height="20">
+            <TextBlock Text="{Binding StatusText}"
+                       FontSize="9" FontFamily="Consolas"
+                       Foreground="#45475A" VerticalAlignment="Center"
+                       Margin="8,0" TextTrimming="CharacterEllipsis"/>
+        </Border>
+
+        <!-- ── 메인 스크롤 영역 ──────────────────────────────── -->
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+
+                <!-- ════════════════════════════════════════════
+                     1. Global Indicators
+                     ════════════════════════════════════════════ -->
+                <TextBlock Text="GLOBAL INDICATORS" Style="{StaticResource SectionHeader}"/>
+
+                <Border Background="#1E1E2E" Margin="6,0,6,4"
+                        CornerRadius="4" Padding="4,4">
+                    <ItemsControl ItemsSource="{Binding Indicators}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Height="22" Margin="2,1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="48"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <!-- Symbol -->
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding Label}"
+                                               FontSize="9" FontFamily="Consolas"
+                                               Foreground="#6C7086"
+                                               VerticalAlignment="Center"/>
+                                    <!-- Value -->
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding Value, StringFormat={}{0:N1}}"
+                                               FontSize="10" FontFamily="Consolas"
+                                               Foreground="#CDD6F4"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Right"/>
+                                    <!-- Change -->
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                                Margin="6,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding ChangeSign}"
+                                                   FontSize="9" FontFamily="Consolas"
+                                                   VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsPositive}" Value="True">
+                                                            <Setter Property="Foreground" Value="#A6E3A1"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsPositive}" Value="False">
+                                                            <Setter Property="Foreground" Value="#F38BA8"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding ChangeAbs}"
+                                                   FontSize="9" FontFamily="Consolas"
+                                                   VerticalAlignment="Center" Margin="1,0,0,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsPositive}" Value="True">
+                                                            <Setter Property="Foreground" Value="#A6E3A1"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsPositive}" Value="False">
+                                                            <Setter Property="Foreground" Value="#F38BA8"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+
+                <!-- ════════════════════════════════════════════
+                     2. Options
+                     ════════════════════════════════════════════ -->
+                <TextBlock Text="OPTIONS" Style="{StaticResource SectionHeader}"/>
+
+                <Border Background="#1E1E2E" Margin="6,0,6,4"
+                        CornerRadius="4" Padding="6,4">
+                    <StackPanel>
+                        <CheckBox Content="Active only"
+                                  Style="{StaticResource SideCheckBox}"
+                                  IsChecked="{Binding ShowOnlyActive}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                            <CheckBox Content="Sector"
+                                      Style="{StaticResource SideCheckBox}"
+                                      IsChecked="{Binding ShowSector}"
+                                      Margin="0,0,8,0"/>
+                            <CheckBox Content="Theme"
+                                      Style="{StaticResource SideCheckBox}"
+                                      IsChecked="{Binding ShowTheme}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- ════════════════════════════════════════════
+                     3. Groups Grid
+                     ════════════════════════════════════════════ -->
+                <TextBlock Text="GROUPS" Style="{StaticResource SectionHeader}"/>
+
+                <Border Margin="6,0,6,0" BorderBrush="#313244" BorderThickness="1" CornerRadius="3">
+                    <DataGrid x:Name="GroupGrid"
+                              Style="{StaticResource SideGrid}"
+                              ItemsSource="{Binding Groups}"
+                              SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"
+                              Height="180">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Kind"  Binding="{Binding Kind}"       Width="44"/>
+                            <DataGridTextColumn Header="Name"  Binding="{Binding Name}"       Width="*"/>
+                            <DataGridTextColumn Header="#"     Binding="{Binding StockCount}" Width="28">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground"         Value="#89B4FA"/>
+                                        <Setter Property="HorizontalAlignment" Value="Right"/>
+                                        <Setter Property="Padding"             Value="0,0,4,0"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Border>
+
+                <!-- ════════════════════════════════════════════
+                     4. Stocks Grid (선택된 그룹의 종목)
+                     ════════════════════════════════════════════ -->
+                <DockPanel Margin="0,6,0,0">
+                    <TextBlock Text="STOCKS" Style="{StaticResource SectionHeader}"
+                               DockPanel.Dock="Left"/>
+                    <!-- 선택 그룹명 표시 -->
+                    <TextBlock Text="{Binding SelectedGroup.Name}"
+                               FontSize="9" FontFamily="Consolas"
+                               Foreground="#89B4FA" VerticalAlignment="Bottom"
+                               Margin="4,0,8,3" TextTrimming="CharacterEllipsis"
+                               DockPanel.Dock="Right"/>
+                </DockPanel>
+
+                <Border Margin="6,0,6,6" BorderBrush="#313244" BorderThickness="1" CornerRadius="3">
+                    <DataGrid x:Name="StockGrid"
+                              ItemsSource="{Binding Stocks}"
+                              SelectedItem="{Binding SelectedStock, Mode=TwoWay}"
+                              Height="200">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Ticker" Binding="{Binding Ticker}" Width="58"/>
+                            <DataGridTextColumn Header="Name"   Binding="{Binding Name}"   Width="*"/>
+                            <DataGridTextColumn Header="Mkt"    Binding="{Binding Market}"  Width="34">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="#6C7086"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                        <!-- 그룹 미선택 시 안내 오버레이 -->
+                        <DataGrid.Style>
+                            <Style TargetType="DataGrid" BasedOn="{StaticResource SideGrid}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSelectedGroup}" Value="False">
+                                        <Setter Property="Opacity" Value="0.4"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.Style>
+                    </DataGrid>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>
