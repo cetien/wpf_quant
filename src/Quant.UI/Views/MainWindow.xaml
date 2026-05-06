@@ -71,7 +71,7 @@
                 </Style>
             </Menu.Resources>
             <MenuItem Header="_File">
-                <MenuItem Header="Config" IsEnabled="False" Foreground="#45475A"/>
+                <MenuItem Header="Options…" Click="MenuOptions_Click"/>
                 <Separator/>
                 <MenuItem Header="Exit" Click="MenuExit_Click"/>
             </MenuItem>
@@ -98,9 +98,15 @@
             <DockPanel>
                 <Border DockPanel.Dock="Left" Padding="16,0"
                         BorderBrush="#45475A" BorderThickness="0,0,1,0">
-                    <TextBlock Text="⬡ QUANT" FontSize="14" FontWeight="Bold"
-                               Foreground="#89B4FA" VerticalAlignment="Center"
-                               FontFamily="Consolas"/>
+                    <Button Click="MenuSidePanel_Click"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Padding="0" Style="{StaticResource ToolBarButton}"
+                            Cursor="Hand">
+                        <TextBlock Text="⬡ QUANT" FontSize="14" FontWeight="Bold"
+                                   Foreground="#89B4FA" VerticalAlignment="Center"
+                                   FontFamily="Consolas"/>
+                    </Button>
                 </Border>
                 <TextBlock DockPanel.Dock="Right" x:Name="TxtDbPath" Margin="0,0,14,0"
                            FontSize="9" FontFamily="Consolas"

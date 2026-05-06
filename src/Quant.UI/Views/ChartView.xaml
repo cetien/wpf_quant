@@ -69,9 +69,18 @@
                     <Button x:Name="Btn2Y"  Content="2Y"  Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="730"/>
                     <Button x:Name="BtnAll" Content="ALL" Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="0"/>
                 </StackPanel>
-                <TextBlock x:Name="TxtInfo" HorizontalAlignment="Right"
-                           FontSize="10" FontFamily="Consolas"
-                           Foreground="#6C7086" VerticalAlignment="Center"/>
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center">
+                    <TextBlock x:Name="TxtName" FontFamily="Consolas"
+                               Foreground="#FFF1DE10"
+                               VerticalAlignment="Center"/>
+                    <TextBlock x:Name="TxtInfo"
+                               FontSize="10" FontFamily="Consolas"
+                               Foreground="#FFF4F4F5"
+                               VerticalAlignment="Center"
+                               Margin="8,0,0,0"/>
+                </StackPanel>
             </Grid>
         </Border>
 

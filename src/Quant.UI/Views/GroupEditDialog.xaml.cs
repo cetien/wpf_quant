@@ -1,4 +1,4 @@
-using DuckDB.NET.Data;
+using Quant.Core.Infrastructure;
 using System.Data;
 using System.Windows;
 using System.Windows.Controls;
@@ -7,14 +7,14 @@ namespace Quant.UI.Views;
 
 public partial class GroupEditDialog : Window
 {
-    private readonly string _dbPath;
-    private readonly DataRowView? _row; // null → New
-    private readonly bool _isEdit;
+    private readonly DbManager    _db    = DbManager.Instance;
+    private readonly DataRowView? _row;
+    private readonly bool         _isEdit;
 
-    public GroupEditDialog(string dbPath, DataRowView? row)
+    /// <param name="row">null → 신규, non-null → 수정</param>
+    public GroupEditDialog(DataRowView? row)
     {
         InitializeComponent();
-        _dbPath = dbPath;
         _row    = row;
         _isEdit = row is not null;
         if (_isEdit) PopulateFields();
@@ -37,20 +37,21 @@ public partial class GroupEditDialog : Window
         var desc   = TxtDesc.Text.Trim();
         var rating = int.TryParse(TxtRating.Text, out var r) ? Math.Clamp(r, 1, 10) : 5;
         if (string.IsNullOrEmpty(name)) { MessageBox.Show("Name을 입력하세요"); return; }
-
         try
         {
             if (_isEdit)
             {
                 var id = _row!["group_id"]?.ToString() ?? "0";
-                Execute($"UPDATE groups SET kind='{kind}', name='{Esc(name)}', " +
-                        $"description='{Esc(desc)}', rating={rating}, " +
-                        $"updated_at=CURRENT_TIMESTAMP WHERE group_id={id}");
+                _db.Execute(
+                    $"UPDATE groups SET kind='{kind}', name='{Esc(name)}', " +
+                    $"description='{Esc(desc)}', rating={rating}, " +
+                    $"updated_at=CURRENT_TIMESTAMP WHERE group_id={id}");
             }
             else
             {
-                Execute($"INSERT INTO groups (kind, name, description, rating) " +
-                        $"VALUES ('{kind}', '{Esc(name)}', '{Esc(desc)}', {rating})");
+                _db.Execute(
+                    $"INSERT INTO groups (kind, name, description, rating) " +
+                    $"VALUES ('{kind}', '{Esc(name)}', '{Esc(desc)}', {rating})");
             }
             DialogResult = true;
         }
@@ -58,15 +59,6 @@ public partial class GroupEditDialog : Window
     }
 
     private void BtnCancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;
-
-    private void Execute(string sql)
-    {
-        using var conn = new DuckDBConnection($"Data Source={_dbPath}");
-        conn.Open();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.ExecuteNonQuery();
-    }
 
     private static string Esc(string s) => s.Replace("'", "''");
 }

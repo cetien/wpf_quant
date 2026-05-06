@@ -1,4 +1,4 @@
-using DuckDB.NET.Data;
+using Quant.Core.Infrastructure;
 using System.Data;
 using System.Windows;
 
@@ -6,14 +6,14 @@ namespace Quant.UI.Views;
 
 public partial class WatchlistEditDialog : Window
 {
-    private readonly string _dbPath;
+    private readonly DbManager    _db    = DbManager.Instance;
     private readonly DataRowView? _row;
-    private readonly bool _isEdit;
+    private readonly bool         _isEdit;
 
-    public WatchlistEditDialog(string dbPath, DataRowView? row)
+    /// <param name="row">null → 신규, non-null → 수정</param>
+    public WatchlistEditDialog(DataRowView? row)
     {
         InitializeComponent();
-        _dbPath = dbPath;
         _row    = row;
         _isEdit = row is not null;
         if (_isEdit)
@@ -33,13 +33,14 @@ public partial class WatchlistEditDialog : Window
             if (_isEdit)
             {
                 var id = _row!["watchlist_id"]?.ToString() ?? "0";
-                Execute($"UPDATE watchlists SET name='{Esc(name)}', description='{Esc(desc)}', " +
-                        $"updated_at=CURRENT_TIMESTAMP WHERE watchlist_id={id}");
+                _db.Execute(
+                    $"UPDATE watchlists SET name='{Esc(name)}', description='{Esc(desc)}', " +
+                    $"updated_at=CURRENT_TIMESTAMP WHERE watchlist_id={id}");
             }
             else
             {
-                Execute($"INSERT INTO watchlists (name, description) " +
-                        $"VALUES ('{Esc(name)}', '{Esc(desc)}')");
+                _db.Execute(
+                    $"INSERT INTO watchlists (name, description) VALUES ('{Esc(name)}', '{Esc(desc)}')");
             }
             DialogResult = true;
         }
@@ -47,15 +48,6 @@ public partial class WatchlistEditDialog : Window
     }
 
     private void BtnCancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;
-
-    private void Execute(string sql)
-    {
-        using var conn = new DuckDBConnection($"Data Source={_dbPath}");
-        conn.Open();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.ExecuteNonQuery();
-    }
 
     private static string Esc(string s) => s.Replace("'", "''");
 }

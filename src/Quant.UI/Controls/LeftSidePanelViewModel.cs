@@ -1,13 +1,13 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DuckDB.NET.Data;
+using Quant.Core.Infrastructure;
 using System.Collections.ObjectModel;
-using System.IO;
+using System.Data;
 
 namespace Quant.UI.Controls;
 
 // ──────────────────────────────────────────────────────────────
-//  Global Indicator (SOX, WTI, KOSPI, S&P500, …)
+//  Global Indicator
 // ──────────────────────────────────────────────────────────────
 public class GlobalIndicatorItem : ObservableObject
 {
@@ -56,14 +56,14 @@ public class GlobalIndicatorItem : ObservableObject
 public class GroupRow
 {
     public int    GroupId    { get; set; }
-    public string Kind       { get; set; } = "";   // sector | theme
+    public string Kind       { get; set; } = "";
     public string Name       { get; set; } = "";
     public int    StockCount { get; set; }
     public int    Rating     { get; set; }
 }
 
 // ──────────────────────────────────────────────────────────────
-//  Stock row (within selected group)
+//  Stock row
 // ──────────────────────────────────────────────────────────────
 public class StockRow
 {
@@ -78,9 +78,7 @@ public class StockRow
 // ──────────────────────────────────────────────────────────────
 public partial class LeftSidePanelViewModel : ObservableObject
 {
-    private static readonly string DbPath =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                     "quant", "quant.duckdb");
+    private readonly DbManager _db = DbManager.Instance;
 
     // ── 글로벌 인디케이터 ─────────────────────────────────────
     public ObservableCollection<GlobalIndicatorItem> Indicators { get; } = [];
@@ -112,9 +110,9 @@ public partial class LeftSidePanelViewModel : ObservableObject
     [ObservableProperty] private string _statusText = "준비";
     [ObservableProperty] private bool   _isBusy     = false;
 
-    // ── 이벤트: 외부 뷰에 종목/그룹 선택 알림 ─────────────────
-    public event Action<string>? StockSelected;   // ticker
-    public event Action<int>?    GroupSelected;   // group_id
+    // ── 이벤트 ───────────────────────────────────────────────
+    public event Action<string, string>? StockSelected;
+    public event Action<int, string>?    GroupSelected;
 
     // ═════════════════════════════════════════════════════════
     public LeftSidePanelViewModel()
@@ -122,9 +120,6 @@ public partial class LeftSidePanelViewModel : ObservableObject
         InitIndicators();
     }
 
-    // ──────────────────────────────────────────────────────────
-    //  Indicators (더미 초기값 – 추후 실시간 API로 교체)
-    // ──────────────────────────────────────────────────────────
     private void InitIndicators()
     {
         Indicators.Add(new GlobalIndicatorItem { Symbol = "SOX",   Label = "SOX",    Value = 5_123.4,  Change =  1.23 });
@@ -135,7 +130,6 @@ public partial class LeftSidePanelViewModel : ObservableObject
         Indicators.Add(new GlobalIndicatorItem { Symbol = "DXY",   Label = "DXY",    Value =   104.8,  Change = -0.12 });
     }
 
-    /// <summary>외부 피드에서 실시간 인디케이터 값 업데이트</summary>
     public void UpdateIndicator(string symbol, double value, double changePct)
     {
         var item = Indicators.FirstOrDefault(i => i.Symbol == symbol);
@@ -170,19 +164,16 @@ public partial class LeftSidePanelViewModel : ObservableObject
                 ORDER BY g.kind, g.name
                 """;
 
-            using var conn = OpenDb();
-            using var cmd  = conn.CreateCommand();
-            cmd.CommandText = sql;
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
+            var dt = _db.Query(sql);
+            foreach (DataRow row in dt.Rows)
             {
                 Groups.Add(new GroupRow
                 {
-                    GroupId    = SafeInt(reader, "group_id"),
-                    Kind       = SafeStr(reader, "kind"),
-                    Name       = SafeStr(reader, "name"),
-                    Rating     = SafeInt(reader, "rating"),
-                    StockCount = SafeInt(reader, "stock_count"),
+                    GroupId    = SafeInt(row, "group_id"),
+                    Kind       = SafeStr(row, "kind"),
+                    Name       = SafeStr(row, "name"),
+                    Rating     = SafeInt(row, "rating"),
+                    StockCount = SafeInt(row, "stock_count"),
                 });
             }
             StatusText = $"그룹 {Groups.Count}건";
@@ -207,8 +198,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
         Stocks.Clear();
         SelectedStock = null;
         if (value is null) return;
-
-        GroupSelected?.Invoke(value.GroupId);
+        GroupSelected?.Invoke(value.GroupId, value.Name);
         LoadStocksForGroup(value.GroupId);
     }
 
@@ -225,18 +215,15 @@ public partial class LeftSidePanelViewModel : ObservableObject
                 ORDER BY s.ticker
                 """;
 
-            using var conn = OpenDb();
-            using var cmd  = conn.CreateCommand();
-            cmd.CommandText = sql;
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
+            var dt = _db.Query(sql);
+            foreach (DataRow row in dt.Rows)
             {
                 Stocks.Add(new StockRow
                 {
-                    Ticker = SafeStr(reader, "ticker"),
-                    Name   = SafeStr(reader, "name"),
-                    Market = SafeStr(reader, "market"),
-                    Rating = SafeInt(reader, "rating"),
+                    Ticker = SafeStr(row, "ticker"),
+                    Name   = SafeStr(row, "name"),
+                    Market = SafeStr(row, "market"),
+                    Rating = SafeInt(row, "rating"),
                 });
             }
             StatusText = $"{SelectedGroup?.Name}  {Stocks.Count}종목";
@@ -244,41 +231,27 @@ public partial class LeftSidePanelViewModel : ObservableObject
         catch (Exception ex) { StatusText = $"오류: {ex.Message}"; }
     }
 
-    // ──────────────────────────────────────────────────────────
-    //  Stock 선택
-    // ──────────────────────────────────────────────────────────
     partial void OnSelectedStockChanged(StockRow? value)
     {
-        if (value is not null)
-            StockSelected?.Invoke(value.Ticker);
+        if (value is not null) StockSelected?.Invoke(value.Ticker, value.Name);
     }
 
-    // ──────────────────────────────────────────────────────────
-    //  옵션 변경 시 자동 리로드
-    // ──────────────────────────────────────────────────────────
     partial void OnShowOnlyActiveChanged(bool value) => LoadGroups();
     partial void OnShowSectorChanged(bool value)     => LoadGroups();
     partial void OnShowThemeChanged(bool value)      => LoadGroups();
 
     // ──────────────────────────────────────────────────────────
-    //  Helper
+    //  Helper — DataRow에서 안전 추출 (DataTable 기반으로 전환)
     // ──────────────────────────────────────────────────────────
-    private static DuckDBConnection OpenDb()
+    private static string SafeStr(DataRow r, string col)
     {
-        var conn = new DuckDBConnection($"Data Source={DbPath}");
-        conn.Open();
-        return conn;
-    }
-
-    private static string SafeStr(System.Data.IDataReader r, string col)
-    {
-        try { var i = r.GetOrdinal(col); return r.IsDBNull(i) ? "" : r.GetValue(i)?.ToString() ?? ""; }
+        try { return r.IsNull(col) ? "" : r[col]?.ToString() ?? ""; }
         catch { return ""; }
     }
 
-    private static int SafeInt(System.Data.IDataReader r, string col)
+    private static int SafeInt(DataRow r, string col)
     {
-        try { var i = r.GetOrdinal(col); return r.IsDBNull(i) ? 0 : Convert.ToInt32(r.GetValue(i)); }
+        try { return r.IsNull(col) ? 0 : Convert.ToInt32(r[col]); }
         catch { return 0; }
     }
 }

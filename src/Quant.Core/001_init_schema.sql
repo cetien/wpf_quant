@@ -27,9 +27,8 @@ CREATE TABLE IF NOT EXISTS delisted_stocks (
 );
 
 -- ── groups (sector + theme 통합) ────────────────────────────
-CREATE SEQUENCE IF NOT EXISTS seq_groups_id START 1;
 CREATE TABLE IF NOT EXISTS groups (
-    group_id    INTEGER     PRIMARY KEY DEFAULT nextval('seq_groups_id'),
+    group_id    INTEGER     PRIMARY KEY,
     kind        TEXT        NOT NULL CHECK (kind IN ('sector', 'theme')),
     name        TEXT        NOT NULL UNIQUE,
     description TEXT,
@@ -119,9 +118,8 @@ CREATE TABLE IF NOT EXISTS supply (
 -- );
 
 -- ── watchlists ───────────────────────────────────────────────
-CREATE SEQUENCE IF NOT EXISTS seq_watchlists_id START 1;
 CREATE TABLE IF NOT EXISTS watchlists (
-    watchlist_id    INTEGER     PRIMARY KEY DEFAULT nextval('seq_watchlists_id'),
+    watchlist_id    INTEGER     PRIMARY KEY,
     name            TEXT        NOT NULL,   -- "주도주", "ETF", "방산", "저평가"
     description     TEXT,
     created_at      TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -143,9 +141,8 @@ CREATE TABLE IF NOT EXISTS watchlist_items (
 );
 
 -- ── pdf_reports ──────────────────────────────────────────────
-CREATE SEQUENCE IF NOT EXISTS seq_pdf_reports_id START 1;
 CREATE TABLE IF NOT EXISTS pdf_reports (
-    id          INTEGER     PRIMARY KEY DEFAULT nextval('seq_pdf_reports_id'),
+    id          INTEGER     PRIMARY KEY,
     date        DATE        NOT NULL,
     ticker      TEXT,
     title       TEXT,
@@ -157,9 +154,8 @@ CREATE TABLE IF NOT EXISTS pdf_reports (
 
 -- ── data_update_log ──────────────────────────────────────────
 -- 수집 실패 추적 / 데이터 결손 탐지
-CREATE SEQUENCE IF NOT EXISTS seq_data_update_log_id START 1;
 CREATE TABLE IF NOT EXISTS data_update_log (
-    id          INTEGER     PRIMARY KEY DEFAULT nextval('seq_data_update_log_id'),
+    id          INTEGER     PRIMARY KEY,
     ticker      TEXT,
     date        DATE,
     source      TEXT        NOT NULL,   -- 'pykrx', 'dart', 'manual'

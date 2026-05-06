@@ -1,0 +1,103 @@
+<Window x:Class="Quant.UI.Views.OptionDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Options" Width="480" Height="240"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="#1E1E2E" Foreground="#CDD6F4">
+
+    <Window.Resources>
+        <Style x:Key="Lbl" TargetType="TextBlock">
+            <Setter Property="Foreground"  Value="#6C7086"/>
+            <Setter Property="FontSize"    Value="10"/>
+            <Setter Property="FontFamily"  Value="Consolas"/>
+            <Setter Property="Margin"      Value="0,0,0,4"/>
+        </Style>
+        <Style x:Key="Inp" TargetType="TextBox">
+            <Setter Property="Background"      Value="#252536"/>
+            <Setter Property="Foreground"      Value="#CDD6F4"/>
+            <Setter Property="CaretBrush"      Value="#89B4FA"/>
+            <Setter Property="BorderBrush"     Value="#45475A"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontFamily"      Value="Consolas"/>
+            <Setter Property="FontSize"        Value="12"/>
+            <Setter Property="Padding"         Value="6,4"/>
+            <Setter Property="IsReadOnly"      Value="True"/>
+        </Style>
+        <Style x:Key="Btn" TargetType="Button">
+            <Setter Property="Background"      Value="#313244"/>
+            <Setter Property="Foreground"      Value="#CDD6F4"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontFamily"      Value="Consolas"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Padding"         Value="10,5"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#45475A"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="16"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ── Auto Append History ── -->
+        <CheckBox Grid.Row="0"
+                  x:Name="ChkAutoAppend"
+                  Content="Auto append to history"
+                  Foreground="#CDD6F4"
+                  FontFamily="Consolas"
+                  FontSize="12"
+                  VerticalContentAlignment="Center"/>
+
+        <!-- ── Report PDF Folder ── -->
+        <StackPanel Grid.Row="2">
+            <TextBlock Text="Report PDF folder" Style="{StaticResource Lbl}"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox  Grid.Column="0" x:Name="TxtPdfFolder" Style="{StaticResource Inp}"
+                          ToolTip="PDF 리포트를 감시할 폴더"/>
+                <Button   Grid.Column="2" x:Name="BtnBrowse" Content="Browse…"
+                          Style="{StaticResource Btn}"
+                          Click="BtnBrowse_Click"/>
+            </Grid>
+        </StackPanel>
+
+        <!-- ── OK / Cancel ── -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Cancel" Style="{StaticResource Btn}"
+                    Width="72" Margin="0,0,8,0"
+                    Click="BtnCancel_Click"/>
+            <Button Content="OK" Style="{StaticResource Btn}"
+                    Width="72"
+                    Background="#89B4FA" Foreground="#1E1E2E" FontWeight="Bold"
+                    Click="BtnOk_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

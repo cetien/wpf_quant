@@ -82,10 +82,29 @@
             </Grid>
         </Border>
 
+        
         <!-- 데이터 그리드 -->
-        <DataGrid x:Name="Grid" Grid.Row="1"
-                  Style="{StaticResource QuantDataGrid}"
-                  MouseDoubleClick="Grid_MouseDoubleClick"/>
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="200"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <DataGrid x:Name="GridCompany" Grid.Column="0"
+                      Style="{StaticResource QuantDataGrid}"
+                      SelectionChanged="Grid_CompanyClick"/>
+            <DataGrid x:Name="GridReport" Grid.Column="1"
+                      Style="{StaticResource QuantDataGrid}"
+                      AutoGenerateColumns="False"
+                      MouseDoubleClick="Grid_ReportClick">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="date"   Binding="{Binding date}"   Width="90"/>
+                    <DataGridTextColumn Header="ticker" Binding="{Binding ticker}" Width="80"/>
+                    <DataGridTextColumn Header="title"  Binding="{Binding title}"  Width="*"/>
+                    <DataGridTextColumn Header="writer" Binding="{Binding writer}" Width="100"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Grid>
 
         <!-- 상태바 -->
         <Border Grid.Row="2" Background="#252536" Padding="10,0">
