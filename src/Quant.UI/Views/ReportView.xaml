@@ -72,13 +72,19 @@
                     <TextBlock Text="📄 REPORTS" FontSize="11" FontWeight="Bold"
                                Foreground="#6C7086" VerticalAlignment="Center"
                                FontFamily="Consolas" Margin="0,0,16,0"/>
-                    <TextBlock Text="더블클릭 → Chrome으로 열기" FontSize="10"
-                               Foreground="#45475A" VerticalAlignment="Center"
+                    <Button Click="ButtonShowAll_Click"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Padding="0"
+                            Cursor="Hand">
+                        <TextBlock Text="Show All" FontSize="10"
+                               Foreground="#FFCAD0A6" VerticalAlignment="Center"
                                FontFamily="Consolas"/>
+                    </Button>                    
                 </StackPanel>
                 <TextBlock x:Name="TxtRowCount" HorizontalAlignment="Right"
                            FontSize="10" FontFamily="Consolas"
-                           Foreground="#6C7086" VerticalAlignment="Center"/>
+                           Foreground="White" VerticalAlignment="Center"/>
             </Grid>
         </Border>
 
@@ -87,13 +93,17 @@
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="200"/>
+                <ColumnDefinition Width="124"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
             <DataGrid x:Name="GridCompany" Grid.Column="0"
                       Style="{StaticResource QuantDataGrid}"
                       SelectionChanged="Grid_CompanyClick"/>
-            <DataGrid x:Name="GridReport" Grid.Column="1"
+            <DataGrid x:Name="GridDate" Grid.Column="1"
+                      Style="{StaticResource QuantDataGrid}"
+                      SelectionChanged="Grid_DateClick"/>
+            <DataGrid x:Name="GridReport" Grid.Column="2"
                       Style="{StaticResource QuantDataGrid}"
                       AutoGenerateColumns="False"
                       MouseDoubleClick="Grid_ReportClick">
@@ -102,6 +112,19 @@
                     <DataGridTextColumn Header="ticker" Binding="{Binding ticker}" Width="80"/>
                     <DataGridTextColumn Header="title"  Binding="{Binding title}"  Width="*"/>
                     <DataGridTextColumn Header="writer" Binding="{Binding writer}" Width="100"/>
+                    <DataGridTemplateColumn Header="" Width="36" CanUserSort="False" CanUserResize="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="🗑" FontSize="13"
+                                        Background="Transparent" BorderThickness="0"
+                                        Cursor="Hand" ToolTip="삭제"
+                                        Foreground="#F38BA8"
+                                        HorizontalAlignment="Center"
+                                        Tag="{Binding}"
+                                        Click="BtnDelete_Click"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
         </Grid>
@@ -110,7 +133,7 @@
         <Border Grid.Row="2" Background="#252536" Padding="10,0">
             <TextBlock x:Name="TxtStatus" Text=""
                        FontSize="10" FontFamily="Consolas"
-                       Foreground="#6C7086" VerticalAlignment="Center"/>
+                       Foreground="#FFEBECF5" VerticalAlignment="Center"/>
         </Border>
     </Grid>
 </UserControl>

@@ -1,8 +1,10 @@
 using Quant.Core.Infrastructure;
+
 using System.Data;
 using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 
@@ -201,11 +203,11 @@ public partial class ReportView : UserControl
                 "SELECT id, date, ticker, title, writer, filepath " +
                 "FROM pdf_reports ORDER BY date DESC, id DESC LIMIT 5000");
 
-            ApplyReportFilter(null);
+            ApplyReportFilter(null, null);
             RefreshCompanyGrid();
 
             TxtRowCount.Text = $"{_allReports.Rows.Count:N0} rows";
-            SetStatus($"리포트 {_allReports.Rows.Count:N0}건", "#A6E3A1");
+            SetStatus($"Total {_allReports.Rows.Count:N0}", "#A6E3A1");
         }
         catch (Exception ex) { SetStatus($"오류: {ex.Message}", "#F38BA8"); }
     }
@@ -213,50 +215,61 @@ public partial class ReportView : UserControl
     // ──────────────────────────────────────────────────────────
     //  GridCompany: 첫 행 고정 All + ticker별 건수
     // ──────────────────────────────────────────────────────────
-    private void RefreshCompanyGrid()
+    private void FillGrid_GroupedBy(string column, DataGrid grid)
     {
         var dt = new DataTable();
-        dt.Columns.Add("ticker", typeof(string));
-        dt.Columns.Add("건수",   typeof(int));
+        dt.Columns.Add(column, typeof(string));
+        dt.Columns.Add("cnt",   typeof(int));
 
         dt.Rows.Add("All", _allReports.Rows.Count);
 
         var grouped = _allReports.AsEnumerable()
-            .GroupBy(r => r["ticker"]?.ToString() ?? "")
+            .GroupBy(r => r[column]?.ToString() ?? "")
             .OrderByDescending(g => g.Count())
             .ThenBy(g => g.Key);
 
         foreach (var g in grouped)
             dt.Rows.Add(g.Key, g.Count());
 
-        GridCompany.ItemsSource   = dt.DefaultView;
-        GridCompany.SelectedIndex = 0;
+		grid.ItemsSource   = dt.DefaultView;
+		grid.SelectedIndex = 0;
     }
-
-    // ──────────────────────────────────────────────────────────
-    //  GridReport 필터
-    // ──────────────────────────────────────────────────────────
-    private void ApplyReportFilter(string? ticker)
+	private void RefreshCompanyGrid()
     {
-        _allReports.DefaultView.RowFilter =
-            ticker is null || ticker == "All"
-                ? ""
-                : $"ticker = '{ticker.Replace("'", "''")}'";
-        GridReport.ItemsSource = _allReports.DefaultView;
-        TxtRowCount.Text = $"{_allReports.DefaultView.Count:N0} rows";
-    }
+        FillGrid_GroupedBy("ticker", GridCompany);
+		FillGrid_GroupedBy("date", GridDate);
+	}
 
-    // ══════════════════════════════════════════════════════════
-    //  Event handlers
-    // ══════════════════════════════════════════════════════════
+	// ──────────────────────────────────────────────────────────
+	//  GridReport 필터
+	// ──────────────────────────────────────────────────────────
 
-    private void Grid_CompanyClick(object sender, SelectionChangedEventArgs e)
+	private void ApplyReportFilter(string? key, string? value)
+	{
+		_allReports.DefaultView.RowFilter =
+			(key is null || value == "All" || value is null)
+				? ""
+				: $"{key} = '{value.Replace("'", "''")}'";
+		GridReport.ItemsSource = _allReports.DefaultView;
+		TxtRowCount.Text = $"{_allReports.DefaultView.Count:N0} rows";
+	}
+	// ══════════════════════════════════════════════════════════
+	//  Event handlers
+	// ══════════════════════════════════════════════════════════
+
+	private void Grid_CompanyClick(object sender, SelectionChangedEventArgs e)
     {
         if (GridCompany.SelectedItem is not DataRowView row) return;
-        ApplyReportFilter(row["ticker"]?.ToString());
+		ApplyReportFilter("ticker", row["ticker"]?.ToString());
     }
 
-    private void Grid_ReportClick(object sender, MouseButtonEventArgs e)
+	private void Grid_DateClick(object sender, SelectionChangedEventArgs e)
+	{
+		if (GridDate.SelectedItem is not DataRowView row) return;
+		ApplyReportFilter("date", row["date"]?.ToString());
+	}
+
+	private void Grid_ReportClick(object sender, MouseButtonEventArgs e)
     {
         if (GridReport.SelectedItem is not DataRowView row) return;
         var filepath = row["filepath"]?.ToString();
@@ -265,11 +278,66 @@ public partial class ReportView : UserControl
         OpenWithChrome(filepath);
     }
 
-    // ══════════════════════════════════════════════════════════
-    //  Chrome 열기
-    // ══════════════════════════════════════════════════════════
+	private void ButtonShowAll_Click(object sender, RoutedEventArgs e)
+	{
+		ApplyReportFilter(null, null);
+	}
 
-    private void OpenWithChrome(string path)
+	private void BtnDelete_Click(object sender, RoutedEventArgs e)
+	{
+		if (sender is not Button btn) return;
+
+		// DataGridTemplateColumn은 DataContext가 DataRowView
+		var row = (btn.DataContext as DataRowView)
+			   ?? (btn.Tag       as DataRowView);
+		if (row is null) return;
+
+		var filepath = row["filepath"]?.ToString() ?? "";
+		var idRaw    = row["id"];
+		if (!int.TryParse(idRaw?.ToString(), out var id)) return;
+
+		// ── 확인 다이얼로그 ──
+		var title    = row["title"]?.ToString() ?? filepath;
+		var confirm  = MessageBox.Show(
+			$"삭제하시겠습니까?\n\n{title}\n\n• DB 레코드 삭제\n• 파일 삭제: {filepath}",
+			"삭제 확인", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+		if (confirm != MessageBoxResult.Yes) return;
+
+		// ── DB DELETE ──
+		try
+		{
+			using var conn = _db.OpenNativeConnection();
+			using var cmd  = conn.CreateCommand();
+			cmd.CommandText = "DELETE FROM pdf_reports WHERE id = $1";
+			cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = id });
+			cmd.ExecuteNonQuery();
+		}
+		catch (Exception ex)
+		{
+			SetStatus($"DB 삭제 오류: {ex.Message}", "#F38BA8");
+			return;
+		}
+
+		// ── 파일 DELETE ──
+		if (!string.IsNullOrWhiteSpace(filepath) && File.Exists(filepath))
+		{
+			try   { File.Delete(filepath); }
+			catch (Exception ex) { SetStatus($"파일 삭제 오류: {ex.Message}", "#F9E2AF"); }
+		}
+
+		// ── 메모리 테이블에서 제거 후 그리드 갱신 ──
+		row.Row.Delete();
+		_allReports.AcceptChanges();
+		RefreshCompanyGrid();
+		TxtRowCount.Text = $"{_allReports.DefaultView.Count:N0} rows";
+		SetStatus($"삭제 완료: {Path.GetFileName(filepath)}", "#A6E3A1");
+	}
+
+	// ══════════════════════════════════════════════════════════
+	//  Chrome 열기
+	// ══════════════════════════════════════════════════════════
+
+	private void OpenWithChrome(string path)
     {
         string[] candidates =
         [

@@ -61,6 +61,9 @@
                             Background="#89B4FA" Foreground="#1E1E2E"
                             BorderThickness="0" FontWeight="Bold" FontSize="11"
                             Cursor="Hand" Click="BtnLoad_Click"/>
+                    <Button Content="🔄" Width="30" Height="26" Style="{StaticResource PeriodBtn}"
+                            Foreground="#FF8BF9BA"
+                            Click="BtnDownloadData_Click"/>                    
                     <!-- 기간 버튼 -->
                     <Button x:Name="Btn1M"  Content="1M"  Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="30"/>
                     <Button x:Name="Btn3M"  Content="3M"  Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="90"/>

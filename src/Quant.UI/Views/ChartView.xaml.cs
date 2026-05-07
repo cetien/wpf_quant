@@ -3,6 +3,7 @@ using LiveChartsCore.Defaults;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
 using Quant.Core.Infrastructure;
+using Quant.Core.Services;
 using SkiaSharp;
 using System.Collections.ObjectModel;
 using System.Windows;
@@ -36,7 +37,13 @@ public partial class ChartView : UserControl
     {
         XAxes.Add(new Axis
         {
-            Labeler         = v => new DateTime((long)v).ToString("yy/MM/dd"),
+            Labeler         = v =>
+            {
+                var ticks = (long)v;
+                if (ticks < DateTime.MinValue.Ticks || ticks > DateTime.MaxValue.Ticks) return "";
+                return new DateTime(ticks).ToString("yy/MM/dd");
+            },
+            UnitWidth       = TimeSpan.FromDays(1).Ticks,
             LabelsPaint     = new SolidColorPaint(SKColor.Parse("#6C7086")),
             SeparatorsPaint = new SolidColorPaint(SKColor.Parse("#313244")),
             TextSize        = 10,
@@ -135,4 +142,39 @@ public partial class ChartView : UserControl
             (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#89B4FA"));
         ApplyPeriod();
     }
+
+	private async void BtnDownloadData_Click(object sender, RoutedEventArgs e)
+    {
+        var ticker = TxtTicker.Text.Trim().ToUpper();
+        if (string.IsNullOrEmpty(ticker)) return;
+
+        // 버튼 비활성화 (중복 클릭 방지)
+        if (sender is Button btn) btn.IsEnabled = false;
+
+        try
+        {
+            var svc      = new PriceDownloadService(_db);
+            var progress = new Progress<string>(msg =>
+                StatusChanged?.Invoke(msg, "#89B4FA"));
+
+            var (inserted, lastDate) = await svc.DownloadAsync(ticker, progress);
+
+            // 차트 리로드
+            LoadChart();
+
+            var msg = inserted > 0
+                ? $"{ticker}: {inserted:N0}건 저장 완료 (최신 {lastDate})"
+                : $"{ticker}: 신규 데이터 없음 (최신 {lastDate})";
+            StatusChanged?.Invoke(msg, "#A6E3A1");
+        }
+        catch (Exception ex)
+        {
+            StatusChanged?.Invoke($"다운로드 오류: {ex.Message}", "#F38BA8");
+        }
+        finally
+        {
+            if (sender is Button btn2) btn2.IsEnabled = true;
+        }
+	}
+	
 }

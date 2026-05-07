@@ -238,17 +238,32 @@ public sealed class DbManager
     {
         var safe    = SanitizeIdentifier(table);
         var safeCol = SanitizeIdentifier(dateCol);
-        var sql = ticker is null
-            ? $"SELECT MAX({safeCol}) FROM {safe}"
-            : $"SELECT MAX({safeCol}) FROM {safe} WHERE ticker = '{ticker}'";
-        var raw = Scalar<string>(sql);
-        return raw is not null && DateOnly.TryParse(raw, out var d) ? d : null;
+
+        if (ticker is null)
+        {
+            var raw = Scalar<string>($"SELECT MAX({safeCol}) FROM {safe}");
+            return raw is not null && DateOnly.TryParse(raw, out var d) ? d : null;
+        }
+
+        using var conn = OpenConnection();
+        using var cmd  = conn.CreateCommand();
+        cmd.CommandText = $"SELECT MAX({safeCol}) FROM {safe} WHERE ticker = $1";
+        cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
+        var result = cmd.ExecuteScalar();
+        if (result is null || result is DBNull) return null;
+        return DateOnly.TryParse(result.ToString(), out var date) ? date : null;
     }
 
     /// <summary>ticker → 종목명. 없으면 ticker 반환.</summary>
     public string GetStockName(string ticker)
-        => QueryFirst<string?>("SELECT name FROM stocks WHERE ticker = @Ticker", new { Ticker = ticker })
-           ?? ticker;
+    {
+        using var conn = OpenConnection();
+        using var cmd  = conn.CreateCommand();
+        cmd.CommandText = "SELECT name FROM stocks WHERE ticker = $1";
+        cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
+        var result = cmd.ExecuteScalar();
+        return (result is null || result is DBNull) ? ticker : result.ToString()!;
+    }
 
     /// <summary>stock_cache 전체 지표 (rs DESC).</summary>
     public IEnumerable<StockCache> GetLatestIndicators()
