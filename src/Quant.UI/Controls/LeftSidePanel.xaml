@@ -125,6 +125,13 @@
                 <TextBlock Text="◈ WATCHPANEL"
                            FontSize="10" FontWeight="Bold" FontFamily="Consolas"
                            Foreground="#585B70" VerticalAlignment="Center"/>
+                <!-- 인디케이터 다운로드 버튼 -->
+                <Button DockPanel.Dock="Right"
+                        Content="⬇" Style="{StaticResource IconBtn}"
+                        ToolTip="Download Global Indicators"
+                        Command="{Binding DownloadIndicatorsCommand}"
+                        VerticalAlignment="Center"
+                        Margin="2,0,0,0"/>
                 <!-- 새로고침 버튼 -->
                 <Button DockPanel.Dock="Right"
                         Content="⟳" Style="{StaticResource IconBtn}"

@@ -200,7 +200,7 @@
                             <DataGridTextColumn Header="name"   Binding="{Binding name}"   Width="90"/>
                             <DataGridTextColumn Header="description"   Binding="{Binding description}"   Width="90"/>
                             <DataGridTextColumn Header="rating"   Binding="{Binding rating}"   Width="90"/>
-                            <DataGridTextColumn Header="count"   Width="90"/>
+                            <DataGridTextColumn Header="count"   Binding="{Binding count}"   Width="90"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>
@@ -233,15 +233,27 @@
                     </Border>
                     <DataGrid x:Name="GridTicker" Grid.Row="1"
                               Style="{StaticResource QuantDataGrid}"
+                              IsReadOnly="False"
                               AutoGenerateColumns="False"
                               SelectionChanged="GridTicker_SelectionChanged">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="chart"   Width="30"/>
+                            <DataGridTemplateColumn Header="chart" Width="30" CanUserSort="False">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  IsChecked="{Binding chart_selected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Checked="ChartSelected_Changed"
+                                                  Unchecked="ChartSelected_Changed"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTextColumn Header="ticker"   Binding="{Binding ticker}"   Width="90"/>
-                            <DataGridTextColumn Header="name"   Binding="{Binding name}"   Width="90"/>
-                            <DataGridTextColumn Header="market"   Binding="{Binding market}"   Width="90"/>
-                            <DataGridTextColumn Header="weight"   Binding="{Binding weight}"   Width="90"/>
-                            <DataGridTextColumn Header="rating"   Width="90"/>
+                            <DataGridTextColumn Header="name"     Binding="{Binding name}"     Width="90"/>
+                            <DataGridTextColumn Header="market"   Binding="{Binding market}"   Width="60"/>
+                            <DataGridTextColumn Header="weight"   Binding="{Binding weight}"   Width="55"/>
+                            <DataGridTextColumn Header="1M %"     Binding="{Binding ret_1m}"   Width="60"/>
+                            <DataGridTextColumn Header="3M %"     Binding="{Binding ret_3m}"   Width="60"/>
                             <DataGridTemplateColumn Header="" Width="36" CanUserSort="False" CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -281,9 +293,9 @@
                             <TextBlock x:Name="TxtGroupName" FontSize="11" FontFamily="Consolas"
                                        Foreground="#CDD6F4" VerticalAlignment="Center"/>
                             <Button x:Name="BtnChartAll"  Content="All"  Style="{StaticResource PeriodBtn}"
-                                    Click="BtnChart_Click" Tag="0"/>
-                            <Button x:Name="BtnChartOne"  Content="One"  Style="{StaticResource PeriodBtn}"
                                     Click="BtnChart_Click" Tag="1"/>
+                            <Button x:Name="BtnChartClear"  Content="Clear"  Style="{StaticResource PeriodBtn}"
+                                    Click="BtnChart_Click" Tag="0"/>
                         </StackPanel>
                         <!-- 기간 버튼 -->
                         <StackPanel Orientation="Horizontal">

@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Quant.Core.Infrastructure;
+using Quant.Core.Services;
 using System.Collections.ObjectModel;
 using System.Data;
 
@@ -122,12 +123,23 @@ public partial class LeftSidePanelViewModel : ObservableObject
 
     private void InitIndicators()
     {
-        Indicators.Add(new GlobalIndicatorItem { Symbol = "SOX",   Label = "SOX",    Value = 5_123.4,  Change =  1.23 });
-        Indicators.Add(new GlobalIndicatorItem { Symbol = "WTI",   Label = "WTI",    Value =    82.3,  Change = -0.45 });
-        Indicators.Add(new GlobalIndicatorItem { Symbol = "KOSPI", Label = "KOSPI",  Value = 2_634.1,  Change =  0.87 });
-        Indicators.Add(new GlobalIndicatorItem { Symbol = "SPX",   Label = "S&P500", Value = 5_408.2,  Change =  0.31 });
-        Indicators.Add(new GlobalIndicatorItem { Symbol = "NDX",   Label = "NASDAQ", Value = 18_972.3, Change =  0.56 });
-        Indicators.Add(new GlobalIndicatorItem { Symbol = "DXY",   Label = "DXY",    Value =   104.8,  Change = -0.12 });
+        // IndicatorDefs 순서대로 빈 항목 생성 후 DB 최신값으로 채움
+        foreach (var def in IndicatorDownloadService.IndicatorDefs)
+            Indicators.Add(new GlobalIndicatorItem { Symbol = def.DbTicker, Label = def.Label });
+
+        RefreshIndicatorValues();
+    }
+
+    private void RefreshIndicatorValues()
+    {
+        try
+        {
+            var svc    = new IndicatorDownloadService(_db);
+            var values = svc.LoadLatestValues();
+            foreach (var (dbTicker, value, changePct) in values)
+                UpdateIndicator(dbTicker, value, changePct);
+        }
+        catch { }
     }
 
     public void UpdateIndicator(string symbol, double value, double changePct)
@@ -141,6 +153,29 @@ public partial class LeftSidePanelViewModel : ObservableObject
     // ──────────────────────────────────────────────────────────
     //  Groups 로드
     // ──────────────────────────────────────────────────────────
+    [RelayCommand]
+    public async Task DownloadIndicatorsAsync()
+    {
+        if (IsBusy) return;
+        IsBusy     = true;
+        StatusText = "인디케이터 다운로드 중…";
+        try
+        {
+            var svc      = new IndicatorDownloadService(_db);
+            // Progress 콜백을 UI 스레드에서 실행
+            var progress = new Progress<(string symbol, string msg)>(p =>
+                System.Windows.Application.Current.Dispatcher.InvokeAsync(
+                    () => StatusText = $"{p.symbol}: {p.msg}"));
+
+            await Task.Run(async () => await svc.DownloadAllAsync(progress));
+
+            System.Windows.Application.Current.Dispatcher.Invoke(RefreshIndicatorValues);
+            StatusText = "인디케이터 업데이트 완료";
+        }
+        catch (Exception ex) { StatusText = $"오류: {ex.Message}"; }
+        finally { IsBusy = false; }
+    }
+
     [RelayCommand]
     public void LoadGroups()
     {

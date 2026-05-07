@@ -19,13 +19,21 @@ namespace Quant.Core.Services;
 public class PriceDownloadService
 {
     private readonly DbManager _db;
-    private static readonly HttpClient _http = new()
+    private static readonly HttpClient _http = new(new HttpClientHandler
+    {
+        AutomaticDecompression = System.Net.DecompressionMethods.GZip
+                               | System.Net.DecompressionMethods.Deflate,
+    })
     {
         Timeout = TimeSpan.FromSeconds(30),
         DefaultRequestHeaders =
         {
-            { "User-Agent", "Mozilla/5.0" },
-            { "Accept",     "application/json" },
+            { "User-Agent",      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" },
+            { "Accept",          "application/json, text/plain, */*" },
+            { "Accept-Language", "en-US,en;q=0.9" },
+            { "Accept-Encoding", "gzip, deflate" },
+            { "Referer",         "https://finance.yahoo.com/" },
+            { "Origin",          "https://finance.yahoo.com" },
         }
     };
 
@@ -43,7 +51,8 @@ public class PriceDownloadService
     /// <returns>(inserted, lastDate)</returns>
     public async Task<(int inserted, DateOnly lastDate)> DownloadAsync(
         string ticker,
-        IProgress<string>? progress = null)
+        IProgress<string>? progress = null,
+        string? yahooSymbolOverride = null)
     {
         // ── 1. stocks 마스터 보장 ──────────────────────────────
         EnsureStockExists(ticker);
@@ -64,7 +73,7 @@ public class PriceDownloadService
         progress?.Report($"{ticker}: {fromDate} ~ {toDate} 다운로드 중…");
 
         // ── 3. Yahoo Finance 심볼 결정 ────────────────────────
-        var symbol = ToYahooSymbol(ticker);
+        var symbol = yahooSymbolOverride ?? ToYahooSymbol(ticker);
 
         // ── 4. HTTP 요청 ──────────────────────────────────────
         List<DailyPrice> prices;
@@ -103,18 +112,29 @@ public class PriceDownloadService
         long period1 = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero).ToUnixTimeSeconds();
         long period2 = new DateTimeOffset(to.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero).ToUnixTimeSeconds();
 
-        var url = $"https://query1.finance.yahoo.com/v8/finance/chart/{Uri.EscapeDataString(symbol)}" +
+        var url = $"https://query2.finance.yahoo.com/v8/finance/chart/{Uri.EscapeDataString(symbol)}" +
                   $"?period1={period1}&period2={period2}&interval=1d&events=adjsplit";
 
         using var resp = await _http.GetAsync(url);
         resp.EnsureSuccessStatusCode();
 
-        using var doc  = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
-        var result     = doc.RootElement.GetProperty("chart").GetProperty("result")[0];
-        var timestamps = result.GetProperty("timestamp").EnumerateArray().ToList();
-        var quote      = result.GetProperty("indicators").GetProperty("quote")[0];
-        var adjclose   = result.GetProperty("indicators").GetProperty("adjclose")[0]
-                              .GetProperty("adjclose").EnumerateArray().ToList();
+        using var doc   = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+        var chartResult = doc.RootElement.GetProperty("chart").GetProperty("result");
+        if (chartResult.ValueKind == JsonValueKind.Null || chartResult.GetArrayLength() == 0)
+            return [];
+
+        var result     = chartResult[0];
+        if (!result.TryGetProperty("timestamp", out var tsEl)) return [];
+        var timestamps = tsEl.EnumerateArray().ToList();
+        var indicators = result.GetProperty("indicators");
+        var quote      = indicators.GetProperty("quote")[0];
+
+        // adjclose 없는 지수(^KS11 등)는 close로 대체
+        List<JsonElement>? adjcloseArr = null;
+        if (indicators.TryGetProperty("adjclose", out var adjEl) &&
+            adjEl.GetArrayLength() > 0 &&
+            adjEl[0].TryGetProperty("adjclose", out var adjInner))
+            adjcloseArr = adjInner.EnumerateArray().ToList();
 
         var opens   = quote.GetProperty("open").EnumerateArray().ToList();
         var highs   = quote.GetProperty("high").EnumerateArray().ToList();
@@ -135,7 +155,8 @@ public class PriceDownloadService
             var high     = highs[i].GetDouble();
             var low      = lows[i].GetDouble();
             var close    = closes[i].GetDouble();
-            var adj      = adjclose[i].ValueKind == JsonValueKind.Null ? close : adjclose[i].GetDouble();
+            var adj      = (adjcloseArr != null && adjcloseArr[i].ValueKind != JsonValueKind.Null)
+                           ? adjcloseArr[i].GetDouble() : close;
             var volume   = volumes[i].ValueKind  == JsonValueKind.Null ? 0L    : volumes[i].GetInt64();
 
             if (open <= 0 || close <= 0 || low <= 0 || high < low) continue;
