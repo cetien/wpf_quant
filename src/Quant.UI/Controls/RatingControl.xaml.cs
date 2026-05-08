@@ -24,7 +24,7 @@ public class StarItem : INotifyPropertyChanged
             _filled = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Filled)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Glyph)));
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Color)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(FillBrush)));
         }
     }
 

@@ -504,24 +504,17 @@ def run_fundamentals(conn, tickers: list[tuple[str, str]], force_start: str | No
     log(f"[fundamentals] 시작  종목수={len(tickers)}")
 
     # fundamentals incremental: report_date 기준 last_date
-#    last_dates = {} if force_start else load_last_dates(conn, "fundamentals", "report_date")
+    last_dates = {} if force_start else load_last_dates(conn, "fundamentals", "report_date")
     today      = date.today().isoformat()
-
-    # # fundamentals는 1년치씩만 재수집 (일별 PER 전체 소급은 과도)
-    # default_start = (date.today() - timedelta(days=365)).isoformat()
-
-    # fundamentals는 최근 30일만 rolling refresh
-    default_start = (date.today() - timedelta(days=30)).isoformat()
+    default_start = DEFAULT_START  # 첫 실행: 전체 수집
 
     skipped = updated = errors = 0
 
     for i, (ticker, _) in enumerate(tickers, 1):
-#        last = last_dates.get(ticker)
-        # start = force_start or (
-        #     (date.fromisoformat(last) + timedelta(days=1)).isoformat() if last else default_start
-        # )
-        # fundamentals는 최근 30일 재동기화
-        start = force_start or default_start
+        last = last_dates.get(ticker)
+        start = force_start or (
+            (date.fromisoformat(last) + timedelta(days=1)).isoformat() if last else default_start
+        )
 
         if start > today:
             skipped += 1
@@ -543,8 +536,7 @@ def run_fundamentals(conn, tickers: list[tuple[str, str]], force_start: str | No
             log_result(conn, ticker, today, "pykrx_fundamental", "fail", traceback.format_exc(limit=3))
             log(f"  [ERR] {ticker}: {e}")
 
-        #_throttle(i, len(tickers))
-        time.sleep(1.0)  # fundamentals는 API 안정성 낮으므로 종목 간 추가 휴식
+        _throttle(i, len(tickers))
 
     log(f"[fundamentals] 완료  rows={updated}  skip={skipped}  err={errors}")
 

@@ -18,8 +18,18 @@ public partial class GroupEditDialog : Window
         InitializeComponent();
         _row    = row;
         _isEdit = row is not null;
-        if (_isEdit) PopulateFields();
-    }
+
+		Title = _isEdit ? "그룹 수정" : "그룹 추가";
+		BtnSave.Content = _isEdit ? "수정" : "추가";
+
+        if (_isEdit) 
+            PopulateFields();
+        else
+            CmbKind.SelectedIndex = CmbKind.Items.Count > 0 ? 0 : -1;
+
+		CmbKind.IsEnabled = !_isEdit;
+		TxtName.IsReadOnly = _isEdit;
+	}
 
     private void PopulateFields()
     {
@@ -48,10 +58,12 @@ public partial class GroupEditDialog : Window
                 var id = long.Parse(_row!["group_id"]?.ToString() ?? "0");
                 cmd.CommandText =
                     "UPDATE groups " +
-                    "SET kind=$1, name=$2, description=$3, rating=$4, updated_at=CURRENT_TIMESTAMP " +
-                    "WHERE group_id=$5";
-                cmd.Parameters.Add(new DuckDBParameter { Value = kind   });
-                cmd.Parameters.Add(new DuckDBParameter { Value = name   });
+					"SET description=$1, rating=$2, updated_at=CURRENT_TIMESTAMP " +
+					"WHERE group_id=$3";
+				    //"SET kind=$1, name=$2, description=$3, rating=$4, updated_at=CURRENT_TIMESTAMP " +
+				    //"WHERE group_id=$5";
+                //cmd.Parameters.Add(new DuckDBParameter { Value = kind   });
+                //cmd.Parameters.Add(new DuckDBParameter { Value = name   });
                 cmd.Parameters.Add(new DuckDBParameter { Value = desc   });
                 cmd.Parameters.Add(new DuckDBParameter { Value = rating });
                 cmd.Parameters.Add(new DuckDBParameter { Value = id     });

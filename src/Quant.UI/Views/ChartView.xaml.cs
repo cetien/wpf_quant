@@ -60,6 +60,101 @@ public partial class ChartView : UserControl
         });
     }
 
+    private void LoadInfoPanel(string ticker)
+    {
+        // ── supply: 최신 1행 ──────────────────────────────
+        try
+        {
+            var sql = $"""
+                SELECT date, inst_net_buy, foreign_net_buy, inst_net_amount, foreign_net_amount
+                FROM supply WHERE ticker='{ticker}'
+                ORDER BY date DESC LIMIT 1
+                """;
+            var dt = _db.Query(sql);
+            if (dt.Rows.Count > 0)
+            {
+                var r = dt.Rows[0];
+                long.TryParse(r[1]?.ToString(), out var instBuy);
+                long.TryParse(r[2]?.ToString(), out var fgnBuy);
+                long.TryParse(r[3]?.ToString(), out var instAmt);
+                long.TryParse(r[4]?.ToString(), out var fgnAmt);
+
+                TxtInstNet.Text    = FormatNet(instBuy);
+                TxtForeignNet.Text = FormatNet(fgnBuy);
+                TxtInstAmt.Text    = FormatAmt(instAmt);
+                TxtForeignAmt.Text = FormatAmt(fgnAmt);
+                TxtSupplyDate.Text = $" ({r[0]})";
+
+                // 양수=파란, 음수=빨간
+                TxtInstNet.Foreground    = BrushForNet(instBuy);
+                TxtForeignNet.Foreground = BrushForNet(fgnBuy);
+                TxtInstAmt.Foreground    = BrushForNet(instAmt);
+                TxtForeignAmt.Foreground = BrushForNet(fgnAmt);
+            }
+            else
+            {
+                TxtInstNet.Text = TxtForeignNet.Text = TxtInstAmt.Text = TxtForeignAmt.Text = "N/A";
+                TxtSupplyDate.Text = "";
+            }
+        }
+        catch { TxtInstNet.Text = TxtForeignNet.Text = "ERR"; }
+
+        // ── fundamentals: 최신 1행 ───────────────────────
+        try
+        {
+            var sql = $"""
+                SELECT report_date, per, pbr, eps, roe
+                FROM fundamentals WHERE ticker='{ticker}'
+                ORDER BY report_date DESC LIMIT 1
+                """;
+            var dt = _db.Query(sql);
+            if (dt.Rows.Count > 0)
+            {
+                var r = dt.Rows[0];
+                double.TryParse(r[1]?.ToString(), out var per);
+                double.TryParse(r[2]?.ToString(), out var pbr);
+                double.TryParse(r[3]?.ToString(), out var eps);
+                double.TryParse(r[4]?.ToString(), out var roe);
+
+                TxtPer.Text  = per == 0 ? "-" : per.ToString("F1");
+                TxtPbr.Text  = pbr == 0 ? "-" : pbr.ToString("F2");
+                TxtEps.Text  = eps == 0 ? "-" : eps.ToString("N0");
+                TxtBps.Text  = roe == 0 ? "-" : roe.ToString("F1") + "%";
+                TxtFundDate.Text = $" ({r[0]})";
+            }
+            else
+            {
+                TxtPer.Text = TxtPbr.Text = TxtEps.Text = TxtBps.Text = "N/A";
+                TxtFundDate.Text = "";
+            }
+        }
+        catch { TxtPer.Text = TxtPbr.Text = "ERR"; }
+    }
+
+    private static string FormatNet(long v)
+    {
+        if (v == 0) return "0";
+        return v > 0 ? $"+{v:N0}" : $"{v:N0}";
+    }
+
+    private static string FormatAmt(long v)
+    {
+        // 원 → 억 단위
+        var 億 = v / 100_000_000.0;
+        if (Math.Abs(億) >= 1)
+            return 億 > 0 ? $"+{億:F0}" : $"{億:F0}";
+        // 억 미만이면 만 단위
+        var 만 = v / 10_000.0;
+        return 만 > 0 ? $"+{만:F0}만" : $"{만:F0}만";
+    }
+
+    private static System.Windows.Media.Brush BrushForNet(long v) =>
+        v >= 0
+            ? new System.Windows.Media.SolidColorBrush(
+                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#89B4FA"))
+            : new System.Windows.Media.SolidColorBrush(
+                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#F38BA8"));
+
     private void LoadChart()
     {
         var ticker = TxtTicker.Text.Trim().ToUpper();
@@ -67,7 +162,7 @@ public partial class ChartView : UserControl
         _currentTicker = ticker;
         try
         {
-            // rating 로드
+            LoadInfoPanel(ticker);
             using (var conn = _db.OpenNativeConnection())
             using (var cmd  = conn.CreateCommand())
             {

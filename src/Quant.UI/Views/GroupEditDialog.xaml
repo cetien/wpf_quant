@@ -58,7 +58,7 @@
             <Button Content="취소" Width="72" Height="32" Margin="0,0,8,0"
                     Background="#313244" Foreground="#CDD6F4" BorderThickness="0"
                     Cursor="Hand" Click="BtnCancel_Click"/>
-            <Button Content="저장" Width="72" Height="32"
+            <Button x:Name="BtnSave" Content="저장" Width="72" Height="32"
                     Background="#89B4FA" Foreground="#1E1E2E" BorderThickness="0"
                     FontWeight="Bold" Cursor="Hand" Click="BtnSave_Click"/>
         </StackPanel>

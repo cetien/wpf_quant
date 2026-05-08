@@ -11,26 +11,26 @@
 -- ============================================================
 
 -- 1. 기존 데이터 백업
-CREATE TABLE IF NOT EXISTS stock_group_map_backup AS
-    SELECT * FROM stock_group_map;
+-- CREATE TABLE IF NOT EXISTS stock_group_map_backup AS
+--    SELECT * FROM stock_group_map;
 
 -- 2. 기존 테이블 삭제 (FK 포함)
-DROP TABLE IF EXISTS stock_group_map;
+-- DROP TABLE IF EXISTS stock_group_map;
 
 -- 3. FK 없이 재생성 (인덱스는 유지)
-CREATE TABLE stock_group_map (
-    ticker      TEXT        NOT NULL,
-    group_id    INTEGER     NOT NULL,
-    weight      DOUBLE      NOT NULL DEFAULT 1.0 CHECK (weight > 0),
-    created_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (ticker, group_id)
-);
+-- CREATE TABLE stock_group_map (
+--     ticker      TEXT        NOT NULL,
+--     group_id    INTEGER     NOT NULL,
+--     weight      DOUBLE      NOT NULL DEFAULT 1.0 CHECK (weight > 0),
+--     created_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     PRIMARY KEY (ticker, group_id)
+-- );
 
-CREATE INDEX IF NOT EXISTS idx_sgm_ticker ON stock_group_map(ticker);
-CREATE INDEX IF NOT EXISTS idx_sgm_group  ON stock_group_map(group_id);
+-- CREATE INDEX IF NOT EXISTS idx_sgm_ticker ON stock_group_map(ticker);
+-- CREATE INDEX IF NOT EXISTS idx_sgm_group  ON stock_group_map(group_id);
 
 -- 4. 데이터 복원
-INSERT INTO stock_group_map SELECT * FROM stock_group_map_backup;
+--	INSERT INTO stock_group_map SELECT * FROM stock_group_map_backup;
 
 -- 5. 백업 테이블 삭제
-DROP TABLE stock_group_map_backup;
+-- DROP TABLE stock_group_map_backup;

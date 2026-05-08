@@ -57,6 +57,10 @@ public partial class EditGroupView : UserControl
     public EditGroupView()
     {
         InitializeComponent();
+        chkAllGroup.IsChecked = true;
+        chkSectorGroup.IsChecked = true;
+        chkThemeGroup.IsChecked = true;
+        groupKindFilter = "";
         DataContext = this;
         InitAxes();
         Loaded += (_, _) => LoadGroups();
@@ -96,7 +100,9 @@ public partial class EditGroupView : UserControl
     //  좌상: 그룹 Grid
     // ═════════════════════════════════════════════════════════
 
-    public void LoadGroups()
+    private string groupKindFilter = "";
+
+	public void LoadGroups()
     {
         try
         {
@@ -105,16 +111,52 @@ public partial class EditGroupView : UserControl
                 "COUNT(m.ticker) AS count " +
                 "FROM groups g " +
                 "LEFT JOIN stock_group_map m ON m.group_id = g.group_id " +
+                $"WHERE 1=1 {groupKindFilter} " +
                 "GROUP BY g.group_id, g.kind, g.name, g.description, g.rating, g.is_active " +
                 "ORDER BY g.kind, g.name");
             GridGroup.ItemsSource = _groupTable.DefaultView;
-            TxtRowCount.Text = $"{_groupTable.Rows.Count:N0} groups";
+			GroupGridCount.Text = $"{_groupTable.Rows.Count:N0}";
+
+			TxtRowCount.Text = $"{_groupTable.Rows.Count:N0} groups";
             StatusChanged?.Invoke($"그룹 {_groupTable.Rows.Count}건", "#A6E3A1");
         }
         catch (Exception ex) { StatusChanged?.Invoke($"오류: {ex.Message}", "#F38BA8"); }
     }
 
-    private void GridGroup_SelectionChanged(object sender, SelectionChangedEventArgs e)
+	private string BuildGroupKindFilter()
+	{
+		if (chkAllGroup.IsChecked == true) return "";
+
+		var sector = chkSectorGroup.IsChecked == true;
+		var theme = chkThemeGroup.IsChecked == true;
+
+		if (sector && theme) return "AND (g.kind = 'sector' OR g.kind = 'theme')";
+		if (sector) return "AND g.kind = 'sector'";
+		if (theme) return "AND g.kind = 'theme'";
+		return "AND g.kind NOT IN ('sector', 'theme')";
+	}
+
+	private void GroupFilter_Click(object sender, RoutedEventArgs e)
+	{
+		if (sender is not CheckBox chk) return;
+
+		var tag = chk.Tag;
+        if (tag?.ToString() == "All")
+        {
+            if (chk.IsChecked == true)  
+            {
+                chkSectorGroup.IsChecked = true;
+                chkThemeGroup.IsChecked = true;
+            }
+		} else {
+            chkAllGroup.IsChecked = false;
+        }
+
+		groupKindFilter = BuildGroupKindFilter();
+		LoadGroups();
+	}
+
+	private void GridGroup_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (GridGroup.SelectedItem is not DataRowView row) return;
         if (!int.TryParse(row["group_id"]?.ToString(), out var gid)) return;
@@ -123,9 +165,12 @@ public partial class EditGroupView : UserControl
         TxtGroupName.Text    = row["name"]?.ToString() ?? "";
         TxtTickerHeader.Text = $"TICKERS — {TxtGroupName.Text}";
 
-        LoadTickers(gid);
+		GroupRatingCtrl.Rating = int.TryParse(row["rating"]?.ToString(), out var r0) ? Math.Clamp(r0, 0, 10) : 5;
+
+		LoadTickers(gid);
         LoadChartData(gid);
     }
+
 
     // ═════════════════════════════════════════════════════════
     //  좌하: 티커 Grid
@@ -660,4 +705,6 @@ public partial class EditGroupView : UserControl
         }
         catch (Exception ex) { StatusChanged?.Invoke($"삭제 오류: {ex.Message}", "#F38BA8"); }
     }
+
+
 }
