@@ -153,6 +153,25 @@
                                        Foreground="#6C7086" FontFamily="Consolas" Margin="0,2,0,0"/>
                         </StackPanel>
                     </Button>
+                    <Rectangle Fill="#45475A" Width="1" Margin="4,10"/>
+                    <Button x:Name="BtnGroup" Style="{StaticResource ToolBarButton}"
+                            Click="BtnGroup_Click" ToolTip="Group Editor">
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="&#x1F5C2;" FontSize="15" HorizontalAlignment="Center"
+                                       Foreground="#6C7086" FontFamily="Segoe UI Emoji"/>
+                            <TextBlock Text="Group" FontSize="8" HorizontalAlignment="Center"
+                                       Foreground="#6C7086" FontFamily="Consolas" Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="BtnReport" Style="{StaticResource ToolBarButton}"
+                            Click="BtnReport_Click" ToolTip="Report">
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="&#x1F4CB;" FontSize="15" HorizontalAlignment="Center"
+                                       Foreground="#6C7086" FontFamily="Segoe UI Emoji"/>
+                            <TextBlock Text="Report" FontSize="8" HorizontalAlignment="Center"
+                                       Foreground="#6C7086" FontFamily="Consolas" Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -172,7 +191,8 @@
             <ctrl:LeftSidePanel x:Name="SidePanel"
                                 Grid.Column="0"
                                 StockSelected="SidePanel_StockSelected"
-                                GroupSelected="SidePanel_GroupSelected"/>
+                                GroupSelected="SidePanel_GroupSelected"
+                                IndicatorSelected="SidePanel_IndicatorSelected"/>
 
             <!-- 수직 구분선 -->
             <Rectangle Grid.Column="1" Fill="#313244"/>

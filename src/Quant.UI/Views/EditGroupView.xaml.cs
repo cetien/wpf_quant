@@ -2,13 +2,18 @@ using LiveChartsCore;
 using LiveChartsCore.Defaults;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
+using LiveChartsCore.SkiaSharpView.WPF;
+
 using Quant.Core.Infrastructure;
 using Quant.Core.Services;
+
 using SkiaSharp;
+
 using System.Collections.ObjectModel;
 using System.Data;
 using System.Windows;
 using System.Windows.Controls;
+using System.Xml.Linq;
 
 namespace Quant.UI.Views;
 
@@ -174,13 +179,27 @@ public partial class EditGroupView : UserControl
 
     private void GridTicker_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
 
-    private void BtnAddTicker_Click(object sender, RoutedEventArgs e)
-    {
-        if (_currentGroupId < 0) { TxtStatus.Text = "그룹을 먼저 선택하세요."; return; }
-        TxtStatus.Text = "티커 추가 — 구현 예정";
-    }
+	public void AddTicker(string ticker, string name)
+	{
+		if (CheckboxAddTicker.IsChecked == true)
+		{
+			try
+			{
+				_groupTable = _db.Query(
+					$@"INSERT INTO stock_group_map(ticker, group_id, weight) " +
+                    $"VALUES('{ticker}', {_currentGroupId}, 5) " +
+                    $"ON CONFLICT(ticker, group_id) DO UPDATE SET weight = EXCLUDED.weight"
+					);
+				LoadTickers(_currentGroupId);
+				TxtStatus.Text = $"AddTicker: _currentGroupId={_currentGroupId}, ticker={ticker}, name={name}";
+			}
+			catch (Exception ex) { StatusChanged?.Invoke($"오류: {ex.Message}", "#F38BA8"); }
 
-    private void BtnRemoveTicker_Click(object sender, RoutedEventArgs e)
+
+		}
+	}
+
+	private void BtnRemoveTicker_Click(object sender, RoutedEventArgs e)
     {
         if (_currentGroupId < 0) { TxtStatus.Text = "그룹을 먼저 선택하세요."; return; }
         if (GridTicker.SelectedItem is not DataRowView row) { TxtStatus.Text = "티커를 선택하세요."; return; }
@@ -369,6 +388,8 @@ public partial class EditGroupView : UserControl
     //  Base-100 정규화 & 렌더
     // ═════════════════════════════════════════════════════════
 
+    private const string KospiTicker = "IDX_KOSPI";
+
     private void ApplyPeriod()
     {
         ChartSeries.Clear();
@@ -418,6 +439,9 @@ public partial class EditGroupView : UserControl
             lastValues.Add((name, points.Last().Value ?? 100.0));
         }
 
+        // ── KOSPI 오버레이 (항상 추가, _rawData에 없으면 DB에서 직접 로드) ──
+        AddKospiOverlay();
+
         if (lastValues.Count > 0)
         {
             var best  = lastValues.MaxBy(x => x.last);
@@ -453,6 +477,69 @@ public partial class EditGroupView : UserControl
                 yAxis.MaxLimit = dataMax + margin;
             }
         }
+    }
+
+    // ═════════════════════════════════════════════════════════
+    //  KOSPI 오버레이
+    // ═════════════════════════════════════════════════════════
+
+    private void AddKospiOverlay()
+    {
+        var periodStart = _periodDays == 0
+            ? "1900-01-01"
+            : DateTime.Today.AddDays(-_periodDays).ToString("yyyy-MM-dd");
+
+        List<(DateTime date, double close)> prices;
+
+        // _rawData에 이미 있으면 재사용, 없으면 DB에서 직접 로드
+        if (_rawData.TryGetValue(KospiTicker, out var cached))
+        {
+            prices = cached.prices;
+        }
+        else
+        {
+            try
+            {
+                var dt = _db.Query(
+                    $"SELECT date, adj_close FROM daily_prices " +
+                    $"WHERE ticker = '{KospiTicker}' AND date >= '{periodStart}' " +
+                    $"ORDER BY date ASC");
+                prices = dt.Rows.Cast<DataRow>()
+                    .Select(r =>
+                    {
+                        DateTime.TryParse(r[0]?.ToString(), out var d);
+                        double.TryParse(r[1]?.ToString(), out var p);
+                        return (date: d, close: p);
+                    })
+                    .Where(x => x.date != default && x.close > 0)
+                    .ToList();
+            }
+            catch { return; }
+        }
+
+        if (prices.Count < 2) return;
+
+        var baseClose = prices.First().close;
+        var points = prices
+            .Select(d => new DateTimePoint(d.date, Math.Round(d.close / baseClose * 100.0, 4)))
+            .ToList();
+
+        // 회색 점선, 얇게 — 배경 기준선 역할
+        ChartSeries.Add(new LineSeries<DateTimePoint>
+        {
+            Values         = new ObservableCollection<DateTimePoint>(points),
+            Stroke         = new SolidColorPaint(SKColor.Parse("#585B70"))
+                             {
+                                 StrokeThickness = 1f,
+                                 //PathEffect      = new LiveChartsCore.Drawing.DashEffect([4, 4]),
+                             },
+            Fill           = null,
+            GeometrySize   = 0,
+            GeometryFill   = null,
+            GeometryStroke = null,
+            LineSmoothness = 0,
+            Name           = "KOSPI",
+        });
     }
 
     // ═════════════════════════════════════════════════════════

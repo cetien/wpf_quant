@@ -18,29 +18,28 @@ CREATE TABLE IF NOT EXISTS stocks (
 
 -- ── delisted_stocks ─────────────────────────────────────────
 -- 상폐 이력: 기존 DB 이전 시 필요, 이후 is_active=FALSE 운용으로 대체 검토
-CREATE TABLE IF NOT EXISTS delisted_stocks (
-    ticker          TEXT        NOT NULL,
-    name            TEXT,
-    delist_date     DATE        NOT NULL,
-    delist_reason   TEXT,
-    PRIMARY KEY (ticker)
-);
+-- CREATE TABLE IF NOT EXISTS delisted_stocks (
+--     ticker          TEXT        NOT NULL,
+--     name            TEXT,
+--     delist_date     DATE        NOT NULL,
+--     delist_reason   TEXT,
+--     PRIMARY KEY (ticker)
+-- );
 
 -- ── groups (sector + theme 통합) ────────────────────────────
-CREATE SEQUENCE IF NOT EXISTS seq_groups_id START 1;
 CREATE TABLE IF NOT EXISTS groups (
-    group_id    INTEGER     PRIMARY KEY DEFAULT nextval('seq_groups_id'),
-    kind        TEXT        NOT NULL CHECK (kind IN ('sector', 'theme')),
-    name        TEXT        NOT NULL UNIQUE,
+    group_id    INTEGER     PRIMARY KEY,
+    kind        TEXT        NOT NULL, -- CHECK (kind IN ('sector', 'theme', 'watch')),
+    name        TEXT        NOT NULL, -- UNIQUE,
     description TEXT,
     rating      INTEGER     NOT NULL DEFAULT 5,
     is_active   BOOLEAN     NOT NULL DEFAULT TRUE,
     created_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+-- CREATE UNIQUE INDEX ux_groups_name ON groups(name);
 
 -- ── stock_group_map ─────────────────────────────────────────
--- weight: 개인용에서는 DEFAULT 1.0 고정 사용 예상. 추후 제거 검토.
 CREATE TABLE IF NOT EXISTS stock_group_map (
     ticker      TEXT        NOT NULL REFERENCES stocks(ticker),
     group_id    INTEGER     NOT NULL REFERENCES groups(group_id),
@@ -119,33 +118,31 @@ CREATE TABLE IF NOT EXISTS supply (
 -- );
 
 -- ── watchlists ───────────────────────────────────────────────
-CREATE SEQUENCE IF NOT EXISTS seq_watchlists_id START 1;
-CREATE TABLE IF NOT EXISTS watchlists (
-    watchlist_id    INTEGER     PRIMARY KEY DEFAULT nextval('seq_watchlists_id'),
-    name            TEXT        NOT NULL,   -- "주도주", "ETF", "방산", "저평가"
-    description     TEXT,
-    created_at      TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    is_active       BOOLEAN     NOT NULL DEFAULT TRUE
-);
-
+-- CREATE TABLE IF NOT EXISTS watchlists (
+--     watchlist_id    INTEGER     PRIMARY KEY,
+--     name            TEXT        NOT NULL,   -- "주도주", "ETF", "방산", "저평가"
+--     description     TEXT,
+--     created_at      TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     updated_at      TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     is_active       BOOLEAN     NOT NULL DEFAULT TRUE
+-- );
+-- 
 -- 최근조회 watchlist: UI에서 자동등록 (watchlist_id = 1 예약)
 
 -- ── watchlist_items ──────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS watchlist_items (
-    watchlist_id    INTEGER     NOT NULL REFERENCES watchlists(watchlist_id),
-    ticker          TEXT        NOT NULL REFERENCES stocks(ticker),
-    added_at        TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    rating          INTEGER     NOT NULL DEFAULT 5,
-    is_active       BOOLEAN     NOT NULL DEFAULT TRUE,
-    trigger_reason  TEXT,       -- 수급 돌파, 저평가, 리포트, 이벤트 등
-    PRIMARY KEY (watchlist_id, ticker)
+-- CREATE TABLE IF NOT EXISTS watchlist_items (
+--     watchlist_id    INTEGER     NOT NULL REFERENCES watchlists(watchlist_id),
+--     ticker          TEXT        NOT NULL REFERENCES stocks(ticker),
+--     added_at        TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     rating          INTEGER     NOT NULL DEFAULT 5,
+--     is_active       BOOLEAN     NOT NULL DEFAULT TRUE,
+--     trigger_reason  TEXT,       -- 수급 돌파, 저평가, 리포트, 이벤트 등
+--     PRIMARY KEY (watchlist_id, ticker)
 );
 
 -- ── pdf_reports ──────────────────────────────────────────────
-CREATE SEQUENCE IF NOT EXISTS seq_pdf_reports_id START 1;
 CREATE TABLE IF NOT EXISTS pdf_reports (
-    id          INTEGER     PRIMARY KEY DEFAULT nextval('seq_pdf_reports_id'),
+    id          INTEGER     PRIMARY KEY,
     date        DATE        NOT NULL,
     ticker      TEXT,
     title       TEXT,
@@ -157,9 +154,8 @@ CREATE TABLE IF NOT EXISTS pdf_reports (
 
 -- ── data_update_log ──────────────────────────────────────────
 -- 수집 실패 추적 / 데이터 결손 탐지
-CREATE SEQUENCE IF NOT EXISTS seq_data_update_log_id START 1;
 CREATE TABLE IF NOT EXISTS data_update_log (
-    id          INTEGER     PRIMARY KEY DEFAULT nextval('seq_data_update_log_id'),
+    id          INTEGER     PRIMARY KEY,
     ticker      TEXT,
     date        DATE,
     source      TEXT        NOT NULL,   -- 'pykrx', 'dart', 'manual'

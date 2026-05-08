@@ -7,7 +7,7 @@
 CREATE TABLE IF NOT EXISTS stocks (
     ticker          TEXT        NOT NULL,
     name            TEXT        NOT NULL,
-    market          TEXT        NOT NULL CHECK (market IN ('KP', 'KQ', 'NYSE')),
+    market          TEXT        NOT NULL,-- CHECK (market IN ('KP', 'KQ', 'NYSE')),
     security_type   TEXT        NOT NULL,   -- 'stock' | 'index' | 'etf'
     listed_date     DATE,
     rating          INTEGER     NOT NULL DEFAULT 5,
@@ -18,19 +18,19 @@ CREATE TABLE IF NOT EXISTS stocks (
 
 -- ── delisted_stocks ─────────────────────────────────────────
 -- 상폐 이력: 기존 DB 이전 시 필요, 이후 is_active=FALSE 운용으로 대체 검토
-CREATE TABLE IF NOT EXISTS delisted_stocks (
-    ticker          TEXT        NOT NULL,
-    name            TEXT,
-    delist_date     DATE        NOT NULL,
-    delist_reason   TEXT,
-    PRIMARY KEY (ticker)
-);
+-- CREATE TABLE IF NOT EXISTS delisted_stocks (
+--     ticker          TEXT        NOT NULL,
+--     name            TEXT,
+--     delist_date     DATE        NOT NULL,
+--     delist_reason   TEXT,
+--     PRIMARY KEY (ticker)
+-- );
 
 -- ── groups (sector + theme 통합) ────────────────────────────
 CREATE TABLE IF NOT EXISTS groups (
     group_id    INTEGER     PRIMARY KEY,
-    kind        TEXT        NOT NULL CHECK (kind IN ('sector', 'theme')),
-    name        TEXT        NOT NULL UNIQUE,
+    kind        TEXT        NOT NULL,-- CHECK (kind IN ('sector', 'theme', 'watch')),
+    name        TEXT        NOT NULL,-- UNIQUE,
     description TEXT,
     rating      INTEGER     NOT NULL DEFAULT 5,
     is_active   BOOLEAN     NOT NULL DEFAULT TRUE,
@@ -39,14 +39,14 @@ CREATE TABLE IF NOT EXISTS groups (
 );
 
 -- ── stock_group_map ─────────────────────────────────────────
--- weight: 개인용에서는 DEFAULT 1.0 고정 사용 예상. 추후 제거 검토.
 CREATE TABLE IF NOT EXISTS stock_group_map (
-    ticker      TEXT        NOT NULL REFERENCES stocks(ticker),
-    group_id    INTEGER     NOT NULL REFERENCES groups(group_id),
+    ticker      TEXT        NOT NULL,-- REFERENCES stocks(ticker),
+    group_id    INTEGER     NOT NULL,-- REFERENCES groups(group_id),
     weight      DOUBLE      NOT NULL DEFAULT 1.0 CHECK (weight > 0),
     created_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (ticker, group_id)
 );
+
 
 CREATE INDEX IF NOT EXISTS idx_sgm_ticker ON stock_group_map(ticker);
 CREATE INDEX IF NOT EXISTS idx_sgm_group  ON stock_group_map(group_id);
@@ -55,13 +55,13 @@ CREATE INDEX IF NOT EXISTS idx_sgm_group  ON stock_group_map(group_id);
 -- Look-ahead bias 방지: announce_date 기준 join
 -- announce_date 소스: DART API (미확정 → 수동 입력 fallback)
 CREATE TABLE IF NOT EXISTS fundamentals (
-    ticker              TEXT    NOT NULL REFERENCES stocks(ticker),
+    ticker              TEXT    NOT NULL,-- REFERENCES stocks(ticker),
     report_date         DATE    NOT NULL,   -- 결산 기준일
     announce_date       DATE,               -- 공시 실제 날짜 (join 기준)
     fiscal_quarter      TEXT,               -- 예: '2024Q4'
     eps                 DOUBLE,
     per                 DOUBLE,             -- 음수 가능(적자), CHECK 제거
-    pbr                 DOUBLE  CHECK (pbr > 0),
+    pbr                 DOUBLE,--  CHECK (pbr > 0),
     roe                 DOUBLE,
     revenue             BIGINT,
     operating_income    BIGINT,
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS daily_prices (
 -- Phase 1 MVP: 수급 포함
 -- pykrx: 주 수량 기준 / KIS API: 금액 기준 → Python 워커 유지로 pykrx 사용
 CREATE TABLE IF NOT EXISTS supply (
-    ticker              TEXT    NOT NULL REFERENCES stocks(ticker),
+    ticker              TEXT    NOT NULL,-- REFERENCES stocks(ticker),
     date                DATE    NOT NULL,
     inst_net_buy        BIGINT,             -- 기관 순매수 (주)
     foreign_net_buy     BIGINT,             -- 외인 순매수 (주)
@@ -118,26 +118,26 @@ CREATE TABLE IF NOT EXISTS supply (
 -- );
 
 -- ── watchlists ───────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS watchlists (
-    watchlist_id    INTEGER     PRIMARY KEY,
-    name            TEXT        NOT NULL,   -- "주도주", "ETF", "방산", "저평가"
-    description     TEXT,
-    created_at      TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    is_active       BOOLEAN     NOT NULL DEFAULT TRUE
-);
-
+-- CREATE TABLE IF NOT EXISTS watchlists (
+--     watchlist_id    INTEGER     PRIMARY KEY,
+--     name            TEXT        NOT NULL,   -- "주도주", "ETF", "방산", "저평가"
+--     description     TEXT,
+--     created_at      TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     updated_at      TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     is_active       BOOLEAN     NOT NULL DEFAULT TRUE
+-- );
+-- 
 -- 최근조회 watchlist: UI에서 자동등록 (watchlist_id = 1 예약)
 
 -- ── watchlist_items ──────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS watchlist_items (
-    watchlist_id    INTEGER     NOT NULL REFERENCES watchlists(watchlist_id),
-    ticker          TEXT        NOT NULL REFERENCES stocks(ticker),
-    added_at        TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    rating          INTEGER     NOT NULL DEFAULT 5,
-    is_active       BOOLEAN     NOT NULL DEFAULT TRUE,
-    trigger_reason  TEXT,       -- 수급 돌파, 저평가, 리포트, 이벤트 등
-    PRIMARY KEY (watchlist_id, ticker)
+-- CREATE TABLE IF NOT EXISTS watchlist_items (
+--     watchlist_id    INTEGER     NOT NULL REFERENCES watchlists(watchlist_id),
+--     ticker          TEXT        NOT NULL REFERENCES stocks(ticker),
+--     added_at        TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     rating          INTEGER     NOT NULL DEFAULT 5,
+--     is_active       BOOLEAN     NOT NULL DEFAULT TRUE,
+--     trigger_reason  TEXT,       -- 수급 돌파, 저평가, 리포트, 이벤트 등
+--     PRIMARY KEY (watchlist_id, ticker)
 );
 
 -- ── pdf_reports ──────────────────────────────────────────────
@@ -166,8 +166,8 @@ CREATE TABLE IF NOT EXISTS data_update_log (
 
 -- ── trading_calendar ─────────────────────────────────────────
 -- 영업일 계산 (N일 수익률, RS 산출 필수)
-CREATE TABLE IF NOT EXISTS trading_calendar (
-    date            DATE        NOT NULL,
-    is_trading_day  BOOLEAN     NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (date)
-);
+-- CREATE TABLE IF NOT EXISTS trading_calendar (
+--     date            DATE        NOT NULL,
+--     is_trading_day  BOOLEAN     NOT NULL DEFAULT TRUE,
+--     PRIMARY KEY (date)
+-- );

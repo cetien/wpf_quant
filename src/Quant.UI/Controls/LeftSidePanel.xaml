@@ -167,7 +167,11 @@
                     <ItemsControl ItemsSource="{Binding Indicators}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Grid Height="22" Margin="2,1">
+                                <Grid Height="22" Margin="2,1" Cursor="Hand"
+                                      MouseLeftButtonUp="IndicatorRow_Click">
+                                    <Grid.Background>
+                                        <SolidColorBrush Color="Transparent"/>
+                                    </Grid.Background>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="48"/>
                                         <ColumnDefinition Width="*"/>

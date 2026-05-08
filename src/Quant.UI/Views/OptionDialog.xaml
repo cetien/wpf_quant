@@ -1,7 +1,7 @@
 <Window x:Class="Quant.UI.Views.OptionDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Options" Width="480" Height="240"
+        Title="Options" Width="480" Height="356"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="#1E1E2E" Foreground="#CDD6F4">
@@ -59,19 +59,27 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="16"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="16"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="16"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- ── Auto Append History ── -->
-        <CheckBox Grid.Row="0"
-                  x:Name="ChkAutoAppend"
-                  Content="Auto append to history"
-                  Foreground="#CDD6F4"
-                  FontFamily="Consolas"
-                  FontSize="12"
-                  VerticalContentAlignment="Center"/>
-
+        <StackPanel Grid.Row="0">
+            <CheckBox 
+                  x:Name="ChkAutoAppend" Content="Auto append to history"
+                  Foreground="#CDD6F4" FontFamily="Consolas" FontSize="12"/>
+            <CheckBox 
+                  x:Name="ChkQueryFilterPreferred" Content="QueryFilter: Preferred/Spec"
+                  Foreground="#CDD6F4" FontFamily="Consolas" FontSize="12"/>
+            <CheckBox 
+                  x:Name="ChkQueryFilterCovered" Content="QueryFilter: Leverage/Covered"
+                  Foreground="#CDD6F4" FontFamily="Consolas" FontSize="12"/>
+            <CheckBox 
+                  x:Name="ChkQueryFilterCheap" Content="QueryFilter: Price &lt; 1000"
+                  Foreground="#CDD6F4" FontFamily="Consolas" FontSize="12"/>
+        </StackPanel>
         <!-- ── Report PDF Folder ── -->
         <StackPanel Grid.Row="2">
             <TextBlock Text="Report PDF folder" Style="{StaticResource Lbl}"/>
@@ -89,8 +97,20 @@
             </Grid>
         </StackPanel>
 
+        <StackPanel Grid.Row="4">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="30"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="DB: " Style="{StaticResource Lbl}"/>
+                <TextBox Grid.Column="2"  x:Name="DB_Folder" Style="{StaticResource Inp}" IsReadOnly="True"/>
+            </Grid>
+        </StackPanel>
+
         <!-- ── OK / Cancel ── -->
-        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Cancel" Style="{StaticResource Btn}"
                     Width="72" Margin="0,0,8,0"
                     Click="BtnCancel_Click"/>

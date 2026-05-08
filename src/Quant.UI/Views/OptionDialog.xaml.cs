@@ -21,7 +21,11 @@ public partial class OptionDialog : Window
         var opts = _db.LoadOptions();
         ChkAutoAppend.IsChecked = opts.AutoAppendHistory;
         TxtPdfFolder.Text       = opts.ReportPdfFolder;
-    }
+		DB_Folder.Text = DbManager.DbPath;
+		ChkQueryFilterPreferred.IsChecked = opts.QueryFilterPreferred;
+		ChkQueryFilterCovered.IsChecked = opts.QueryFilterCovered;
+		ChkQueryFilterCheap.IsChecked = opts.QueryFilterCheap;
+	}
 
     private void BtnBrowse_Click(object sender, RoutedEventArgs e)
     {
@@ -42,7 +46,10 @@ public partial class OptionDialog : Window
         {
             AutoAppendHistory = ChkAutoAppend.IsChecked == true,
             ReportPdfFolder   = TxtPdfFolder.Text.Trim(),
-        };
+            QueryFilterPreferred = ChkQueryFilterPreferred.IsChecked == true,
+            QueryFilterCovered = ChkQueryFilterCovered.IsChecked == true,
+            QueryFilterCheap = ChkQueryFilterCheap.IsChecked == true,
+		};
         _db.SaveOptions(Result);
         DialogResult = true;
     }

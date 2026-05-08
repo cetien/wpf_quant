@@ -1,3 +1,4 @@
+using DuckDB.NET.Data;
 using LiveChartsCore;
 using LiveChartsCore.Defaults;
 using LiveChartsCore.SkiaSharpView;
@@ -24,6 +25,7 @@ public partial class ChartView : UserControl
 
     private List<(DateTime date, double close)> _allData = [];
     private int _periodDays = 365;
+    private string _currentTicker = "";
 
     public ChartView()
     {
@@ -62,8 +64,19 @@ public partial class ChartView : UserControl
     {
         var ticker = TxtTicker.Text.Trim().ToUpper();
         if (string.IsNullOrEmpty(ticker)) return;
+        _currentTicker = ticker;
         try
         {
+            // rating 로드
+            using (var conn = _db.OpenNativeConnection())
+            using (var cmd  = conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT rating FROM stocks WHERE ticker = $1";
+                cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = ticker });
+                var result = cmd.ExecuteScalar();
+                RatingCtrl.Rating = (result is not null && result is not DBNull)
+                    ? Math.Clamp(Convert.ToInt32(result), 0, 10) : 0;
+            }
             var sql  = $"SELECT date, adj_close FROM daily_prices WHERE ticker='{ticker}' ORDER BY date ASC";
             var dt   = _db.Query(sql);
             _allData = dt.Rows.Cast<System.Data.DataRow>()
@@ -176,5 +189,21 @@ public partial class ChartView : UserControl
             if (sender is Button btn2) btn2.IsEnabled = true;
         }
 	}
+
+    private void RatingCtrl_RatingChanged(int rating)
+    {
+        if (string.IsNullOrEmpty(_currentTicker)) return;
+        try
+        {
+            using var conn = _db.OpenNativeConnection();
+            using var cmd  = conn.CreateCommand();
+            cmd.CommandText = "UPDATE stocks SET rating=$1, updated_at=CURRENT_TIMESTAMP WHERE ticker=$2";
+            cmd.Parameters.Add(new DuckDBParameter { Value = rating         });
+            cmd.Parameters.Add(new DuckDBParameter { Value = _currentTicker });
+            cmd.ExecuteNonQuery();
+            StatusChanged?.Invoke($"{_currentTicker} rating 저장: {rating}", "#A6E3A1");
+        }
+        catch (Exception ex) { StatusChanged?.Invoke($"rating 저장 오류: {ex.Message}", "#F38BA8"); }
+    }
 	
 }

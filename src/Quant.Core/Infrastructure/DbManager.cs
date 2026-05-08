@@ -338,6 +338,12 @@ public sealed class DbManager
                 opts.AutoAppendHistory = v1 == "true";
             if (map.TryGetValue("report_pdf_folder", out var v2))
                 opts.ReportPdfFolder = v2;
+            if (map.TryGetValue("query_filter_preferred", out var v3))
+                opts.QueryFilterPreferred = v3 == "true";
+            if (map.TryGetValue("query_filter_covered", out var v4))
+                opts.QueryFilterCovered = v4 == "true";
+            if (map.TryGetValue("query_filter_cheap", out var v5))
+                opts.QueryFilterCheap = v5 == "true";
         }
         catch { /* options 테이블 미생성 시 기본값 반환 */ }
         return opts;
@@ -350,6 +356,9 @@ public sealed class DbManager
     {
         UpsertOption("auto_append_history", opts.AutoAppendHistory ? "true" : "false");
         UpsertOption("report_pdf_folder",   opts.ReportPdfFolder ?? "");
+        UpsertOption("query_filter_preferred", opts.QueryFilterPreferred ? "true" : "false");
+        UpsertOption("query_filter_covered",   opts.QueryFilterCovered ? "true" : "false");
+        UpsertOption("query_filter_cheap",     opts.QueryFilterCheap ? "true" : "false");
     }
 
     private void UpsertOption(string key, string value)

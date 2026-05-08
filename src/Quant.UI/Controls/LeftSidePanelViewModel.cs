@@ -114,6 +114,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
     // ── 이벤트 ───────────────────────────────────────────────
     public event Action<string, string>? StockSelected;
     public event Action<int, string>?    GroupSelected;
+    public event Action<string, string>? IndicatorSelected;  // (symbol, label)
 
     // ═════════════════════════════════════════════════════════
     public LeftSidePanelViewModel()
@@ -149,6 +150,10 @@ public partial class LeftSidePanelViewModel : ObservableObject
         item.Value  = value;
         item.Change = changePct;
     }
+
+    /// <summary>GLOBAL INDICATORS 항목 클릭 시 ChartView 로 이동</summary>
+    public void SelectIndicator(GlobalIndicatorItem item)
+        => IndicatorSelected?.Invoke(item.Symbol, item.Label);
 
     // ──────────────────────────────────────────────────────────
     //  Groups 로드

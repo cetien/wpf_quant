@@ -9,6 +9,9 @@ public class AppOptions
 {
     /// <summary>종목 조회 시 최근조회 history에 자동 추가</summary>
     public bool AutoAppendHistory { get; set; } = true;
+    public bool QueryFilterPreferred { get; set; } = true;
+    public bool QueryFilterCovered { get; set; } = true;
+    public bool QueryFilterCheap { get; set; } = true;
 
     /// <summary>PDF 리포트 감시 폴더 경로. 빈 문자열이면 미설정.</summary>
     public string ReportPdfFolder { get; set; } = string.Empty;

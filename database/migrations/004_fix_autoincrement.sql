@@ -17,5 +17,5 @@ CREATE SEQUENCE IF NOT EXISTS seq_groups_id START 1;
 ALTER TABLE groups ALTER COLUMN group_id SET DEFAULT nextval('seq_groups_id');
 
 -- watchlists.watchlist_id
-CREATE SEQUENCE IF NOT EXISTS seq_watchlists_id START 1;
-ALTER TABLE watchlists ALTER COLUMN watchlist_id SET DEFAULT nextval('seq_watchlists_id');
+-- CREATE SEQUENCE IF NOT EXISTS seq_watchlists_id START 1;
+-- ALTER TABLE watchlists ALTER COLUMN watchlist_id SET DEFAULT nextval('seq_watchlists_id');

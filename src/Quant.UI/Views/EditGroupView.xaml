@@ -220,11 +220,10 @@
                                        Style="{StaticResource SectionLabel}"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                                         VerticalAlignment="Center">
+                                <CheckBox x:Name="CheckboxAddTicker" Content="Add" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <Button x:Name="BtnDownloadGroup" Content="🔄" Style="{StaticResource ActionBtn}"
                                         Padding="6,3" Margin="0,0,3,0" Click="BtnDownloadGroup_Click"
                                         ToolTip="그룹 전체 가격 데이터 다운로드"/>
-                                <Button x:Name="BtnAddTicker"    Content="＋" Style="{StaticResource ActionBtn}"
-                                        Padding="6,3" Margin="0,0,3,0" Click="BtnAddTicker_Click"/>
                                 <Button x:Name="BtnRemoveTicker" Content="✕" Style="{StaticResource ActionBtn}"
                                         Padding="6,3" Margin="0" Foreground="#F38BA8"
                                         Click="BtnRemoveTicker_Click"/>
@@ -292,6 +291,7 @@
                                        Margin="0,0,6,0"/>
                             <TextBlock x:Name="TxtGroupName" FontSize="11" FontFamily="Consolas"
                                        Foreground="#CDD6F4" VerticalAlignment="Center"/>
+                            <CheckBox Content="Append" VerticalAlignment="Center" Margin="8,0,6,0"/>
                             <Button x:Name="BtnChartAll"  Content="All"  Style="{StaticResource PeriodBtn}"
                                     Click="BtnChart_Click" Tag="1"/>
                             <Button x:Name="BtnChartClear"  Content="Clear"  Style="{StaticResource PeriodBtn}"

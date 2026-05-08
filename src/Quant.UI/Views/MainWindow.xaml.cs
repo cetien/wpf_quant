@@ -17,6 +17,7 @@ public partial class MainWindow : Window
 
     private Button[] _toolButtons = [];
     private bool     _sidePanelVisible = true;
+    private Button[] _allToolButtons  = [];
 
     public MainWindow()
     {
@@ -27,17 +28,27 @@ public partial class MainWindow : Window
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         TxtDbPath.Text = ShortenPath(DbManager.DbPath);
-        _toolButtons   = [BtnDashboard, BtnChart, BtnSearch, BtnDbBrowser];
+        _toolButtons    = [BtnDashboard, BtnChart, BtnSearch, BtnDbBrowser];
+        _allToolButtons = [BtnDashboard, BtnChart, BtnSearch, BtnDbBrowser, BtnGroup, BtnReport];
         ShowDashboard();
     }
 
     private void SidePanel_StockSelected(string ticker, string name)
     {
-        if (MainContent.Content is ChartView cv) cv.LoadTicker(ticker, name);
+		if (MainContent.Content is ChartView cv) cv.LoadTicker(ticker, name);
+        else if (MainContent.Content is EditGroupView gv) gv.AddTicker(ticker, name);
         SetStatus($"선택: {name}({ticker})", "#CDD6F4");
     }
 
     private void SidePanel_GroupSelected(int groupId, string name) { }
+
+    private void SidePanel_IndicatorSelected(string symbol, string label)
+    {
+        ShowChart();
+        if (MainContent.Content is ChartView cv)
+            cv.LoadTicker(symbol, label);
+        SetStatus($"인디케이터: {label}({symbol})", "#CDD6F4");
+    }
 
     private void MenuSidePanel_Click(object sender, RoutedEventArgs e)
     {
@@ -57,6 +68,8 @@ public partial class MainWindow : Window
     private void BtnChart_Click(object sender, RoutedEventArgs e)     => ShowChart();
     private void BtnSearch_Click(object sender, RoutedEventArgs e)    => ShowSearch();
     private void BtnDbBrowser_Click(object sender, RoutedEventArgs e) => ShowDbBrowser();
+    private void BtnGroup_Click(object sender, RoutedEventArgs e)    => ShowEditGroup();
+    private void BtnReport_Click(object sender, RoutedEventArgs e)   => ShowReport();
 
     private void ShowDashboard()
     {
@@ -98,7 +111,7 @@ public partial class MainWindow : Window
             _reportView = new ReportView();
             _reportView.StatusChanged += SetStatus;
         }
-        SwitchView(_reportView, null, "Report");
+        SwitchView(_reportView, BtnReport, "Report");
     }
 
     private void ShowEditGroup()
@@ -108,7 +121,7 @@ public partial class MainWindow : Window
             _editGroupView = new EditGroupView();
             _editGroupView.StatusChanged += SetStatus;
         }
-        SwitchView(_editGroupView, null, "Edit Group");
+        SwitchView(_editGroupView, BtnGroup, "Edit Group");
     }
 
     private void ShowEditWatchlist()
@@ -131,7 +144,7 @@ public partial class MainWindow : Window
 
     private void HighlightToolButton(Button? active)
     {
-        foreach (var btn in _toolButtons)
+        foreach (var btn in _allToolButtons)
         {
             var isActive  = ReferenceEquals(btn, active);
             var fg        = isActive ? "#89B4FA" : "#6C7086";
