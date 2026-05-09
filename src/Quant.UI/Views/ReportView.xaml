@@ -80,7 +80,31 @@
                         <TextBlock Text="Show All" FontSize="10"
                                Foreground="#FFCAD0A6" VerticalAlignment="Center"
                                FontFamily="Consolas"/>
-                    </Button>                    
+                    </Button>  
+                    <Slider x:Name="SliderFrom"
+                            Width="120"
+                            Minimum="0"
+                            Maximum="100"
+                            Margin="12,0,6,0"
+                            VerticalAlignment="Center"/>
+                    <TextBlock x:Name="TxtSliderFrom"
+                               Text="0"
+                               FontSize="10"
+                               Foreground="White"
+                               VerticalAlignment="Center"
+                               FontFamily="Consolas"/>
+                    <Slider x:Name="SliderTo"
+                            Width="120"
+                            Minimum="0"
+                            Maximum="100"
+                            Margin="12,0,6,0"
+                            VerticalAlignment="Center"/>
+                    <TextBlock x:Name="TxtSliderTo"
+                               Text="0"
+                               FontSize="10"
+                               Foreground="White"
+                               VerticalAlignment="Center"
+                               FontFamily="Consolas"/>
                 </StackPanel>
                 <TextBlock x:Name="TxtRowCount" HorizontalAlignment="Right"
                            FontSize="10" FontFamily="Consolas"

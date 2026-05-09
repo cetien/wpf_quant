@@ -18,11 +18,10 @@ using System.Xml.Linq;
 
 namespace Quant.UI.Views;
 
-//TODO: GridTicker가 현재 editable 상태임 -> edit 불가. onDblClk->quant.ui/views/chartView로 연결
-
 public partial class EditGroupView : UserControl
 {
     public event Action<string, string>? StatusChanged;
+    public event Action<string, string>? TickerDoubleClicked;  // ticker, name → MainWindow가 ChartView로 전달
 
     // ── LiveCharts bindings ───────────────────────────────────
     public ObservableCollection<ISeries> ChartSeries { get; } = [];
@@ -52,10 +51,7 @@ public partial class EditGroupView : UserControl
     ];
 
     // ── raw price data: ticker → (name, prices) ──────────────
-    // name은 tooltip에 사용
     private Dictionary<string, (string name, List<(DateTime date, double close)> prices)> _rawData = [];
-
-    // ─────────────────────────────────────────────────────────
 
     public EditGroupView()
     {
@@ -105,7 +101,7 @@ public partial class EditGroupView : UserControl
 
     private string groupKindFilter = "";
 
-	public void LoadGroups()
+    public void LoadGroups()
     {
         try
         {
@@ -118,62 +114,55 @@ public partial class EditGroupView : UserControl
                 "GROUP BY g.group_id, g.kind, g.name, g.description, g.rating, g.is_active " +
                 "ORDER BY g.kind, g.name");
             GridGroup.ItemsSource = _groupTable.DefaultView;
-			GroupGridCount.Text = $"{_groupTable.Rows.Count:N0}";
-
-			TxtRowCount.Text = $"{_groupTable.Rows.Count:N0} groups";
+            GroupGridCount.Text = $"{_groupTable.Rows.Count:N0}";
+            TxtRowCount.Text = $"{_groupTable.Rows.Count:N0} groups";
             StatusChanged?.Invoke($"그룹 {_groupTable.Rows.Count}건", "#A6E3A1");
         }
         catch (Exception ex) { StatusChanged?.Invoke($"오류: {ex.Message}", "#F38BA8"); }
     }
 
-	private string BuildGroupKindFilter()
-	{
-		if (chkAllGroup.IsChecked == true) return "";
+    private string BuildGroupKindFilter()
+    {
+        if (chkAllGroup.IsChecked == true) return "";
+        var sector = chkSectorGroup.IsChecked == true;
+        var theme = chkThemeGroup.IsChecked == true;
+        if (sector && theme) return "AND (g.kind = 'sector' OR g.kind = 'theme')";
+        if (sector) return "AND g.kind = 'sector'";
+        if (theme) return "AND g.kind = 'theme'";
+        return "AND g.kind NOT IN ('sector', 'theme')";
+    }
 
-		var sector = chkSectorGroup.IsChecked == true;
-		var theme = chkThemeGroup.IsChecked == true;
-
-		if (sector && theme) return "AND (g.kind = 'sector' OR g.kind = 'theme')";
-		if (sector) return "AND g.kind = 'sector'";
-		if (theme) return "AND g.kind = 'theme'";
-		return "AND g.kind NOT IN ('sector', 'theme')";
-	}
-
-	private void GroupFilter_Click(object sender, RoutedEventArgs e)
-	{
-		if (sender is not CheckBox chk) return;
-
-		var tag = chk.Tag;
+    private void GroupFilter_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not CheckBox chk) return;
+        var tag = chk.Tag;
         if (tag?.ToString() == "All")
         {
-            if (chk.IsChecked == true)  
+            if (chk.IsChecked == true)
             {
                 chkSectorGroup.IsChecked = true;
                 chkThemeGroup.IsChecked = true;
             }
-		} else {
+        }
+        else
+        {
             chkAllGroup.IsChecked = false;
         }
+        groupKindFilter = BuildGroupKindFilter();
+        LoadGroups();
+    }
 
-		groupKindFilter = BuildGroupKindFilter();
-		LoadGroups();
-	}
-
-	private void GridGroup_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void GridGroup_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (GridGroup.SelectedItem is not DataRowView row) return;
         if (!int.TryParse(row["group_id"]?.ToString(), out var gid)) return;
-
         _currentGroupId      = gid;
         TxtGroupName.Text    = row["name"]?.ToString() ?? "";
         TxtTickerHeader.Text = $"TICKERS — {TxtGroupName.Text}";
-
-		GroupRatingCtrl.Rating = int.TryParse(row["rating"]?.ToString(), out var r0) ? Math.Clamp(r0, 0, 10) : 5;
-
-		LoadTickers(gid);
+        GroupRatingCtrl.Rating = int.TryParse(row["rating"]?.ToString(), out var r0) ? Math.Clamp(r0, 0, 10) : 5;
+        LoadTickers(gid);
         LoadChartData(gid);
     }
-
 
     // ═════════════════════════════════════════════════════════
     //  좌하: 티커 Grid
@@ -227,34 +216,38 @@ public partial class EditGroupView : UserControl
 
     private void GridTicker_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
 
-	public void AddTicker(string ticker, string name)
-	{
-		if (CheckboxAddTicker.IsChecked == true)
-		{
-			try
-			{
-				_groupTable = _db.Query(
-					$@"INSERT INTO stock_group_map(ticker, group_id, weight) " +
+    private void GridTicker_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (GridTicker.SelectedItem is not DataRowView row) return;
+        var ticker = row["ticker"]?.ToString() ?? "";
+        var name   = row["name"]?.ToString()   ?? ticker;
+        if (!string.IsNullOrEmpty(ticker))
+            TickerDoubleClicked?.Invoke(ticker, name);
+    }
+
+    public void AddTicker(string ticker, string name)
+    {
+        if (CheckboxAddTicker.IsChecked == true)
+        {
+            try
+            {
+                _groupTable = _db.Query(
+                    $@"INSERT INTO stock_group_map(ticker, group_id, weight) " +
                     $"VALUES('{ticker}', {_currentGroupId}, 5) " +
-                    $"ON CONFLICT(ticker, group_id) DO UPDATE SET weight = EXCLUDED.weight"
-					);
-				LoadTickers(_currentGroupId);
-				TxtStatus.Text = $"AddTicker: _currentGroupId={_currentGroupId}, ticker={ticker}, name={name}";
-			}
-			catch (Exception ex) { StatusChanged?.Invoke($"오류: {ex.Message}", "#F38BA8"); }
+                    $"ON CONFLICT(ticker, group_id) DO UPDATE SET weight = EXCLUDED.weight");
+                LoadTickers(_currentGroupId);
+                TxtStatus.Text = $"AddTicker: _currentGroupId={_currentGroupId}, ticker={ticker}, name={name}";
+            }
+            catch (Exception ex) { StatusChanged?.Invoke($"오류: {ex.Message}", "#F38BA8"); }
+        }
+    }
 
-
-		}
-	}
-
-	private void BtnRemoveTicker_Click(object sender, RoutedEventArgs e)
+    private void BtnRemoveTicker_Click(object sender, RoutedEventArgs e)
     {
         if (_currentGroupId < 0) { TxtStatus.Text = "그룹을 먼저 선택하세요."; return; }
         if (GridTicker.SelectedItem is not DataRowView row) { TxtStatus.Text = "티커를 선택하세요."; return; }
-
         var ticker = row["ticker"]?.ToString() ?? "";
         if (string.IsNullOrEmpty(ticker)) return;
-
         if (MessageBox.Show($"[{ticker}]을 그룹에서 제거하시겠습니까?",
                 "제거 확인", MessageBoxButton.YesNo, MessageBoxImage.Warning)
             != MessageBoxResult.Yes) return;
@@ -266,7 +259,6 @@ public partial class EditGroupView : UserControl
             cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = _currentGroupId });
             cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = ticker });
             cmd.ExecuteNonQuery();
-
             LoadTickers(_currentGroupId);
             LoadChartData(_currentGroupId);
             TxtStatus.Text = $"제거됨: {ticker}";
@@ -284,7 +276,6 @@ public partial class EditGroupView : UserControl
         if (_currentGroupId < 0) { TxtStatus.Text = "그룹을 먼저 선택하세요."; return; }
         if (_downloading)        { TxtStatus.Text = "다운로드 중입니다..."; return; }
 
-        // 그룹 내 ticker + name 목록 수집
         var memberDt = _db.Query(
             $"SELECT m.ticker, s.name FROM stock_group_map m " +
             $"JOIN stocks s ON s.ticker = m.ticker " +
@@ -296,7 +287,6 @@ public partial class EditGroupView : UserControl
             .Select(r => (ticker: r["ticker"].ToString()!, name: r["name"].ToString()!))
             .ToList();
 
-        // UI 잠금
         _downloading = true;
         SetDownloadButtons(false);
 
@@ -319,7 +309,6 @@ public partial class EditGroupView : UserControl
             {
                 done++;
                 var prefix = $"[{done}/{total}] {ticker} ({name})";
-
                 try
                 {
                     var (cnt, _) = await svc.DownloadAsync(ticker, progress);
@@ -332,23 +321,14 @@ public partial class EditGroupView : UserControl
                     TxtStatus.Text = msg;
                     StatusChanged?.Invoke(msg, "#F38BA8");
                 }
-
-                // rate limit 방지: 마지막 ticker가 아닐 때만 대기
                 if (done < total)
-                {
-                    // 1500~2500ms 랜덤 delay (Yahoo Finance 차단 임계값 회피)
-                    var delay = rng.Next(1500, 2501);
-                    await Task.Delay(delay);
-                }
+                    await Task.Delay(rng.Next(1500, 2501));
             }
 
-            // 완료 후 차트 갱신
             LoadChartData(_currentGroupId);
-
             var summary = errors.Count == 0
                 ? $"다운로드 완료 — {total}개 종목, {inserted:N0}건 저장"
                 : $"완료 — {total}개 중 {errors.Count}개 오류: {string.Join(", ", errors)}";
-
             TxtStatus.Text = summary;
             StatusChanged?.Invoke(summary, errors.Count == 0 ? "#A6E3A1" : "#F9E2AF");
         }
@@ -366,23 +346,17 @@ public partial class EditGroupView : UserControl
     }
 
     // ═════════════════════════════════════════════════════════
-    //  우하: 차트 데이터 로드
+    //  차트 데이터 로드
     // ═════════════════════════════════════════════════════════
 
-    // groupId 파라미터 오버로드: 그룹 전환 시 전체 _rawData 재로드
     private void LoadChartData(int groupId)
     {
         try
         {
             if (GridTicker.ItemsSource is not DataView view || view.Table == null)
             {
-                ChartSeries.Clear();
-                _rawData.Clear();
-                TxtChartInfo.Text = "종목 없음";
-                return;
+                ChartSeries.Clear(); _rawData.Clear(); TxtChartInfo.Text = "종목 없음"; return;
             }
-
-            // 기간 필터를 DB에서 처리 — N+1 쿼리 → 단일 쿼리
             var periodStart = _periodDays == 0
                 ? "1900-01-01"
                 : DateTime.Today.AddDays(-_periodDays).ToString("yyyy-MM-dd");
@@ -392,8 +366,7 @@ public partial class EditGroupView : UserControl
                 $"FROM stock_group_map m " +
                 $"JOIN stocks s ON s.ticker = m.ticker " +
                 $"JOIN daily_prices p ON p.ticker = m.ticker " +
-                $"WHERE m.group_id = {groupId} " +
-                $"  AND p.date >= '{periodStart}' " +
+                $"WHERE m.group_id = {groupId} AND p.date >= '{periodStart}' " +
                 $"ORDER BY m.ticker, p.date");
 
             _rawData.Clear();
@@ -404,21 +377,14 @@ public partial class EditGroupView : UserControl
                 DateTime.TryParse(r["date"]?.ToString(), out var d);
                 double.TryParse(r["adj_close"]?.ToString(), out var p);
                 if (d == default || p <= 0) continue;
-
-                if (!_rawData.ContainsKey(ticker))
-                    _rawData[ticker] = (name, []);
+                if (!_rawData.ContainsKey(ticker)) _rawData[ticker] = (name, []);
                 _rawData[ticker].prices.Add((d, p));
             }
 
-            // 최초 로드 시 첫 번째 항목만 선택
             if (view.Table.Columns.Contains("chart_selected"))
             {
                 bool first = true;
-                foreach (DataRow r in view.Table.Rows)
-                {
-                    r["chart_selected"] = first;
-                    first = false;
-                }
+                foreach (DataRow r in view.Table.Rows) { r["chart_selected"] = first; first = false; }
             }
 
             ApplyPeriod();
@@ -443,15 +409,11 @@ public partial class EditGroupView : UserControl
         ChartSeries.Clear();
         if (_rawData.Count == 0) return;
 
-        // checked ticker 목록 수집
         var checkedTickers = new HashSet<string>();
         if (GridTicker.ItemsSource is DataView dv && dv.Table != null
             && dv.Table.Columns.Contains("chart_selected"))
-        {
             foreach (DataRow r in dv.Table.Rows)
-                if (r["chart_selected"] is true)
-                    checkedTickers.Add(r["ticker"].ToString()!);
-        }
+                if (r["chart_selected"] is true) checkedTickers.Add(r["ticker"].ToString()!);
         if (checkedTickers.Count == 0)
             checkedTickers = _rawData.Keys.ToHashSet();
 
@@ -460,198 +422,129 @@ public partial class EditGroupView : UserControl
 
         foreach (var (ticker, (name, prices)) in _rawData)
         {
-            if (!checkedTickers.Contains(ticker)) continue;
-            if (prices.Count < 2) continue;
-
+            if (!checkedTickers.Contains(ticker) || prices.Count < 2) continue;
             var baseClose = prices.First().close;
             var points = prices
                 .Select(d => new DateTimePoint(d.date, Math.Round(d.close / baseClose * 100.0, 4)))
                 .ToList();
-
-            var color = Palette[colorIdx % Palette.Length];
-            colorIdx++;
-
-            // Name에 종목명 사용 → tooltip에 표시됨
+            var color = Palette[colorIdx++ % Palette.Length];
             ChartSeries.Add(new LineSeries<DateTimePoint>
             {
-                Values         = new ObservableCollection<DateTimePoint>(points),
-                Stroke         = new SolidColorPaint(color) { StrokeThickness = 1.5f },
-                Fill           = null,
-                GeometrySize   = 0,
-                GeometryFill   = null,
-                GeometryStroke = null,
-                LineSmoothness = 0,
-                Name           = name,   // ← 종목명
+                Values = new ObservableCollection<DateTimePoint>(points),
+                Stroke = new SolidColorPaint(color) { StrokeThickness = 1.5f },
+                Fill = null, GeometrySize = 0, GeometryFill = null, GeometryStroke = null,
+                LineSmoothness = 0, Name = name,
             });
-
             lastValues.Add((name, points.Last().Value ?? 100.0));
         }
 
-        // ── KOSPI 오버레이 (항상 추가, _rawData에 없으면 DB에서 직접 로드) ──
         AddKospiOverlay();
 
         if (lastValues.Count > 0)
         {
             var best  = lastValues.MaxBy(x => x.last);
             var worst = lastValues.MinBy(x => x.last);
-            TxtChartInfo.Text =
-                $"▲ {best.label}  {best.last - 100:+0.0;-0.0}%   " +
-                $"▼ {worst.label}  {worst.last - 100:+0.0;-0.0}%";
+            TxtChartInfo.Text = $"▲ {best.label}  {best.last - 100:+0.0;-0.0}%   ▼ {worst.label}  {worst.last - 100:+0.0;-0.0}%";
         }
 
-        // Y축 범위를 렌더된 데이터의 min/max에 맞춤
         var yAxis = ChartYAxes[0];
-        if (ChartSeries.Count == 0)
+        var allValues = ChartSeries
+            .OfType<LineSeries<DateTimePoint>>()
+            .SelectMany(s => s.Values ?? [])
+            .Select(p => p.Value).Where(v => v.HasValue).Select(v => v!.Value).ToList();
+        if (allValues.Count > 0)
         {
-            yAxis.MinLimit = null;
-            yAxis.MaxLimit = null;
+            var margin = (allValues.Max() - allValues.Min()) * 0.03;
+            yAxis.MinLimit = Math.Max(0, allValues.Min() - margin);
+            yAxis.MaxLimit = allValues.Max() + margin;
         }
-        else
-        {
-            var allValues = ChartSeries
-                .OfType<LineSeries<DateTimePoint>>()
-                .SelectMany(s => s.Values ?? [])
-                .Select(p => p.Value)
-                .Where(v => v.HasValue)
-                .Select(v => v!.Value)
-                .ToList();
-
-            if (allValues.Count > 0)
-            {
-                var dataMin = allValues.Min();
-                var dataMax = allValues.Max();
-                var margin  = (dataMax - dataMin) * 0.03;  // 3% 여백
-                yAxis.MinLimit = Math.Max(0, dataMin - margin);
-                yAxis.MaxLimit = dataMax + margin;
-            }
-        }
+        else { yAxis.MinLimit = null; yAxis.MaxLimit = null; }
     }
-
-    // ═════════════════════════════════════════════════════════
-    //  KOSPI 오버레이
-    // ═════════════════════════════════════════════════════════
 
     private void AddKospiOverlay()
     {
-        var periodStart = _periodDays == 0
-            ? "1900-01-01"
+        var periodStart = _periodDays == 0 ? "1900-01-01"
             : DateTime.Today.AddDays(-_periodDays).ToString("yyyy-MM-dd");
-
         List<(DateTime date, double close)> prices;
-
-        // _rawData에 이미 있으면 재사용, 없으면 DB에서 직접 로드
         if (_rawData.TryGetValue(KospiTicker, out var cached))
-        {
             prices = cached.prices;
-        }
         else
         {
             try
             {
                 var dt = _db.Query(
                     $"SELECT date, adj_close FROM daily_prices " +
-                    $"WHERE ticker = '{KospiTicker}' AND date >= '{periodStart}' " +
-                    $"ORDER BY date ASC");
-                prices = dt.Rows.Cast<DataRow>()
-                    .Select(r =>
-                    {
-                        DateTime.TryParse(r[0]?.ToString(), out var d);
-                        double.TryParse(r[1]?.ToString(), out var p);
-                        return (date: d, close: p);
-                    })
-                    .Where(x => x.date != default && x.close > 0)
-                    .ToList();
+                    $"WHERE ticker = '{KospiTicker}' AND date >= '{periodStart}' ORDER BY date ASC");
+                prices = dt.Rows.Cast<DataRow>().Select(r =>
+                {
+                    DateTime.TryParse(r[0]?.ToString(), out var d);
+                    double.TryParse(r[1]?.ToString(), out var p);
+                    return (date: d, close: p);
+                }).Where(x => x.date != default && x.close > 0).ToList();
             }
             catch { return; }
         }
-
         if (prices.Count < 2) return;
-
         var baseClose = prices.First().close;
-        var points = prices
-            .Select(d => new DateTimePoint(d.date, Math.Round(d.close / baseClose * 100.0, 4)))
-            .ToList();
-
-        // 회색 점선, 얇게 — 배경 기준선 역할
+        var points = prices.Select(d => new DateTimePoint(d.date, Math.Round(d.close / baseClose * 100.0, 4))).ToList();
         ChartSeries.Add(new LineSeries<DateTimePoint>
         {
-            Values         = new ObservableCollection<DateTimePoint>(points),
-            Stroke         = new SolidColorPaint(SKColor.Parse("#585B70"))
-                             {
-                                 StrokeThickness = 1f,
-                                 //PathEffect      = new LiveChartsCore.Drawing.DashEffect([4, 4]),
-                             },
-            Fill           = null,
-            GeometrySize   = 0,
-            GeometryFill   = null,
-            GeometryStroke = null,
-            LineSmoothness = 0,
-            Name           = "KOSPI",
+            Values = new ObservableCollection<DateTimePoint>(points),
+            Stroke = new SolidColorPaint(SKColor.Parse("#585B70")) { StrokeThickness = 1f },
+            Fill = null, GeometrySize = 0, GeometryFill = null, GeometryStroke = null,
+            LineSmoothness = 0, Name = "KOSPI",
         });
     }
 
     // ═════════════════════════════════════════════════════════
-    //  Buttons
+    //  Buttons & CRUD
     // ═════════════════════════════════════════════════════════
 
     private void BtnPeriod_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button btn) return;
         _periodDays = int.Parse(btn.Tag?.ToString() ?? "365");
-
         foreach (var b in new[] { Btn1M, Btn3M, Btn6M, Btn1Y, Btn2Y, BtnAll })
             b.Foreground = System.Windows.Media.Brushes.Gray;
         btn.Foreground = new System.Windows.Media.SolidColorBrush(
             (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#89B4FA"));
-
-        // 기간 변경 시 DB에서 재로드 (필터는 DB에서 처리)
-        if (_currentGroupId >= 0)
-            LoadChartData(_currentGroupId);
+        if (_currentGroupId >= 0) LoadChartData(_currentGroupId);
     }
-	private void BtnChart_Click(object sender, RoutedEventArgs e)
-	{
-		if (GridTicker.ItemsSource is not DataView view) return;
-		if (sender is not Button btn) return;
 
-		var checkAll = (btn.Tag?.ToString() ?? "") == "1";
-		if (view.Table?.Columns.Contains("chart_selected") == true) 
-            foreach (DataRow row in view.Table.Rows)
-				row["chart_selected"] = checkAll;
-	}
-	private void BtnDeleteTicker_Click(object sender, RoutedEventArgs e)
-	{
-		if (_currentGroupId < 0) return;
-		if (sender is not Button btn) return;
-		if (btn.Tag is not DataRowView row) return;
+    private void BtnChart_Click(object sender, RoutedEventArgs e)
+    {
+        if (GridTicker.ItemsSource is not DataView view || sender is not Button btn) return;
+        var checkAll = (btn.Tag?.ToString() ?? "") == "1";
+        if (view.Table?.Columns.Contains("chart_selected") == true)
+            foreach (DataRow row in view.Table.Rows) row["chart_selected"] = checkAll;
+    }
 
-		var ticker = row["ticker"]?.ToString() ?? "";
-		if (string.IsNullOrEmpty(ticker)) return;
-
-		if (MessageBox.Show($"[{ticker}]을 그룹에서 제거하시겠습니까?",
-				"제거 확인", MessageBoxButton.YesNo, MessageBoxImage.Warning)
-			!= MessageBoxResult.Yes) return;
-		try
-		{
-			using var conn = _db.OpenNativeConnection();
-			using var cmd  = conn.CreateCommand();
-			cmd.CommandText = "DELETE FROM stock_group_map WHERE group_id = $1 AND ticker = $2";
-			cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = _currentGroupId });
-			cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = ticker });
-			cmd.ExecuteNonQuery();
-
-			_rawData.Remove(ticker);
-			LoadTickers(_currentGroupId);
-			ApplyPeriod();
-			UpdateGroupCount();
-			TxtStatus.Text = $"제거됨: {ticker}";
-			StatusChanged?.Invoke($"제거됨: {ticker}", "#F38BA8");
-		}
-		catch (Exception ex) { TxtStatus.Text = $"제거 오류: {ex.Message}"; }
-	}
-
-	// ═════════════════════════════════════════════════════════
-	//  그룹 CRUD
-	// ═════════════════════════════════════════════════════════
+    private void BtnDeleteTicker_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentGroupId < 0) return;
+        if (sender is not Button btn || btn.Tag is not DataRowView row) return;
+        var ticker = row["ticker"]?.ToString() ?? "";
+        if (string.IsNullOrEmpty(ticker)) return;
+        if (MessageBox.Show($"[{ticker}]을 그룹에서 제거하시겠습니까?",
+                "제거 확인", MessageBoxButton.YesNo, MessageBoxImage.Warning)
+            != MessageBoxResult.Yes) return;
+        try
+        {
+            using var conn = _db.OpenNativeConnection();
+            using var cmd  = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM stock_group_map WHERE group_id = $1 AND ticker = $2";
+            cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = _currentGroupId });
+            cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = ticker });
+            cmd.ExecuteNonQuery();
+            _rawData.Remove(ticker);
+            LoadTickers(_currentGroupId);
+            ApplyPeriod();
+            UpdateGroupCount();
+            TxtStatus.Text = $"제거됨: {ticker}";
+            StatusChanged?.Invoke($"제거됨: {ticker}", "#F38BA8");
+        }
+        catch (Exception ex) { TxtStatus.Text = $"제거 오류: {ex.Message}"; }
+    }
 
     private void GroupRatingCtrl_RatingChanged(int rating)
     {
@@ -659,7 +552,6 @@ public partial class EditGroupView : UserControl
         try
         {
             _db.Execute($"UPDATE groups SET rating={rating}, updated_at=CURRENT_TIMESTAMP WHERE group_id={_currentGroupId}");
-            // 그룹 Grid 현재 행 즉시 갱신 (재쿼리 없이)
             if (_groupTable != null && GridGroup.SelectedItem is DataRowView row)
                 row.Row["rating"] = rating;
             StatusChanged?.Invoke($"[{TxtGroupName.Text}] rating 저장: {rating}", "#A6E3A1");
@@ -667,23 +559,22 @@ public partial class EditGroupView : UserControl
         catch (Exception ex) { StatusChanged?.Invoke($"rating 저장 오류: {ex.Message}", "#F38BA8"); }
     }
 
-	private void UpdateGroupCount()
-	{
-		if (_groupTable == null || GridGroup.SelectedItem is not DataRowView selRow) return;
-		if (!int.TryParse(selRow["group_id"]?.ToString(), out var gid)) return;
-		try
-		{
-			var cnt = _db.Scalar<long>($"SELECT COUNT(*) FROM stock_group_map WHERE group_id = {gid}");
-			foreach (DataRow r in _groupTable.Rows)
-				if (r["group_id"].ToString() == gid.ToString()) { r["count"] = cnt; break; }
-		}
-		catch { }
-	}
+    private void UpdateGroupCount()
+    {
+        if (_groupTable == null || GridGroup.SelectedItem is not DataRowView selRow) return;
+        if (!int.TryParse(selRow["group_id"]?.ToString(), out var gid)) return;
+        try
+        {
+            var cnt = _db.Scalar<long>($"SELECT COUNT(*) FROM stock_group_map WHERE group_id = {gid}");
+            foreach (DataRow r in _groupTable.Rows)
+                if (r["group_id"].ToString() == gid.ToString()) { r["count"] = cnt; break; }
+        }
+        catch { }
+    }
 
-	// checkbox 토글 → 즉시 차트 새로고침
-	private void ChartSelected_Changed(object sender, RoutedEventArgs e) => ApplyPeriod();
+    private void ChartSelected_Changed(object sender, RoutedEventArgs e) => ApplyPeriod();
 
-	private void BtnNew_Click(object sender, RoutedEventArgs e)
+    private void BtnNew_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new GroupEditDialog(null);
         if (dlg.ShowDialog() == true) LoadGroups();
@@ -708,19 +599,12 @@ public partial class EditGroupView : UserControl
         {
             _db.Execute($"DELETE FROM groups WHERE group_id = {id}");
             StatusChanged?.Invoke($"삭제됨: {name}", "#F38BA8");
-
-            _currentGroupId      = -1;
-            TxtGroupName.Text    = "";
-            TxtTickerHeader.Text = "TICKERS";
-            TxtChartInfo.Text    = "";
+            _currentGroupId = -1;
+            TxtGroupName.Text = ""; TxtTickerHeader.Text = "TICKERS"; TxtChartInfo.Text = "";
             GridTicker.ItemsSource = null;
-            ChartSeries.Clear();
-            _rawData.Clear();
-
+            ChartSeries.Clear(); _rawData.Clear();
             LoadGroups();
         }
         catch (Exception ex) { StatusChanged?.Invoke($"삭제 오류: {ex.Message}", "#F38BA8"); }
     }
-
-
 }

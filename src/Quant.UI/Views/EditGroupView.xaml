@@ -248,9 +248,10 @@
                     </Border>
                     <DataGrid x:Name="GridTicker" Grid.Row="1"
                               Style="{StaticResource QuantDataGrid}"
-                              IsReadOnly="False"
+                              IsReadOnly="True"
                               AutoGenerateColumns="False"
-                              SelectionChanged="GridTicker_SelectionChanged">
+                              SelectionChanged="GridTicker_SelectionChanged"
+                              MouseDoubleClick="GridTicker_MouseDoubleClick">
                         <DataGrid.Columns>
                             <DataGridTemplateColumn Header="chart" Width="30" CanUserSort="False">
                                 <DataGridTemplateColumn.CellTemplate>

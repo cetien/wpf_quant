@@ -1,4 +1,4 @@
-using Quant.Core.Infrastructure;
+﻿using Quant.Core.Infrastructure;
 
 using System.Data;
 using System.Diagnostics;
@@ -11,10 +11,7 @@ using System.Windows.Input;
 namespace Quant.UI.Views;
 
 //TODO: ticker의 대표 group을 찾아서, GridReport에 3번째 컬럼으로 표시 (using v_stock_primary_sector 또는 개선하여 사용)
-//TODO: 상단에 slider control 추가 (날짜 범위로 min/max 설정)
-//TODO: GridCompany,GridDate의 column2 -> right align
-//TODO: at RefreshCompanyGrid(): GridDate -> column1 내림차순 정렬
-//TODO: at Grid_DateClick(): GridReport -> column2(ticker) 오름차순 정렬
+//TODO: SliderFrom/SliderTo 에서 조절한 날자 범위 이용하여 목록 filtering
 
 public partial class ReportView : UserControl
 {
@@ -207,10 +204,13 @@ public partial class ReportView : UserControl
         {
             _allReports = _db.Query(
                 "SELECT id, date, ticker, title, writer, filepath " +
-                "FROM pdf_reports ORDER BY date DESC, id DESC LIMIT 5000");
+                "FROM pdf_reports ORDER BY date DESC, ticker ASC LIMIT 5000");
 
             ApplyReportFilter(null, null);
             RefreshCompanyGrid();
+
+            //TODO: TxtSliderFrom/TxtSliderTo 에 min/max date 표시
+            //TODO: SliderFrom/SliderTo 에 min/max date 이용하여 범위 설정
 
             TxtRowCount.Text = $"{_allReports.Rows.Count:N0} rows";
             SetStatus($"Total {_allReports.Rows.Count:N0}", "#A6E3A1");
@@ -244,6 +244,17 @@ public partial class ReportView : UserControl
     {
         FillGrid_GroupedBy("ticker", GridCompany);
 		FillGrid_GroupedBy("date", GridDate);
+		if (GridDate.ItemsSource is DataView dateView)
+			dateView.Sort = "date DESC";
+
+		var rightAlignStyle = new Style(typeof(TextBlock));
+		rightAlignStyle.Setters.Add(new Setter(TextBlock.TextAlignmentProperty, TextAlignment.Right));
+
+		if (GridCompany.Columns.Count > 1 && GridCompany.Columns[1] is DataGridTextColumn companyCol2)
+			companyCol2.ElementStyle = rightAlignStyle;
+
+		if (GridDate.Columns.Count > 1 && GridDate.Columns[1] is DataGridTextColumn dateCol2)
+			dateCol2.ElementStyle = rightAlignStyle;
 	}
 
 	// ──────────────────────────────────────────────────────────

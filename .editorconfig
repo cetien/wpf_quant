@@ -1,0 +1,26 @@
+# .editorconfig for quant project
+root = true
+
+[*]
+charset = utf-8-bom
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Default indentation
+indent_style = space
+indent_size = 4
+
+# C# specific rules
+[*.{cs,csproj}]
+# Use 4 spaces for indentation
+indent_style = space
+indent_size = 4
+
+# Ensure final newline in text files
+insert_final_newline = true
+
+# Visual Studio files
+[*.sln]
+end_of_line = crlf
+charset = utf-8-bom

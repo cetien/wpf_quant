@@ -119,7 +119,12 @@ public partial class MainWindow : Window
         if (_editGroupView is null)
         {
             _editGroupView = new EditGroupView();
-            _editGroupView.StatusChanged += SetStatus;
+            _editGroupView.StatusChanged      += SetStatus;
+            _editGroupView.TickerDoubleClicked += (ticker, name) =>
+            {
+                ShowChart();
+                (_chartView as ChartView)?.LoadTicker(ticker, name);
+            };
         }
         SwitchView(_editGroupView, BtnGroup, "Edit Group");
     }
