@@ -64,6 +64,23 @@ public class GroupRow
 }
 
 // ──────────────────────────────────────────────────────────────
+//  Screener row  (하드코딩 전용 — 사용자 입력 절대 금지)
+// ──────────────────────────────────────────────────────────────
+public class ScreenerRow
+{
+    public int    Id          { get; set; }
+    public string Name        { get; set; } = "";
+    public string Description { get; set; } = "";
+
+    /// <summary>
+    /// ⚠️ SECURITY: 하드코딩된 리터럴만 허용.
+    /// 사용자 입력 문자열을 여기에 할당하는 것은 SQL 인젝션 경로이므로 금지.
+    /// 편집 view 구현 시 반드시 파라미터 바인딩 또는 AST 빌더로 교체할 것.
+    /// </summary>
+    public string SqlWhere    { get; set; } = "";
+}
+
+// ──────────────────────────────────────────────────────────────
 //  Stock row
 // ──────────────────────────────────────────────────────────────
 public class StockRow
@@ -89,16 +106,40 @@ public partial class LeftSidePanelViewModel : ObservableObject
     [ObservableProperty] private bool _showSector     = true;
     [ObservableProperty] private bool _showTheme      = true;
 
+    // ── 탭: GROUPS / SCREENERS ────────────────────────────────
+    /// <summary>true = GROUPS 탭, false = SCREENERS 탭</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsScreenerTabActive))]
+    private bool _isGroupTabActive = true;
+
+    public bool IsScreenerTabActive => !IsGroupTabActive;
+
     // ── Groups ────────────────────────────────────────────────
+    private readonly List<GroupRow>  _allGroups = [];
     public ObservableCollection<GroupRow> Groups { get; } = [];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelectedGroup))]
+    [NotifyPropertyChangedFor(nameof(HasSelection))]
     private GroupRow? _selectedGroup;
 
     public bool HasSelectedGroup => SelectedGroup is not null;
 
+    /// <summary>Groups 또는 Screeners 중 하나라도 선택되면 true → StockGrid Opacity 제어용</summary>
+    public bool HasSelection => SelectedGroup is not null || SelectedScreener is not null;
+
+    // ── Screeners (하드코딩 전용) ─────────────────────────────
+    public ObservableCollection<ScreenerRow> Screeners { get; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelectedScreener))]
+    [NotifyPropertyChangedFor(nameof(HasSelection))]
+    private ScreenerRow? _selectedScreener;
+
+    public bool HasSelectedScreener => SelectedScreener is not null;
+
     // ── Stocks ────────────────────────────────────────────────
+    private readonly List<StockRow>  _allStocks = [];
     public ObservableCollection<StockRow> Stocks { get; } = [];
 
     [ObservableProperty]
@@ -107,6 +148,12 @@ public partial class LeftSidePanelViewModel : ObservableObject
 
     public bool HasSelectedStock => SelectedStock is not null;
 
+    // ── Stock 검색 (메모리 필터) ──────────────────────────────
+    [ObservableProperty] private string _stockSearchText = "";
+
+    // ── Stock 섹션 헤더 레이블 ────────────────────────────────
+    [ObservableProperty] private string _stockSectionLabel = "";
+
     // ── 상태 ─────────────────────────────────────────────────
     [ObservableProperty] private string _statusText = "준비";
     [ObservableProperty] private bool   _isBusy     = false;
@@ -114,20 +161,22 @@ public partial class LeftSidePanelViewModel : ObservableObject
     // ── 이벤트 ───────────────────────────────────────────────
     public event Action<string, string>? StockSelected;
     public event Action<int, string>?    GroupSelected;
-    public event Action<string, string>? IndicatorSelected;  // (symbol, label)
+    public event Action<string, string>? IndicatorSelected;
 
     // ═════════════════════════════════════════════════════════
     public LeftSidePanelViewModel()
     {
         InitIndicators();
+        InitScreeners();
     }
 
+    // ──────────────────────────────────────────────────────────
+    //  Indicators
+    // ──────────────────────────────────────────────────────────
     private void InitIndicators()
     {
-        // IndicatorDefs 순서대로 빈 항목 생성 후 DB 최신값으로 채움
         foreach (var def in IndicatorDownloadService.IndicatorDefs)
             Indicators.Add(new GlobalIndicatorItem { Symbol = def.DbTicker, Label = def.Label });
-
         RefreshIndicatorValues();
     }
 
@@ -151,13 +200,9 @@ public partial class LeftSidePanelViewModel : ObservableObject
         item.Change = changePct;
     }
 
-    /// <summary>GLOBAL INDICATORS 항목 클릭 시 ChartView 로 이동</summary>
     public void SelectIndicator(GlobalIndicatorItem item)
         => IndicatorSelected?.Invoke(item.Symbol, item.Label);
 
-    // ──────────────────────────────────────────────────────────
-    //  Groups 로드
-    // ──────────────────────────────────────────────────────────
     [RelayCommand]
     public async Task DownloadIndicatorsAsync()
     {
@@ -167,7 +212,6 @@ public partial class LeftSidePanelViewModel : ObservableObject
         try
         {
             var svc      = new IndicatorDownloadService(_db);
-            // Progress 콜백을 UI 스레드에서 실행
             var progress = new Progress<(string symbol, string msg)>(p =>
                 System.Windows.Application.Current.Dispatcher.InvokeAsync(
                     () => StatusText = $"{p.symbol}: {p.msg}"));
@@ -181,15 +225,112 @@ public partial class LeftSidePanelViewModel : ObservableObject
         finally { IsBusy = false; }
     }
 
+    // ──────────────────────────────────────────────────────────
+    //  탭 전환
+    // ──────────────────────────────────────────────────────────
+    partial void OnIsGroupTabActiveChanged(bool value)
+    {
+        ClearStocks();
+        if (value)
+        {
+            // GROUPS 탭 활성화 시 선택 초기화
+            SelectedScreener = null;
+        }
+        else
+        {
+            // SCREENERS 탭 활성화 시 선택 초기화
+            SelectedGroup = null;
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────
+    //  Screeners 초기화 (하드코딩)
+    // ──────────────────────────────────────────────────────────
+    private void InitScreeners()
+    {
+        // ⚠️ SqlWhere는 하드코딩 리터럴만. 사용자 입력 할당 금지.
+        Screeners.Add(new ScreenerRow
+        {
+            Id = 1, Name = "KOSPI · PBR < 1.5",
+            Description = "코스피 저PBR",
+            SqlWhere = "s.market = 'KP' AND f.pbr < 1.5 AND f.pbr > 0"
+        });
+        Screeners.Add(new ScreenerRow
+        {
+            Id = 2, Name = "ROE > 15%",
+            Description = "고ROE 전체",
+            SqlWhere = "f.roe > 15"
+        });
+        Screeners.Add(new ScreenerRow
+        {
+            Id = 3, Name = "KOSDAQ · PER < 10",
+            Description = "코스닥 저PER",
+            SqlWhere = "s.market = 'KQ' AND f.per > 0 AND f.per < 10"
+        });
+    }
+
+    partial void OnSelectedScreenerChanged(ScreenerRow? value)
+    {
+        ClearStocks();
+        if (value is null) return;
+        StockSectionLabel = value.Name;
+        LoadStocksByScreener(value.SqlWhere);
+    }
+
+    /// <summary>
+    /// ⚠️ whereClause는 InitScreeners()의 하드코딩 값만 수신해야 함.
+    /// 사용자 입력이 경로에 들어오면 SQL 인젝션 위험 — 편집 view 구현 시 교체 필수.
+    /// </summary>
+    private void LoadStocksByScreener(string whereClause)
+    {
+        try
+        {
+            // fundamentals는 ticker당 여러 행 존재 → 최신 report_date 1건만 사용
+            var activeFilter = ShowOnlyActive ? "AND s.is_active = TRUE" : "";
+            var sql = $"""
+                WITH latest_f AS (
+                    SELECT ticker, pbr, per, roe,
+                           ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY report_date DESC) AS rn
+                    FROM fundamentals
+                )
+                SELECT s.ticker, s.name, s.market, s.rating
+                FROM stocks s
+                JOIN latest_f f ON s.ticker = f.ticker AND f.rn = 1
+                WHERE {whereClause} {activeFilter}
+                ORDER BY s.ticker
+                """;
+
+            var dt = _db.Query(sql);
+            _allStocks.Clear();
+            foreach (DataRow row in dt.Rows)
+            {
+                _allStocks.Add(new StockRow
+                {
+                    Ticker = SafeStr(row, "ticker"),
+                    Name   = SafeStr(row, "name"),
+                    Market = SafeStr(row, "market"),
+                    Rating = SafeInt(row, "rating"),
+                });
+            }
+            ApplyStockFilter();
+            StatusText = $"{SelectedScreener?.Name}  {_allStocks.Count}종목";
+        }
+        catch (Exception ex) { StatusText = $"오류: {ex.Message}"; }
+    }
+
+    // ──────────────────────────────────────────────────────────
+    //  Groups 로드
+    // ──────────────────────────────────────────────────────────
     [RelayCommand]
     public void LoadGroups()
     {
         try
         {
             IsBusy = true;
+            _allGroups.Clear();
             Groups.Clear();
             SelectedGroup = null;
-            Stocks.Clear();
+            ClearStocks();
 
             var kindFilter   = BuildKindFilter();
             var activeFilter = ShowOnlyActive ? "AND g.is_active = TRUE" : "";
@@ -207,7 +348,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
             var dt = _db.Query(sql);
             foreach (DataRow row in dt.Rows)
             {
-                Groups.Add(new GroupRow
+                _allGroups.Add(new GroupRow
                 {
                     GroupId    = SafeInt(row, "group_id"),
                     Kind       = SafeStr(row, "kind"),
@@ -216,6 +357,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
                     StockCount = SafeInt(row, "stock_count"),
                 });
             }
+            foreach (var g in _allGroups) Groups.Add(g);
             StatusText = $"그룹 {Groups.Count}건";
         }
         catch (Exception ex) { StatusText = $"오류: {ex.Message}"; }
@@ -235,9 +377,9 @@ public partial class LeftSidePanelViewModel : ObservableObject
     // ──────────────────────────────────────────────────────────
     partial void OnSelectedGroupChanged(GroupRow? value)
     {
-        Stocks.Clear();
-        SelectedStock = null;
+        ClearStocks();
         if (value is null) return;
+        StockSectionLabel = value.Name;
         GroupSelected?.Invoke(value.GroupId, value.Name);
         LoadStocksForGroup(value.GroupId);
     }
@@ -247,6 +389,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
         try
         {
             var activeFilter = ShowOnlyActive ? "AND s.is_active = TRUE" : "";
+            // groupId는 int이므로 SQL 인젝션 위험 없음
             var sql = $"""
                 SELECT s.ticker, s.name, s.market, s.rating
                 FROM stocks s
@@ -256,9 +399,10 @@ public partial class LeftSidePanelViewModel : ObservableObject
                 """;
 
             var dt = _db.Query(sql);
+            _allStocks.Clear();
             foreach (DataRow row in dt.Rows)
             {
-                Stocks.Add(new StockRow
+                _allStocks.Add(new StockRow
                 {
                     Ticker = SafeStr(row, "ticker"),
                     Name   = SafeStr(row, "name"),
@@ -266,9 +410,36 @@ public partial class LeftSidePanelViewModel : ObservableObject
                     Rating = SafeInt(row, "rating"),
                 });
             }
-            StatusText = $"{SelectedGroup?.Name}  {Stocks.Count}종목";
+            ApplyStockFilter();
+            StatusText = $"{SelectedGroup?.Name}  {_allStocks.Count}종목";
         }
         catch (Exception ex) { StatusText = $"오류: {ex.Message}"; }
+    }
+
+    // ──────────────────────────────────────────────────────────
+    //  Stock 검색 — 메모리 필터
+    // ──────────────────────────────────────────────────────────
+    partial void OnStockSearchTextChanged(string value) => ApplyStockFilter();
+
+    private void ApplyStockFilter()
+    {
+        var keyword = StockSearchText.Trim();
+        Stocks.Clear();
+        var filtered = string.IsNullOrEmpty(keyword)
+            ? _allStocks
+            : _allStocks.Where(s =>
+                  s.Name.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                  s.Ticker.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+        foreach (var s in filtered) Stocks.Add(s);
+    }
+
+    private void ClearStocks()
+    {
+        _allStocks.Clear();
+        Stocks.Clear();
+        SelectedStock     = null;
+        StockSearchText   = "";
+        StockSectionLabel = "";
     }
 
     partial void OnSelectedStockChanged(StockRow? value)
@@ -281,7 +452,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
     partial void OnShowThemeChanged(bool value)      => LoadGroups();
 
     // ──────────────────────────────────────────────────────────
-    //  Helper — DataRow에서 안전 추출 (DataTable 기반으로 전환)
+    //  Helper
     // ──────────────────────────────────────────────────────────
     private static string SafeStr(DataRow r, string col)
     {

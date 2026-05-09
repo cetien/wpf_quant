@@ -1,4 +1,4 @@
-using DuckDB.NET.Data;
+﻿using DuckDB.NET.Data;
 using LiveChartsCore;
 using LiveChartsCore.Defaults;
 using LiveChartsCore.SkiaSharpView;
@@ -12,6 +12,11 @@ using System.Windows.Controls;
 using System.Windows.Input;
 
 namespace Quant.UI.Views;
+
+//TODO: chart type 선택 (선/봉)
+//TODO: 로그 chart 선택 
+//TODO: 이동평균선, 거래량, 보조지표(MSCI,RSI)
+//TODO: 외국인/기관 매수/매도 차트
 
 public partial class ChartView : UserControl
 {
@@ -251,7 +256,15 @@ public partial class ChartView : UserControl
         ApplyPeriod();
     }
 
-	private async void BtnDownloadData_Click(object sender, RoutedEventArgs e)
+    private void BtnExternalLink_Click(object sender, RoutedEventArgs e)
+    {
+        var ticker = TxtTicker.Text.Trim().ToUpper();
+        if (string.IsNullOrEmpty(ticker)) return;
+        var url = $"https://finance.naver.com/item/coinfo.naver?code={ticker}";
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = url, UseShellExecute = true }); }
+        catch (Exception ex) { StatusChanged?.Invoke($"외부 링크 열기 오류: {ex.Message}", "#F38BA8"); }
+    }
+    private async void BtnDownloadData_Click(object sender, RoutedEventArgs e)
     {
         var ticker = TxtTicker.Text.Trim().ToUpper();
         if (string.IsNullOrEmpty(ticker)) return;

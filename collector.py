@@ -52,6 +52,15 @@ python collector.py --from 2025-05-07 --tables supply --tickers 005930
 # 야간 실행 예시
 Start-Process python -ArgumentList "collector.py --from 2020-01-01 --tables supply" -WindowStyle Hidden
 
+
+python collector.py --from 2020-01-01 --tables prices --no-sync *>> logs/collector.log
+python collector.py --from 2020-01-01 --tables prices --no-sync >> logs/collector.log 2>&1
+python collector.py --from 2025-01-01 --tables supply --no-sync >> logs/collector.log 2>&1
+python collector.py --from 2025-01-01 --tables fundamentals --no-sync >> logs/collector.log 2>&1
+Get-Content -Path "logs/collector.log" -Wait -Tail 10
+
+
+TODO: 전체종목 순회시 매우 오랜 시간 소요 -> 증분 방식을 get_market_fundamental(date) 형태로 변경 필요
 ============================================================
 """
 
@@ -435,6 +444,8 @@ def fetch_fundamentals(ticker: str, start: str, end: str) -> pd.DataFrame:
                 return pd.DataFrame()
 
             break
+
+#TODO: logger.warning(f"{ticker=} failed: {e}")
 
         except json.JSONDecodeError:
             # KRX 빈 응답 대응

@@ -1,4 +1,4 @@
-<UserControl x:Class="Quant.UI.Views.EditGroupView"
+﻿<UserControl x:Class="Quant.UI.Views.EditGroupView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ctrl="clr-namespace:Quant.UI.Controls"
@@ -163,10 +163,10 @@
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="🏷 GROUP EDITOR" Style="{StaticResource SectionLabel}"
                                Foreground="#6C7086" Margin="0,0,16,0"/>
-                    <Button Content="＋ New"    Style="{StaticResource ActionBtn}" Click="BtnNew_Click"/>
-                    <Button Content="✎ Edit"   Style="{StaticResource ActionBtn}" Click="BtnEdit_Click"/>
+                    <Button Content="＋ New"    Style="{StaticResource ActionBtn}" Click="BtnNewGroup_Click"/>
+                    <Button Content="✎ Edit"   Style="{StaticResource ActionBtn}" Click="BtnEditGroup_Click"/>
                     <Button x:Name="BtnDel" Content="✕ Delete" Style="{StaticResource ActionBtn}"
-                            Click="BtnDelete_Click" Foreground="#F38BA8"/>
+                            Click="BtnDeleteGroup_Click" Foreground="#F38BA8"/>
                 </StackPanel>
                 <TextBlock x:Name="TxtRowCount" HorizontalAlignment="Right"
                            FontSize="10" FontFamily="Consolas"
@@ -211,10 +211,11 @@
                               SelectionChanged="GridGroup_SelectionChanged">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="kind"   Binding="{Binding kind}"   Width="90"/>
-                            <DataGridTextColumn Header="name"   Binding="{Binding name}"   Width="90"/>
-                            <DataGridTextColumn Header="description"   Binding="{Binding description}"   Width="90"/>
-                            <DataGridTextColumn Header="rating"   Binding="{Binding rating}"   Width="90"/>
-                            <DataGridTextColumn Header="count"   Binding="{Binding count}"   Width="90"/>
+                            <DataGridTextColumn Header="name"   Binding="{Binding name}"   Width="100"/>
+                            <DataGridTextColumn Header="description"   Binding="{Binding description}"   Width="130"/>
+                            <DataGridTextColumn Header="rating"   Binding="{Binding rating}"   Width="60"/>
+                            <DataGridTextColumn Header="count"   Binding="{Binding count}"   Width="50"/>
+                            <DataGridTextColumn Header="active"   Binding="{Binding is_active}"   Width="46"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>
@@ -230,12 +231,16 @@
                     </Grid.RowDefinitions>
                     <Border Grid.Row="0" Style="{StaticResource SectionHeader}">
                         <Grid>
-                            <TextBlock x:Name="TxtTickerHeader" Text="TICKERS"
+                            <TextBlock x:Name="TxtCurrGroupNameAtGrid" Text="Group"
                                        Style="{StaticResource SectionLabel}"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                                         VerticalAlignment="Center">
                                 <ctrl:RatingControl x:Name="GroupRatingCtrl" Rating="5" Margin="0,2,10,3" Height="22"
                                                     RatingChanged="GroupRatingCtrl_RatingChanged"/>
+                                <Button x:Name="BtnChartAll"  Content="All"  Style="{StaticResource PeriodBtn}"
+                                    Click="BtnChart_Click" Tag="1"/>
+                                <Button x:Name="BtnChartClear"  Content="Clear"  Style="{StaticResource PeriodBtn}"
+                                    Click="BtnChart_Click" Tag="0"/>
                                 <CheckBox x:Name="CheckboxAddTicker" Content="Add" VerticalAlignment="Center" Style="{StaticResource GroupCheckBox}" Margin="0,0,8,0"/>
                                 <Button x:Name="BtnDownloadGroup" Content="🔄" Style="{StaticResource ActionBtn}"
                                         Padding="6,3" Margin="0,0,3,0" Click="BtnDownloadGroup_Click"
@@ -304,15 +309,8 @@
                     <StackPanel Margin="8,6">
                         <!-- 그룹 정보 -->
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                            <TextBlock Text="Group:" Style="{StaticResource SectionLabel}"
-                                       Margin="0,0,6,0"/>
-                            <TextBlock x:Name="TxtGroupName" FontSize="11" FontFamily="Consolas"
+                            <TextBlock x:Name="TxtGroupNameAtChart" Text="Group" FontSize="11" FontFamily="Consolas"
                                        Foreground="#CDD6F4" VerticalAlignment="Center"/>
-                            <CheckBox Content="Append" VerticalAlignment="Center" Margin="8,0,6,0"/>
-                            <Button x:Name="BtnChartAll"  Content="All"  Style="{StaticResource PeriodBtn}"
-                                    Click="BtnChart_Click" Tag="1"/>
-                            <Button x:Name="BtnChartClear"  Content="Clear"  Style="{StaticResource PeriodBtn}"
-                                    Click="BtnChart_Click" Tag="0"/>
                         </StackPanel>
                         <!-- 기간 버튼 -->
                         <StackPanel Orientation="Horizontal">

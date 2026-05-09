@@ -63,4 +63,13 @@ public partial class LeftSidePanel : UserControl
         if (sender is FrameworkElement fe && fe.DataContext is GlobalIndicatorItem item)
             _vm.SelectIndicator(item);
     }
+
+    // ──────────────────────────────────────────────────────────
+    //  탭 클릭 핸들러
+    // ──────────────────────────────────────────────────────────
+    private void GroupTab_Click(object sender, MouseButtonEventArgs e)
+        => _vm.IsGroupTabActive = true;
+
+    private void ScreenerTab_Click(object sender, MouseButtonEventArgs e)
+        => _vm.IsGroupTabActive = false;
 }

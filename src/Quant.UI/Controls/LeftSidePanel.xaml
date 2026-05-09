@@ -1,4 +1,4 @@
-<UserControl x:Class="Quant.UI.Controls.LeftSidePanel"
+﻿<UserControl x:Class="Quant.UI.Controls.LeftSidePanel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:Quant.UI.Controls"
@@ -240,9 +240,6 @@
                 <Border Background="#1E1E2E" Margin="6,0,6,4"
                         CornerRadius="4" Padding="6,4">
                     <StackPanel>
-                        <CheckBox Content="Active only"
-                                  Style="{StaticResource SideCheckBox}"
-                                  IsChecked="{Binding ShowOnlyActive}"/>
                         <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                             <CheckBox Content="Sector"
                                       Style="{StaticResource SideCheckBox}"
@@ -251,16 +248,102 @@
                             <CheckBox Content="Theme"
                                       Style="{StaticResource SideCheckBox}"
                                       IsChecked="{Binding ShowTheme}"/>
+                            <CheckBox Content="Active only"
+                                  Style="{StaticResource SideCheckBox}"
+                                  IsChecked="{Binding ShowOnlyActive}"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>
 
                 <!-- ════════════════════════════════════════════
-                     3. Groups Grid
+                     3. Tab 헤더: GROUPS / SCREENERS
                      ════════════════════════════════════════════ -->
-                <TextBlock Text="GROUPS" Style="{StaticResource SectionHeader}"/>
+                <Grid Margin="6,4,6,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
 
-                <Border Margin="6,0,6,0" BorderBrush="#313244" BorderThickness="1" CornerRadius="3">
+                    <!-- GROUPS 탭 버튼 -->
+                    <Border Grid.Column="0" CornerRadius="3,0,0,3"
+                            BorderThickness="1,1,0,1">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background"   Value="#252536"/>
+                                <Setter Property="BorderBrush"  Value="#313244"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsGroupTabActive}" Value="True">
+                                        <Setter Property="Background"  Value="#313244"/>
+                                        <Setter Property="BorderBrush" Value="#89B4FA"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Padding="0,5" TextAlignment="Center"
+                                   FontSize="9" FontWeight="Bold" FontFamily="Consolas"
+                                   Cursor="Hand"
+                                   MouseLeftButtonUp="GroupTab_Click">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text"       Value="GROUPS"/>
+                                    <Setter Property="Foreground" Value="#45475A"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsGroupTabActive}" Value="True">
+                                            <Setter Property="Foreground" Value="#89B4FA"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Border>
+
+                    <!-- SCREENERS 탭 버튼 -->
+                    <Border Grid.Column="1" CornerRadius="0,3,3,0"
+                            BorderThickness="1,1,1,1">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background"   Value="#252536"/>
+                                <Setter Property="BorderBrush"  Value="#313244"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsScreenerTabActive}" Value="True">
+                                        <Setter Property="Background"  Value="#313244"/>
+                                        <Setter Property="BorderBrush" Value="#89B4FA"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Padding="0,5" TextAlignment="Center"
+                                   FontSize="9" FontWeight="Bold" FontFamily="Consolas"
+                                   Cursor="Hand"
+                                   MouseLeftButtonUp="ScreenerTab_Click">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text"       Value="SCREENERS"/>
+                                    <Setter Property="Foreground" Value="#45475A"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsScreenerTabActive}" Value="True">
+                                            <Setter Property="Foreground" Value="#89B4FA"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Border>
+                </Grid>
+
+                <!-- ════════════════════════════════════════════
+                     4-A. Groups Grid  (IsGroupTabActive=True 시 표시)
+                     ════════════════════════════════════════════ -->
+                <Border Margin="6,0,6,0" BorderBrush="#313244" BorderThickness="1" CornerRadius="0,0,3,3">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsGroupTabActive}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
                     <DataGrid x:Name="GroupGrid"
                               Style="{StaticResource SideGrid}"
                               ItemsSource="{Binding Groups}"
@@ -272,7 +355,7 @@
                             <DataGridTextColumn Header="#"     Binding="{Binding StockCount}" Width="28">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground"         Value="#89B4FA"/>
+                                        <Setter Property="Foreground"          Value="#89B4FA"/>
                                         <Setter Property="HorizontalAlignment" Value="Right"/>
                                         <Setter Property="Padding"             Value="0,0,4,0"/>
                                     </Style>
@@ -283,18 +366,88 @@
                 </Border>
 
                 <!-- ════════════════════════════════════════════
-                     4. Stocks Grid (선택된 그룹의 종목)
+                     4-B. Screeners Grid  (IsScreenerTabActive=True 시 표시)
+                     ════════════════════════════════════════════ -->
+                <Border Margin="6,0,6,0" BorderBrush="#313244" BorderThickness="1" CornerRadius="0,0,3,3">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsScreenerTabActive}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <DataGrid x:Name="ScreenerGrid"
+                              Style="{StaticResource SideGrid}"
+                              ItemsSource="{Binding Screeners}"
+                              SelectedItem="{Binding SelectedScreener, Mode=TwoWay}"
+                              Height="180">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Name"  Binding="{Binding Name}"        Width="*"/>
+                            <DataGridTextColumn Header="Desc"  Binding="{Binding Description}" Width="60">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="#6C7086"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Border>
+
+                <!-- ════════════════════════════════════════════
+                     5. Stocks Grid
                      ════════════════════════════════════════════ -->
                 <DockPanel Margin="0,6,0,0">
                     <TextBlock Text="STOCKS" Style="{StaticResource SectionHeader}"
                                DockPanel.Dock="Left"/>
-                    <!-- 선택 그룹명 표시 -->
-                    <TextBlock Text="{Binding SelectedGroup.Name}"
+                    <TextBlock Text="{Binding StockSectionLabel}"
                                FontSize="9" FontFamily="Consolas"
                                Foreground="#89B4FA" VerticalAlignment="Bottom"
                                Margin="4,0,8,3" TextTrimming="CharacterEllipsis"
                                DockPanel.Dock="Right"/>
                 </DockPanel>
+
+                <!-- 검색박스 -->
+                <Border Margin="6,2,6,2" Background="#1E1E2E"
+                        BorderBrush="#313244" BorderThickness="1" CornerRadius="3">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasSelectedGroup}" Value="False">
+                                    <DataTrigger.EnterActions>
+                                        <!-- Screener 탭일 때도 표시되도록 별도 트리거 사용 안 함 -->
+                                    </DataTrigger.EnterActions>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid>
+                        <TextBox Text="{Binding StockSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 FontFamily="Consolas" FontSize="10"
+                                 Foreground="#CDD6F4" Background="Transparent"
+                                 BorderThickness="0" Padding="6,4"
+                                 CaretBrush="#CDD6F4"
+                                 x:Name="StockSearchBox"/>
+                        <!-- placeholder -->
+                        <TextBlock Text="종목명 / 티커 검색…"
+                                   FontFamily="Consolas" FontSize="10"
+                                   Foreground="#45475A" Margin="7,4,0,0"
+                                   IsHitTestVisible="False">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding StockSearchText}" Value="">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                </Border>
 
                 <Border Margin="6,0,6,6" BorderBrush="#313244" BorderThickness="1" CornerRadius="3">
                     <DataGrid x:Name="StockGrid"
@@ -312,11 +465,10 @@
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
                         </DataGrid.Columns>
-                        <!-- 그룹 미선택 시 안내 오버레이 -->
                         <DataGrid.Style>
                             <Style TargetType="DataGrid" BasedOn="{StaticResource SideGrid}">
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasSelectedGroup}" Value="False">
+                                    <DataTrigger Binding="{Binding HasSelection}" Value="False">
                                         <Setter Property="Opacity" Value="0.4"/>
                                     </DataTrigger>
                                 </Style.Triggers>

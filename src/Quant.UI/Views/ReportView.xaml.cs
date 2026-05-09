@@ -11,6 +11,7 @@ using System.Windows.Input;
 namespace Quant.UI.Views;
 
 //TODO: ticker의 대표 group을 찾아서, GridReport에 3번째 컬럼으로 표시 (using v_stock_primary_sector 또는 개선하여 사용)
+//TODO: TxtSliderFrom/TxtSliderTo 에 현재 범위 표시 (report 목록의 min/max 날자 이용)
 //TODO: SliderFrom/SliderTo 에서 조절한 날자 범위 이용하여 목록 filtering
 
 public partial class ReportView : UserControl
