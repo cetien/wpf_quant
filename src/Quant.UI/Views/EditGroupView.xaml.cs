@@ -13,9 +13,12 @@ using System.Collections.ObjectModel;
 using System.Data;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Xml.Linq;
 
 namespace Quant.UI.Views;
+
+//TODO: GridTicker가 현재 editable 상태임 -> edit 불가. onDblClk->quant.ui/views/chartView로 연결
 
 public partial class EditGroupView : UserControl
 {
@@ -606,16 +609,15 @@ public partial class EditGroupView : UserControl
             LoadChartData(_currentGroupId);
     }
 	private void BtnChart_Click(object sender, RoutedEventArgs e)
-    {
-        if (GridTicker.ItemsSource is not DataView view) return;
-        if (sender is not Button btn) return;
+	{
+		if (GridTicker.ItemsSource is not DataView view) return;
+		if (sender is not Button btn) return;
 
-        var checkAll = (btn.Tag?.ToString() ?? "") == "1";
-        if (!view.Table.Columns.Contains("chart_selected")) return;
-
-        foreach (DataRow row in view.Table.Rows)
-            row["chart_selected"] = checkAll;
-    }
+		var checkAll = (btn.Tag?.ToString() ?? "") == "1";
+		if (view.Table?.Columns.Contains("chart_selected") == true) 
+            foreach (DataRow row in view.Table.Rows)
+				row["chart_selected"] = checkAll;
+	}
 	private void BtnDeleteTicker_Click(object sender, RoutedEventArgs e)
 	{
 		if (_currentGroupId < 0) return;
@@ -650,6 +652,20 @@ public partial class EditGroupView : UserControl
 	// ═════════════════════════════════════════════════════════
 	//  그룹 CRUD
 	// ═════════════════════════════════════════════════════════
+
+    private void GroupRatingCtrl_RatingChanged(int rating)
+    {
+        if (_currentGroupId < 0) return;
+        try
+        {
+            _db.Execute($"UPDATE groups SET rating={rating}, updated_at=CURRENT_TIMESTAMP WHERE group_id={_currentGroupId}");
+            // 그룹 Grid 현재 행 즉시 갱신 (재쿼리 없이)
+            if (_groupTable != null && GridGroup.SelectedItem is DataRowView row)
+                row.Row["rating"] = rating;
+            StatusChanged?.Invoke($"[{TxtGroupName.Text}] rating 저장: {rating}", "#A6E3A1");
+        }
+        catch (Exception ex) { StatusChanged?.Invoke($"rating 저장 오류: {ex.Message}", "#F38BA8"); }
+    }
 
 	private void UpdateGroupCount()
 	{

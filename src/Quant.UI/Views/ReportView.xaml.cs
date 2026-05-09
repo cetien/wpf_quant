@@ -10,6 +10,12 @@ using System.Windows.Input;
 
 namespace Quant.UI.Views;
 
+//TODO: ticker의 대표 group을 찾아서, GridReport에 3번째 컬럼으로 표시 (using v_stock_primary_sector 또는 개선하여 사용)
+//TODO: 상단에 slider control 추가 (날짜 범위로 min/max 설정)
+//TODO: GridCompany,GridDate의 column2 -> right align
+//TODO: at RefreshCompanyGrid(): GridDate -> column1 내림차순 정렬
+//TODO: at Grid_DateClick(): GridReport -> column2(ticker) 오름차순 정렬
+
 public partial class ReportView : UserControl
 {
     public event Action<string, string>? StatusChanged;

@@ -61,7 +61,7 @@ public class PriceDownloadService
         var lastInDb = _db.GetLastDate("daily_prices", ticker: ticker);
         var fromDate = lastInDb.HasValue
             ? lastInDb.Value.AddDays(1)
-            : new DateOnly(2000, 1, 1);
+            : new DateOnly(2020, 1, 1);
         var toDate = DateOnly.FromDateTime(DateTime.Today);
 
         if (fromDate > toDate)
@@ -151,15 +151,26 @@ public class PriceDownloadService
 
             var date     = DateOnly.FromDateTime(
                 DateTimeOffset.FromUnixTimeSeconds(timestamps[i].GetInt64()).UtcDateTime);
-            var open     = opens[i].GetDouble();
-            var high     = highs[i].GetDouble();
-            var low      = lows[i].GetDouble();
-            var close    = closes[i].GetDouble();
+            var rawOpen  = opens[i].GetDouble();
+            var rawHigh  = highs[i].GetDouble();
+            var rawLow   = lows[i].GetDouble();
+            var rawClose = closes[i].GetDouble();
             var adj      = (adjcloseArr != null && adjcloseArr[i].ValueKind != JsonValueKind.Null)
-                           ? adjcloseArr[i].GetDouble() : close;
-            var volume   = volumes[i].ValueKind  == JsonValueKind.Null ? 0L    : volumes[i].GetInt64();
+                           ? adjcloseArr[i].GetDouble() : rawClose;
+            var volume   = volumes[i].ValueKind == JsonValueKind.Null ? 0L : volumes[i].GetInt64();
 
-            if (open <= 0 || close <= 0 || low <= 0 || high < low) continue;
+            if (rawClose <= 0 || adj <= 0) continue;
+
+            // adj/raw 비율로 OHLC 전체를 수정주가 기준으로 환산.
+            // pykrx(adjusted=True)와 동일한 기준: close = 수정주가.
+            // adj_close도 동일값으로 저장 (두 경로 간 혼재 방지).
+            var ratio = adj / rawClose;
+            var open  = Math.Round(rawOpen  * ratio, 2);
+            var high  = Math.Round(rawHigh  * ratio, 2);
+            var low   = Math.Round(rawLow   * ratio, 2);
+            var close = adj;
+
+            if (open <= 0 || low <= 0 || high < low) continue;
 
             prices.Add(new DailyPrice
             {
@@ -168,8 +179,8 @@ public class PriceDownloadService
                 Open     = open,
                 High     = high,
                 Low      = low,
-                Close    = close,
-                AdjClose = adj,
+                Close    = close,   // 수정주가
+                AdjClose = close,   // 동일값 (pykrx 기준과 통일)
                 Volume   = volume,
             });
         }

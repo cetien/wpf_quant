@@ -199,7 +199,10 @@ def fetch_ohlcv(ticker: str, start: str, end: str) -> pd.DataFrame:
                 raw[c] = 0
 
     raw["ticker"]    = ticker
-    raw["adj_close"] = raw["close"]   # adjusted=True 이므로 close 자체가 수정주가
+    # adjusted=True: close 자체가 수정주가(액면분할·배당 반영).
+    # PriceDownloadService(Yahoo)도 동일 기준(adj/raw 비율 환산)으로 통일됨.
+    # 두 경로 모두 close = 수정주가, adj_close = close 동일값으로 저장.
+    raw["adj_close"] = raw["close"]
 
     # CHECK 제약 조건 준수: open>0, low>0, close>0, adj_close>0
     raw = raw[(raw["open"] > 0) & (raw["low"] > 0) & (raw["close"] > 0)].copy()

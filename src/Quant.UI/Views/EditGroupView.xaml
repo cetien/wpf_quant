@@ -234,7 +234,8 @@
                                        Style="{StaticResource SectionLabel}"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                                         VerticalAlignment="Center">
-                                <ctrl:RatingControl x:Name="GroupRatingCtrl" Rating="5" Margin="0,2,10,3" Height="22"/>
+                                <ctrl:RatingControl x:Name="GroupRatingCtrl" Rating="5" Margin="0,2,10,3" Height="22"
+                                                    RatingChanged="GroupRatingCtrl_RatingChanged"/>
                                 <CheckBox x:Name="CheckboxAddTicker" Content="Add" VerticalAlignment="Center" Style="{StaticResource GroupCheckBox}" Margin="0,0,8,0"/>
                                 <Button x:Name="BtnDownloadGroup" Content="🔄" Style="{StaticResource ActionBtn}"
                                         Padding="6,3" Margin="0,0,3,0" Click="BtnDownloadGroup_Click"
