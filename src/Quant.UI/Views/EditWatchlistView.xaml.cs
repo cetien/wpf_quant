@@ -9,11 +9,12 @@ public partial class EditWatchlistView : UserControl
 {
     public event Action<string, string>? StatusChanged;
 
-    private readonly DbManager _db = DbManager.Instance;
+    private readonly DbManager _db;
     private DataTable? _table;
 
-    public EditWatchlistView()
+    public EditWatchlistView(DbManager db)
     {
+        _db = db;
         InitializeComponent();
         Loaded += (_, _) => LoadData();
     }

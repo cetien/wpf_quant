@@ -1,4 +1,4 @@
--- ============================================================
+﻿-- ============================================================
 -- Quant DB Schema v1.0  (DuckDB)
 -- Migration: 001_init_schema
 -- ============================================================
@@ -100,22 +100,37 @@ CREATE TABLE IF NOT EXISTS supply (
 );
 
 -- ── stock_cache ──────────────────────────────────────────────
--- DuckDB 채택 시 삭제 검토 (집계 성능 우수 → 캐시 불필요할 수 있음)
 -- 현재는 대시보드 고속 표시용 유지
--- CREATE TABLE IF NOT EXISTS stock_cache (
---     ticker      TEXT    NOT NULL REFERENCES stocks(ticker),
---     last_date   DATE    NOT NULL,
---     ret_1m      DOUBLE,                     -- 30일 수익률 (adj_close 기준)
---     ret_3m      DOUBLE,                     -- 90일 수익률
---     ret_6m      DOUBLE,                     -- 180일 수익률
---     rs          DOUBLE,                     -- KOSPI 대비 상대강도
---     beta_60d    DOUBLE,                     -- 60일 베타 (Phase 1 UI 요건)
---     per         DOUBLE,
---     pbr         DOUBLE,
---     roe         DOUBLE,
---     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
---     PRIMARY KEY (ticker)
--- );
+CREATE TABLE IF NOT EXISTS stock_cache (
+     ticker      TEXT    NOT NULL, -- REFERENCES stocks(ticker),
+     asof_date   DATE    NOT NULL,
+     current_price DOUBLE,                  -- 현재가
+     ret_1m      DOUBLE,                     -- 30일 수익률 (adj_close 기준)
+     ret_3m      DOUBLE,                     -- 90일 수익률
+     ret_6m      DOUBLE,                     -- 180일 수익률
+     ret_1y      DOUBLE,                     -- 1년 수익률
+     rs          DOUBLE,                     -- KOSPI 대비 상대강도
+     -- beta_60d    DOUBLE,                     -- 60일 베타 (Phase 1 UI 요건)
+     eps         DOUBLE,
+     per         DOUBLE,
+     pbr         DOUBLE,
+     roe         DOUBLE,
+    -- market_cap  DOUBLE, 
+    atr_14      DOUBLE, -- Average True Range, 14일 평균 변동폭
+    atr_percent DOUBLE,
+    high_52w    DOUBLE, 
+    low_52w     DOUBLE, 
+    volume_avg_20d  DOUBLE, 
+    distance_from_high  DOUBLE, 
+     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+     PRIMARY KEY (ticker)
+);
+-- rebuild: staleness check
+--      SELECT MAX(date) FROM daily_prices
+--      SELECT MAX(asof_date) FROM stock_cache
+--      if cache_date < daily_price_date: full_rebuild (CREATE OR REPLACE TABLE stock_cache AS ...)
+-- 참고: current_data <=== SELECT MAX(date) FROM daily_prices WHERE ticker=?
+
 
 -- ── watchlists ───────────────────────────────────────────────
 -- CREATE TABLE IF NOT EXISTS watchlists (

@@ -16,13 +16,12 @@ public partial class ReportView : UserControl
 {
     public event Action<string, string>? StatusChanged;
 
-    private readonly DbManager _db = DbManager.Instance;
-
-    // pdf_reports 전체 (필터링 기준 원본)
+    private readonly DbManager _db;
     private DataTable _allReports = new();
 
-    public ReportView()
+    public ReportView(DbManager db)
     {
+        _db = db;
         InitializeComponent();
         Loaded += (_, _) => OnOpen();
     }

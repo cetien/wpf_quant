@@ -7,6 +7,8 @@ namespace Quant.UI.Views;
 
 public partial class MainWindow : Window
 {
+    private readonly DbManager _db = DbManager.Instance; // 전체에서 유일한 Instance 참조
+
     private DbBrowserView?     _dbBrowserView;
     private ChartView?         _chartView;
     private ReportView?        _reportView;
@@ -25,12 +27,24 @@ public partial class MainWindow : Window
         Loaded += OnLoaded;
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e)
+    private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        TxtDbPath.Text = ShortenPath(DbManager.DbPath);
+        TxtDbPath.Text  = ShortenPath(DbManager.DbPath);
         _toolButtons    = [BtnDashboard, BtnChart, BtnSearch, BtnDbBrowser];
         _allToolButtons = [BtnDashboard, BtnChart, BtnSearch, BtnDbBrowser, BtnGroup, BtnReport];
         ShowDashboard();
+
+        // stock_cache 갱신을 백그라운드에서 실행 — UI 블로킹 방지
+        SetStatus("stock_cache 확인 중...", "#6C7086");
+        try
+        {
+            await Task.Run(() => _db.EnsureStockCache());
+            SetStatus("준비 완료", "#A6E3A1");
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"stock_cache 오류: {ex.Message}", "#F38BA8");
+        }
     }
 
     private void SidePanel_StockSelected(string ticker, string name)
@@ -81,7 +95,7 @@ public partial class MainWindow : Window
     {
         if (_chartView is null)
         {
-            _chartView = new ChartView();
+            _chartView = new ChartView(_db);
             _chartView.StatusChanged += SetStatus;
         }
         SwitchView(_chartView, BtnChart, "Chart");
@@ -97,7 +111,7 @@ public partial class MainWindow : Window
     {
         if (_dbBrowserView is null)
         {
-            _dbBrowserView = new DbBrowserView();
+            _dbBrowserView = new DbBrowserView(_db);
             _dbBrowserView.StatusChanged  += SetStatus;
             _dbBrowserView.ElapsedChanged += ms => TxtElapsed.Text = ms;
         }
@@ -108,7 +122,7 @@ public partial class MainWindow : Window
     {
         if (_reportView is null)
         {
-            _reportView = new ReportView();
+            _reportView = new ReportView(_db);
             _reportView.StatusChanged += SetStatus;
         }
         SwitchView(_reportView, BtnReport, "Report");
@@ -118,7 +132,7 @@ public partial class MainWindow : Window
     {
         if (_editGroupView is null)
         {
-            _editGroupView = new EditGroupView();
+            _editGroupView = new EditGroupView(_db);
             _editGroupView.StatusChanged      += SetStatus;
             _editGroupView.TickerDoubleClicked += (ticker, name) =>
             {
@@ -133,7 +147,7 @@ public partial class MainWindow : Window
     {
         if (_editWatchlistView is null)
         {
-            _editWatchlistView = new EditWatchlistView();
+            _editWatchlistView = new EditWatchlistView(_db);
             _editWatchlistView.StatusChanged += SetStatus;
         }
         SwitchView(_editWatchlistView, null, "Edit Watchlist");

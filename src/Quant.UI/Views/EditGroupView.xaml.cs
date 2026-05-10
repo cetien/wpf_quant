@@ -29,7 +29,7 @@ public partial class EditGroupView : UserControl
     public ObservableCollection<Axis>    ChartYAxes  { get; } = [];
 
     // ── state ─────────────────────────────────────────────────
-    private readonly DbManager _db = DbManager.Instance;
+    private readonly DbManager _db;
     private DataTable? _groupTable;
     private int  _currentGroupId = -1;
     private int  _periodDays     = 365;
@@ -53,8 +53,9 @@ public partial class EditGroupView : UserControl
     // ── raw price data: ticker → (name, prices) ──────────────
     private Dictionary<string, (string name, List<(DateTime date, double close)> prices)> _rawData = [];
 
-    public EditGroupView()
+    public EditGroupView(DbManager db)
     {
+        _db = db;
         InitializeComponent();
         chkAllGroup.IsChecked = true;
         chkSectorGroup.IsChecked = true;

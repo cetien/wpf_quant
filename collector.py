@@ -12,6 +12,9 @@ collector.py  ─  독립 실행형 데이터 수집기
     전체 재수집 python collector.py --from 2020-01-01
     마스터 스킵 python collector.py --no-sync
 
+    --db-path 옵션으로 DuckDB 파일 경로 지정 가능 (예: --db-path ./my_quant.duckdb).
+        C:/Users/tien7/AppData/Local/quant/quant.duckdb 기본값 대신 다른 위치에 저장하려는 경우 사용.
+
 주기 실행 예시 (Windows Task Scheduler / cron):
     python collector.py >> logs/collector.log 2>&1
 
@@ -52,12 +55,18 @@ python collector.py --from 2025-01-01 --tables supply --no-sync >> logs/collecto
 증분실행: python collector.py --tables fundamentals --no-sync >> logs/collector.log 2>&1
 Get-Content -Path "logs/collector.log" -Wait -Tail 10
 
+--- download용 db-file 지정
+python collector.py --from 2026-01-01 --tables supply --no-sync --db-path C:/Users/tien7/AppData/Local/quant/quant_for_supply.duckdb >> logs/collector.log 2>&1
+
+
 
 TODO: 전체종목 순회시 매우 오랜 시간 소요 -> 증분 방식을 get_market_fundamental(date) 형태로 변경 필요?
 ============================================================
 """
 
 import argparse
+import contextlib
+import io
 import json
 import os
 import sys
@@ -83,7 +92,7 @@ DEFAULT_START   = "2020-01-01"   # 전체 신규 수집 시작일
 DELAY_SHORT     = 0.4            # 종목 간 기본 딜레이 (초)
 DELAY_LONG      = 8.0            # 100종목마다 추가 휴식 (초)
 DELAY_TABLE     = 3.0            # 테이블 전환 시 딜레이 (초)
-BATCH_LOG       = 50             # 진행 로그 출력 단위
+BATCH_LOG       = 25             # 진행 로그 출력 단위
 
 # ──────────────────────────────────────────────────────────
 #  유틸
@@ -304,15 +313,24 @@ def fetch_supply_pykrx(ticker: str, start: str, end: str) -> pd.DataFrame:
     KRX_ID/KRX_PW 환경변수 필수.
     """
     s, e = to_yyyymmdd(start), to_yyyymmdd(end)
-    try:
-        vol = krx.get_market_trading_volume_by_date(s, e, ticker)
-    except Exception:
-        vol = None
+
+    def _safe_fetch(fetch_fn):
+        try:
+            # pykrx internal parser may print noisy errors to stdout/stderr.
+            # Suppress those prints and handle as empty response.
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                return fetch_fn(s, e, ticker)
+        except ValueError as ex:
+            # pykrx occasionally raises "Length mismatch ... 6 elements" on empty/abnormal response.
+            if "Length mismatch" in str(ex):
+                return None
+            raise
+        except Exception:
+            return None
+
+    vol = _safe_fetch(krx.get_market_trading_volume_by_date)
     time.sleep(0.3)
-    try:
-        val = krx.get_market_trading_value_by_date(s, e, ticker)
-    except Exception:
-        val = None
+    val = _safe_fetch(krx.get_market_trading_value_by_date)
 
     def col(df, kw):
         if df is None or df.empty:
@@ -374,6 +392,7 @@ def run_supply(conn, tickers: list[tuple[str, str]], force_start: str | None = N
             continue
 
         # 월 단위 분할 수집
+        #log(f"  [supply] {i}/{len(tickers)}. start {ticker}: {start}~{today}")
         for p_start, p_end in _month_ranges(start, today):
             try:
                 df = fetch_supply_pykrx(ticker, p_start, p_end)
@@ -686,6 +705,8 @@ def sync_stocks_master(conn):
 def parse_args():
     p = argparse.ArgumentParser(description="pykrx 데이터 수집기")
     p.add_argument("--tickers", nargs="*", help="특정 ticker만 처리 (미지정시 전체)")
+    p.add_argument("--db-path", dest="db_path", default=None,
+                   help="DuckDB file path (e.g. ./my_dbfile.db)")
     p.add_argument("--from",    dest="from_date", default=None,
                    help="강제 시작일 YYYY-MM-DD (미지정시 incremental)")
     p.add_argument("--tables",  nargs="*",
@@ -698,8 +719,12 @@ def parse_args():
 
 
 def main():
+    global DB_PATH
     args = parse_args()
     t0   = time.time()
+
+    if args.db_path:
+        DB_PATH = Path(args.db_path).expanduser()
 
     log(f"수집기 시작  DB={DB_PATH}")
     if not DB_PATH.exists():

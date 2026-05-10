@@ -8,39 +8,7 @@ using Quant.Core.Models;
 using System.Data;
 using System.Security.Cryptography;
 
-using static System.Runtime.InteropServices.JavaScript.JSType;
-
 namespace Quant.Core.Infrastructure;
-
-public sealed class StockCache
-{
-    public string Ticker { get; set; } = "";
-    public DateOnly AsofDate { get; set; }
-
-    public double CurrentPrice { get; set; }
-
-    public double Ret1M { get; set; }
-    public double Ret3M { get; set; }
-    public double Ret6M { get; set; }
-    public double Ret1Y { get; set; }
-
-    public double Rs { get; set; }
-
-    public double Per { get; set; }
-    public double Pbr { get; set; }
-    public double Roe { get; set; }
-    public double Eps { get; set; }
-
-    public double Atr14 { get; set; }
-    public double AtrPercent { get; set; }
-
-    public double High52W { get; set; }
-    public double Low52W { get; set; }
-
-    public double VolumeAvg20D { get; set; }
-
-    public double DistanceFromHigh { get; set; }
-}
 
 /// <summary>
 /// DB 접근의 유일한 진입점.
@@ -122,8 +90,6 @@ public sealed class DbManager
     {
         Directory.CreateDirectory(Path.GetDirectoryName(DbPath)!);
         RunMigrations();
-        // EnsureStockCache()는 생성자에서 제거 — UI 스레드 블로킹 방지
-        // 호출 책임: MainWindow.OnLoaded → Task.Run(() => db.EnsureStockCache())
     }
 
     // ──────────────────────────────────────────────────────────
@@ -196,14 +162,7 @@ public sealed class DbManager
         cmd.CommandText = sql;
         var result = cmd.ExecuteScalar();
         if (result is null || result is DBNull) return default;
-        //return (T)Convert.ChangeType(result, typeof(T));
-
-
-        var targetType =
-            Nullable.GetUnderlyingType(typeof(T))
-            ?? typeof(T);
-
-        return (T)Convert.ChangeType(result, targetType);
+        return (T)Convert.ChangeType(result, typeof(T));
     }
 
     /// <summary>
@@ -279,450 +238,25 @@ public sealed class DbManager
     /// 지정 테이블의 date 컬럼 최신 날짜.
     /// ticker 지정 시 해당 ticker 기준, null이면 전체 기준.
     /// </summary>
-    //public DateOnly? GetLastDate(string table, string dateCol = "date", string? ticker = null)
-    //{
-    //    var safe    = SanitizeIdentifier(table);
-    //    var safeCol = SanitizeIdentifier(dateCol);
-
-    //    if (ticker is null)
-    //    {
-    //        var raw = Scalar<string>($"SELECT MAX({safeCol}) FROM {safe}");
-    //        return raw is not null && DateOnly.TryParse(raw, out var d) ? d : null;
-    //    }
-
-    //    using var conn = OpenConnection();
-    //    using var cmd  = conn.CreateCommand();
-    //    cmd.CommandText = $"SELECT MAX({safeCol}) FROM {safe} WHERE ticker = $1";
-    //    cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
-    //    var result = cmd.ExecuteScalar();
-    //    if (result is null || result is DBNull) return null;
-    //    return DateOnly.TryParse(result.ToString(), out var date) ? date : null;
-    //}
-    public DateOnly? GetLastDate(
-        string table,
-        string dateCol = "date",
-        string? ticker = null)
+    public DateOnly? GetLastDate(string table, string dateCol = "date", string? ticker = null)
     {
         var safe    = SanitizeIdentifier(table);
         var safeCol = SanitizeIdentifier(dateCol);
 
         if (ticker is null)
         {
-            // DuckDB DATE 타입은 IConvertible 미구현 → CAST로 string 경유
-            var raw = Scalar<string>(
-                $"SELECT CAST(MAX({safeCol}) AS VARCHAR) FROM {safe}");
-
+            var raw = Scalar<string>($"SELECT MAX({safeCol}) FROM {safe}");
             return raw is not null && DateOnly.TryParse(raw, out var d) ? d : null;
         }
 
         using var conn = OpenConnection();
         using var cmd  = conn.CreateCommand();
-
-        cmd.CommandText =
-            $"SELECT CAST(MAX({safeCol}) AS VARCHAR) FROM {safe} WHERE ticker = $1";
-
+        cmd.CommandText = $"SELECT MAX({safeCol}) FROM {safe} WHERE ticker = $1";
         cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
-
         var result = cmd.ExecuteScalar();
-
         if (result is null || result is DBNull) return null;
-
         return DateOnly.TryParse(result.ToString(), out var date) ? date : null;
     }
-
-    // ──────────────────────────────────────────────────────────
-    //  Build Cache
-    // ──────────────────────────────────────────────────────────
-    //-- rebuild: staleness check
-    //--      SELECT MAX(date) FROM daily_prices
-    //--      SELECT MAX(asof_date) FROM stock_cache
-    //--      if cache_date<daily_price_date: full_rebuild(CREATE OR REPLACE TABLE stock_cache AS ...)
-    //-- 참고: current_data <=== SELECT MAX(date) FROM daily_prices WHERE ticker =?
-    public void EnsureStockCache()
-    {
-        if (!TableExists("stock_cache"))
-            return;
-
-        var latestPriceDate = GetLastDate("daily_prices");
-        if (latestPriceDate is null)
-            return;
-
-        var cacheDate = GetLastDate("stock_cache", "asof_date");
-        if (cacheDate is null || cacheDate < latestPriceDate)
-        {
-            try
-            {
-                RebuildStockCache();
-            }
-            catch (Exception ex)
-            {
-                LogUpdate(null, latestPriceDate,
-                    "stock_cache",
-                    "failed",
-                    ex.Message);
-            }
-        }
-    }
-
-    public void RebuildStockCache()
-    {
-        using var conn = OpenNativeConnection();
-        using var trans = conn.BeginTransaction(); // 원자성 보장을 위해 트랜잭션 사용
-        try
-        {
-            // 1. 기존 캐시 삭제
-            using (var cmd = conn.CreateCommand())
-            {
-                cmd.CommandText = "DELETE FROM stock_cache";
-                cmd.ExecuteNonQuery();
-            }
-
-            // 2. 대량 인서트 (DuckDB의 성능을 위해 복잡한 연산을 SQL 하나로 처리)
-            using (var cmd = conn.CreateCommand())
-            {
-                cmd.CommandText = @"
-INSERT INTO stock_cache (
-    ticker,
-    asof_date,
-    current_price,
-    ret_1m,
-    ret_3m,
-    ret_6m,
-    ret_1y,
-    rs,
-    eps,
-    per,
-    pbr,
-    roe,
-    atr_14,
-    atr_percent,
-    high_52w,
-    low_52w,
-    volume_avg_20d,
-    distance_from_high
-)
-WITH base AS (
-    SELECT
-        dp.ticker,
-        dp.date,
-        dp.open,
-        dp.high,
-        dp.low,
-        dp.close,
-        dp.adj_close,
-        dp.volume,
-
-        ROW_NUMBER() OVER (
-            PARTITION BY dp.ticker
-            ORDER BY dp.date DESC
-        ) AS rn,
-
-        LAG(dp.adj_close) OVER (
-            PARTITION BY dp.ticker
-            ORDER BY dp.date
-        ) AS prev_close,
-
-        MAX(dp.high) OVER (
-            PARTITION BY dp.ticker
-            ORDER BY dp.date
-            ROWS BETWEEN 251 PRECEDING AND CURRENT ROW
-        ) AS high_52w,
-
-        MIN(dp.low) OVER (
-            PARTITION BY dp.ticker
-            ORDER BY dp.date
-            ROWS BETWEEN 251 PRECEDING AND CURRENT ROW
-        ) AS low_52w,
-
-        AVG(dp.volume) OVER (
-            PARTITION BY dp.ticker
-            ORDER BY dp.date
-            ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
-        ) AS volume_avg_20d
-
-    FROM daily_prices dp
-    WHERE dp.date >= CURRENT_DATE - INTERVAL 400 DAY
-),
-
-latest AS (
-    SELECT *
-    FROM base
-    WHERE rn = 1
-),
-
-returns AS (
-    SELECT
-        l.ticker,
-        l.date AS asof_date,
-        l.adj_close AS current_price,
-
-        ROUND(
-            (
-                l.adj_close /
-                (
-                    SELECT p.adj_close
-                    FROM daily_prices p
-                    WHERE p.ticker = l.ticker
-                      AND p.date <= l.date - INTERVAL 1 MONTH
-                    ORDER BY p.date DESC
-                    LIMIT 1
-                ) - 1
-            ) * 100,
-            2
-        ) AS ret_1m,
-
-        ROUND(
-            (
-                l.adj_close /
-                (
-                    SELECT p.adj_close
-                    FROM daily_prices p
-                    WHERE p.ticker = l.ticker
-                      AND p.date <= l.date - INTERVAL 3 MONTH
-                    ORDER BY p.date DESC
-                    LIMIT 1
-                ) - 1
-            ) * 100,
-            2
-        ) AS ret_3m,
-
-        ROUND(
-            (
-                l.adj_close /
-                (
-                    SELECT p.adj_close
-                    FROM daily_prices p
-                    WHERE p.ticker = l.ticker
-                      AND p.date <= l.date - INTERVAL 6 MONTH
-                    ORDER BY p.date DESC
-                    LIMIT 1
-                ) - 1
-            ) * 100,
-            2
-        ) AS ret_6m,
-
-        ROUND(
-            (
-                l.adj_close /
-                (
-                    SELECT p.adj_close
-                    FROM daily_prices p
-                    WHERE p.ticker = l.ticker
-                      AND p.date <= l.date - INTERVAL 1 YEAR
-                    ORDER BY p.date DESC
-                    LIMIT 1
-                ) - 1
-            ) * 100,
-            2
-        ) AS ret_1y,
-
-        l.date AS latest_date   -- kospi_ret JOIN 키
-
-    FROM latest l
-),
-
--- KOSPI 수익률: 종목별 latest_date 기준으로 JOIN
--- correlated subquery 대신 도우 테이블 방식으로 회피
-kospi_current AS (
-    SELECT date, adj_close
-    FROM daily_prices
-    WHERE ticker = 'IDX_KOSPI'
-),
-
-kospi_ret AS (
-    SELECT
-        r.ticker,
-        ROUND(
-            (
-                kc.adj_close
-                / NULLIF(kp.adj_close, 0)
-                - 1
-            ) * 100,
-            2
-        ) AS kospi_ret_3m
-    FROM returns r
-    -- 종목 latest_date 이하 작은 가장 가까운 KOSPI 종가
-    JOIN kospi_current kc
-        ON kc.date = (
-            SELECT MAX(date) FROM kospi_current
-            WHERE date <= r.latest_date
-        )
-    -- latest_date - 3개월 이하 가장 가까운 KOSPI 종가
-    JOIN kospi_current kp
-        ON kp.date = (
-            SELECT MAX(date) FROM kospi_current
-            WHERE date <= r.latest_date - INTERVAL 3 MONTH
-        )
-),
-
-atr_calc AS (
-    SELECT
-        b.ticker,
-        b.date,
-
-        GREATEST(
-            b.high - b.low,
-            ABS(b.high - b.prev_close),
-            ABS(b.low  - b.prev_close)
-        ) AS tr
-
-    FROM base b
-),
-
-atr_latest AS (
-    SELECT
-        ticker,
-        AVG(tr) AS atr_14
-    FROM (
-        SELECT
-            ticker,
-            tr,
-            ROW_NUMBER() OVER (
-                PARTITION BY ticker
-                ORDER BY date DESC
-            ) AS rn
-        FROM atr_calc
-    )
-    WHERE rn <= 14
-    GROUP BY ticker
-),
-
-latest_fundamentals AS (
-    SELECT *
-    FROM (
-        SELECT
-            f.*,
-            ROW_NUMBER() OVER (
-                PARTITION BY f.ticker
-                ORDER BY f.report_date DESC
-            ) AS rn
-        FROM fundamentals f
-    )
-    WHERE rn = 1
-)
-
-SELECT
-    r.ticker,
-    r.asof_date,
-    r.current_price,
-
-    r.ret_1m,
-    r.ret_3m,
-    r.ret_6m,
-    r.ret_1y,
-
-    -- RS = 종목 3개월 수익률 - KOSPI 3개월 수익률 (동일 l.date 기준)
-    ROUND(r.ret_3m - COALESCE(k.kospi_ret_3m, 0), 2) AS rs,
-
-    lf.eps,
-    lf.per,
-    lf.pbr,
-    lf.roe,
-
-    a.atr_14,
-    ROUND(
-        (COALESCE(a.atr_14, 0) / NULLIF(r.current_price, 0)) * 100, 2
-    ) AS atr_percent,
-
-    l.high_52w,
-    l.low_52w,
-
-    l.volume_avg_20d,
-
-    ROUND(
-        (
-            r.current_price / l.high_52w - 1
-        ) * 100,
-        2
-    ) AS distance_from_high
-
-FROM returns r
-JOIN latest l
-    ON r.ticker = l.ticker
-
-LEFT JOIN kospi_ret k
-    ON r.ticker = k.ticker
-
-LEFT JOIN atr_latest a
-    ON r.ticker = a.ticker
-
-LEFT JOIN latest_fundamentals lf
-    ON r.ticker = lf.ticker
-";
-                cmd.ExecuteNonQuery();
-            }
-            trans.Commit();
-        }
-        catch { trans.Rollback(); throw; }
-    }
-    /*
-몇 가지 설명:
-
-rs는 임시로 ret_3m 넣어둠
-    실제론:
-        KOSPI return
-        stock return
-        relative strength 계산 필요
-atr_14
-    absolute ATR
-    필요하면 % ATR로 바꾸는 게 더 실무적
-latest_fundamentals
-    최신 report_date 기준
-    실제론 announce_date 기준 join이 더 정확할 수 있음
-WHERE dp.date >= CURRENT_DATE - INTERVAL 400 DAY
-    full scan 방지용
-subquery 방식
-    DuckDB에서 surprisingly 잘 동작함
-    readability도 좋음
-
-추가로 이후 고려할 수 있는 것:
-    market_cap
-    52w breakout flag
-    volume_ratio
-    momentum score
-    earnings growth
-    rolling volatility
-    sharpe-like metrics
-
-
-*** 필수 ***
-1. RS(상대강도) 고도화 (필수): 현재 ret_3m을 그대로 사용 중이나,
-    실제 RS는 (종목 수익률 / 지수 수익률) * 100 또는 특정 기간의 지수 대비 초과 수익률로 계산해야 변별력이 생깁니다.
-
-2. ATR의 단위 문제: 절대값 ATR(atr_14)은 주가가 높은 종목(예: 삼성전자)과 낮은 종목(예: 동전주) 간 비교가 불가능합니다.
-    주가 대비 비율인 %ATR(atr_14 / current_price * 100)을 추가로 저장하는 것이 실무적으로 유용합니다.
-
-
-RS(Relative Strength) 정밀화 로직 제안 (Pre-Analysis)
-    시장 지수(KOSPI) 대비 상대강도를 계산하기 위한 논리적 흐름입니다.
-
-단계                  계산 로직 (Calculation Logic)                                           기대 효과
-1. 지수 수익률       SELECT ret_3m FROM returns WHERE ticker = '0001' (KOSPI 예시)           시장 기준점 확보
-2. 상대 수익률       (종목 ret_3m - 시장 ret_3m)                                             단순 초과 수익률 산출
-3. RS Score         (종목 ret_3m / 시장 ret_3m) * 100                                       시장 대비 강도 지수화
-
-
-
-[Refinement]: SQL 쿼리 내 RS 고도화 예시
-returns CTE 이후에 시장 지수 수익률을 가져와 연산하는 부분을 보완할 수 있습니다
-
--- returns CTE 내부 또는 이후에 추가
-market_return AS (
-    SELECT ret_3m 
-    FROM returns 
-    WHERE ticker = '0001' -- KOSPI 지수 티커 가정
-    LIMIT 1
-),
-final_select AS (
-    SELECT 
-        r.*,
-        ROUND(r.ret_3m - COALESCE((SELECT ret_3m FROM market_return), 0), 2) AS rs_alpha
-    FROM returns r
-)
-
-
-    */
-
 
     // ──────────────────────────────────────────────────────────
     //  Data helpers
@@ -762,128 +296,95 @@ final_select AS (
         catch { return false; }
     }
 
-    public StockCache? GetStockCache(string ticker)
+    public (double current, double ret1m, double ret3m, double ret6m, double ret1y) LoadPrice(string ticker)
     {
-        using var conn = OpenConnection();
-        using var cmd  = conn.CreateCommand();
-        cmd.CommandText = "SELECT * FROM stock_cache WHERE ticker = $1";
-        cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
-        using var reader = cmd.ExecuteReader();
-        if (!reader.Read()) return null;
-
-        static double Safe(object v) => v is DBNull || v is null ? 0.0 : Convert.ToDouble(v);
-
-        return new StockCache
+        try
         {
-            Ticker           = reader["ticker"]?.ToString() ?? "",
-            AsofDate         = DateOnly.TryParse(reader["asof_date"]?.ToString(), out var d) ? d : default,
-            CurrentPrice     = Safe(reader["current_price"]),
-            Ret1M            = Safe(reader["ret_1m"]),
-            Ret3M            = Safe(reader["ret_3m"]),
-            Ret6M            = Safe(reader["ret_6m"]),
-            Ret1Y            = Safe(reader["ret_1y"]),
-            Rs               = Safe(reader["rs"]),
-            Per              = Safe(reader["per"]),        // LEFT JOIN → nullable
-            Pbr              = Safe(reader["pbr"]),        // LEFT JOIN → nullable
-            Roe              = Safe(reader["roe"]),        // LEFT JOIN → nullable
-            Eps              = Safe(reader["eps"]),        // LEFT JOIN → nullable
-            Atr14            = Safe(reader["atr_14"]),     // LEFT JOIN → nullable
-            AtrPercent       = Safe(reader["atr_percent"]),
-            High52W          = Safe(reader["high_52w"]),
-            Low52W           = Safe(reader["low_52w"]),
-            VolumeAvg20D     = Safe(reader["volume_avg_20d"]),
-            DistanceFromHigh = Safe(reader["distance_from_high"]),
-        };
+            using var conn = OpenConnection();
+            using var cmd = conn.CreateCommand();
+            // ticker를 리터럴로 삽입: DuckDB positional $1 다중 CTE 재사용 불안정 방어
+            // ticker는 6자리 숫자 코드 또는 IDX_ 접두사 — SQL 인젝션 위험 없음
+            var t = ticker.Replace("'", "''"); // 방어적 escape
+            cmd.CommandText =
+                $"WITH latest AS ( " +
+                $"  SELECT adj_close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn " +
+                $"  FROM daily_prices WHERE ticker = '{t}' " +
+                $"), " +
+                $"price_1m AS ( " +
+                $"  SELECT adj_close, " +
+                $"    ROW_NUMBER() OVER (ORDER BY ABS(DATEDIFF('day', date, CURRENT_DATE - INTERVAL 1 MONTH))) AS rn " +
+                $"  FROM daily_prices " +
+                $"  WHERE ticker = '{t}' " +
+                $"    AND date BETWEEN CURRENT_DATE - INTERVAL 1 MONTH - INTERVAL 7 DAY " +
+                $"                 AND CURRENT_DATE - INTERVAL 1 MONTH + INTERVAL 7 DAY " +
+                $"), " +
+                $"price_3m AS ( " +
+                $"  SELECT adj_close, " +
+                $"    ROW_NUMBER() OVER (ORDER BY ABS(DATEDIFF('day', date, CURRENT_DATE - INTERVAL 3 MONTH))) AS rn " +
+                $"  FROM daily_prices " +
+                $"  WHERE ticker = '{t}' " +
+                $"    AND date BETWEEN CURRENT_DATE - INTERVAL 3 MONTH - INTERVAL 7 DAY " +
+                $"                 AND CURRENT_DATE - INTERVAL 3 MONTH + INTERVAL 7 DAY " +
+                $"), " +
+                $"price_6m AS ( " +
+                $"  SELECT adj_close, " +
+                $"    ROW_NUMBER() OVER (ORDER BY ABS(DATEDIFF('day', date, CURRENT_DATE - INTERVAL 6 MONTH))) AS rn " +
+                $"  FROM daily_prices " +
+                $"  WHERE ticker = '{t}' " +
+                $"    AND date BETWEEN CURRENT_DATE - INTERVAL 6 MONTH - INTERVAL 7 DAY " +
+                $"                 AND CURRENT_DATE - INTERVAL 6 MONTH + INTERVAL 7 DAY " +
+                $"), " +
+                $"price_1y AS ( " +
+                $"  SELECT adj_close, " +
+                $"    ROW_NUMBER() OVER (ORDER BY ABS(DATEDIFF('day', date, CURRENT_DATE - INTERVAL 1 YEAR))) AS rn " +
+                $"  FROM daily_prices " +
+                $"  WHERE ticker = '{t}' " +
+                $"    AND date BETWEEN CURRENT_DATE - INTERVAL 1 YEAR - INTERVAL 7 DAY " +
+                $"                 AND CURRENT_DATE - INTERVAL 1 YEAR + INTERVAL 7 DAY " +
+                $") " +
+                $"SELECT " +
+                $"  l.adj_close AS current, " +
+                $"  ROUND((l.adj_close - p1.adj_close)  / p1.adj_close  * 100, 2) AS ret_1m, " +
+                $"  ROUND((l.adj_close - p3.adj_close)  / p3.adj_close  * 100, 2) AS ret_3m, " +
+                $"  ROUND((l.adj_close - p6.adj_close)  / p6.adj_close  * 100, 2) AS ret_6m, " +
+                $"  ROUND((l.adj_close - p1y.adj_close) / p1y.adj_close * 100, 2) AS ret_1y " +
+                $"FROM latest l " +
+                $"LEFT JOIN price_1m  p1  ON p1.rn  = 1 " +
+                $"LEFT JOIN price_3m  p3  ON p3.rn  = 1 " +
+                $"LEFT JOIN price_6m  p6  ON p6.rn  = 1 " +
+                $"LEFT JOIN price_1y  p1y ON p1y.rn = 1 " +
+                $"WHERE l.rn = 1";
+
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read()) return (0, 0, 0, 0, 0);
+
+            double.TryParse(reader["current"]?.ToString(), out var current);
+            double.TryParse(reader["ret_1m"]?.ToString(),  out var ret1m);
+            double.TryParse(reader["ret_3m"]?.ToString(),  out var ret3m);
+            double.TryParse(reader["ret_6m"]?.ToString(),  out var ret6m);
+            double.TryParse(reader["ret_1y"]?.ToString(),  out var ret1y);
+            return (current, ret1m, ret3m, ret6m, ret1y);
+        }
+        catch
+        {
+            return (0, 0, 0, 0, 0);
+        }
     }
-    //public (double current, double ret1m, double ret3m, double ret6m, double ret1y) LoadPrice_(string ticker)
-    //{
-    //    try
-    //    {
-    //        using var conn = OpenConnection();
-    //        using var cmd = conn.CreateCommand();
-    //        // ticker를 리터럴로 삽입: DuckDB positional $1 다중 CTE 재사용 불안정 방어
-    //        // ticker는 6자리 숫자 코드 또는 IDX_ 접두사 — SQL 인젝션 위험 없음
-    //        var t = ticker.Replace("'", "''"); // 방어적 escape
-    //        cmd.CommandText =
-    //            $"WITH latest AS ( " +
-    //            $"  SELECT adj_close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn " +
-    //            $"  FROM daily_prices WHERE ticker = '{t}' " +
-    //            $"), " +
-    //            $"price_1m AS ( " +
-    //            $"  SELECT adj_close, " +
-    //            $"    ROW_NUMBER() OVER (ORDER BY ABS(DATEDIFF('day', date, CURRENT_DATE - INTERVAL 1 MONTH))) AS rn " +
-    //            $"  FROM daily_prices " +
-    //            $"  WHERE ticker = '{t}' " +
-    //            $"    AND date BETWEEN CURRENT_DATE - INTERVAL 1 MONTH - INTERVAL 7 DAY " +
-    //            $"                 AND CURRENT_DATE - INTERVAL 1 MONTH + INTERVAL 7 DAY " +
-    //            $"), " +
-    //            $"price_3m AS ( " +
-    //            $"  SELECT adj_close, " +
-    //            $"    ROW_NUMBER() OVER (ORDER BY ABS(DATEDIFF('day', date, CURRENT_DATE - INTERVAL 3 MONTH))) AS rn " +
-    //            $"  FROM daily_prices " +
-    //            $"  WHERE ticker = '{t}' " +
-    //            $"    AND date BETWEEN CURRENT_DATE - INTERVAL 3 MONTH - INTERVAL 7 DAY " +
-    //            $"                 AND CURRENT_DATE - INTERVAL 3 MONTH + INTERVAL 7 DAY " +
-    //            $"), " +
-    //            $"price_6m AS ( " +
-    //            $"  SELECT adj_close, " +
-    //            $"    ROW_NUMBER() OVER (ORDER BY ABS(DATEDIFF('day', date, CURRENT_DATE - INTERVAL 6 MONTH))) AS rn " +
-    //            $"  FROM daily_prices " +
-    //            $"  WHERE ticker = '{t}' " +
-    //            $"    AND date BETWEEN CURRENT_DATE - INTERVAL 6 MONTH - INTERVAL 7 DAY " +
-    //            $"                 AND CURRENT_DATE - INTERVAL 6 MONTH + INTERVAL 7 DAY " +
-    //            $"), " +
-    //            $"price_1y AS ( " +
-    //            $"  SELECT adj_close, " +
-    //            $"    ROW_NUMBER() OVER (ORDER BY ABS(DATEDIFF('day', date, CURRENT_DATE - INTERVAL 1 YEAR))) AS rn " +
-    //            $"  FROM daily_prices " +
-    //            $"  WHERE ticker = '{t}' " +
-    //            $"    AND date BETWEEN CURRENT_DATE - INTERVAL 1 YEAR - INTERVAL 7 DAY " +
-    //            $"                 AND CURRENT_DATE - INTERVAL 1 YEAR + INTERVAL 7 DAY " +
-    //            $") " +
-    //            $"SELECT " +
-    //            $"  l.adj_close AS current, " +
-    //            $"  ROUND((l.adj_close - p1.adj_close)  / p1.adj_close  * 100, 2) AS ret_1m, " +
-    //            $"  ROUND((l.adj_close - p3.adj_close)  / p3.adj_close  * 100, 2) AS ret_3m, " +
-    //            $"  ROUND((l.adj_close - p6.adj_close)  / p6.adj_close  * 100, 2) AS ret_6m, " +
-    //            $"  ROUND((l.adj_close - p1y.adj_close) / p1y.adj_close * 100, 2) AS ret_1y " +
-    //            $"FROM latest l " +
-    //            $"LEFT JOIN price_1m  p1  ON p1.rn  = 1 " +
-    //            $"LEFT JOIN price_3m  p3  ON p3.rn  = 1 " +
-    //            $"LEFT JOIN price_6m  p6  ON p6.rn  = 1 " +
-    //            $"LEFT JOIN price_1y  p1y ON p1y.rn = 1 " +
-    //            $"WHERE l.rn = 1";
-
-    //        using var reader = cmd.ExecuteReader();
-    //        if (!reader.Read()) return (0, 0, 0, 0, 0);
-
-    //        double.TryParse(reader["current"]?.ToString(), out var current);
-    //        double.TryParse(reader["ret_1m"]?.ToString(),  out var ret1m);
-    //        double.TryParse(reader["ret_3m"]?.ToString(),  out var ret3m);
-    //        double.TryParse(reader["ret_6m"]?.ToString(),  out var ret6m);
-    //        double.TryParse(reader["ret_1y"]?.ToString(),  out var ret1y);
-    //        return (current, ret1m, ret3m, ret6m, ret1y);
-    //    }
-    //    catch
-    //    {
-    //        return (0, 0, 0, 0, 0);
-    //    }
-    //}
 
     /// <summary>stock_cache 전체 지표 (rs DESC).</summary>
-    //public IEnumerable<StockCache> GetLatestIndicators()
-    //    => Query<StockCache>(@"
-    //        SELECT ticker, last_date, ret_1m, ret_3m, ret_6m,
-    //               rs, beta_60d, per, pbr, roe, updated_at
-    //        FROM stock_cache ORDER BY rs DESC NULLS LAST");
+    public IEnumerable<StockCache> GetLatestIndicators()
+        => Query<StockCache>(@"
+            SELECT ticker, last_date, ret_1m, ret_3m, ret_6m,
+                   rs, beta_60d, per, pbr, roe, updated_at
+            FROM stock_cache ORDER BY rs DESC NULLS LAST");
 
-    ///// <summary>ticker → 대표 섹터명 맵 (v_stock_primary_sector 기반).</summary>
-    //public IDictionary<string, string> GetSectorMap()
-    //{
-    //    var rows = Query<(string Ticker, string Sector)>(
-    //        "SELECT ticker, sector FROM v_stock_primary_sector WHERE sector IS NOT NULL");
-    //    return rows.ToDictionary(r => r.Ticker, r => r.Sector);
-    //}
+    /// <summary>ticker → 대표 섹터명 맵 (v_stock_primary_sector 기반).</summary>
+    public IDictionary<string, string> GetSectorMap()
+    {
+        var rows = Query<(string Ticker, string Sector)>(
+            "SELECT ticker, sector FROM v_stock_primary_sector WHERE sector IS NOT NULL");
+        return rows.ToDictionary(r => r.Ticker, r => r.Sector);
+    }
 
     // ──────────────────────────────────────────────────────────
     /// <summary>stocks 마스터 upsert (market='KP', security_type='stock' 기본값).</summary>

@@ -13,7 +13,7 @@ public partial class DbBrowserView : UserControl
     private static readonly string[] KnownTables =
     [
         "stocks", "groups", "stock_group_map",
-        "fundamentals", "daily_prices", "supply",
+        "fundamentals", "daily_prices", "stock_cache", "supply",
         "watchlists", "watchlist_items", "pdf_reports",
         "data_update_log", "trading_calendar", "options",
         "v_sectors", "v_themes", "v_active_group_map", "v_stock_primary_sector"
@@ -22,10 +22,11 @@ public partial class DbBrowserView : UserControl
     public event Action<string, string>? StatusChanged;
     public event Action<string>? ElapsedChanged;
 
-    private readonly DbManager _db = DbManager.Instance;
+    private readonly DbManager _db;
 
-    public DbBrowserView()
+    public DbBrowserView(DbManager db)
     {
+        _db = db;
         InitializeComponent();
         Loaded += OnLoaded;
     }

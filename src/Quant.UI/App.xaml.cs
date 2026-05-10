@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Quant.Core.Infrastructure;
 using Quant.Core.Repositories;
-using Quant.Core.Services;
 using Quant.UI.Views;
 using System.Windows;
 
@@ -31,11 +30,10 @@ public partial class App : Application
         // DbManager: 경로·연결·스키마 초기화 모두 내부 처리
         services.AddSingleton<DbManager>();
 
-        // Repository 계층은 DbConnectionFactory 경유 (기존 코드 호환)
-        services.AddSingleton<DbConnectionFactory>();
-        services.AddSingleton<SchemaInitializer>();
+        // Repository 계층 (필요 시사용)
         services.AddTransient<StockRepository>();
         services.AddTransient<DailyPriceRepository>();
-        services.AddSingleton<CacheUpdateService>();
+        // CacheUpdateService 제거 — DbManager.RebuildStockCache()로 통합
+        // DbConnectionFactory, SchemaInitializer 제거 — 미사용
     }
 }

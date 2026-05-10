@@ -214,15 +214,59 @@
             </Border>
             <!-- ══ Row 2: Rating ═══════════════════════ -->
             <Border Grid.Row="2" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1" Padding="10,6">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
-                    <ctrl:RatingControl x:Name="RatingCtrl" Height="18" Margin="12,0,0,0"
-                                        VerticalAlignment="Center"
-                                        RatingChanged="RatingCtrl_RatingChanged" Foreground="#FFD200"/>
-                </StackPanel>
+                <Grid VerticalAlignment="Center" Margin="8,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="120"/>     <!-- TxtStockInfo_ReturnRatio -->
+                        <ColumnDefinition Width="200"/>     <!-- CartesianChart -->
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Top">
+                        <ctrl:RatingControl x:Name="RatingCtrl" Height="18" Margin="12,0,0,0"
+                                            VerticalAlignment="Top"
+                                            RatingChanged="RatingCtrl_RatingChanged" Foreground="#FFD200"/>
+                        <TextBox x:Name="TxtStockInfo"
+                                Text="-"
+                                IsReadOnly="True"
+                                AcceptsReturn="True"
+                                TextWrapping="Wrap"
+                                VerticalScrollBarVisibility="Auto"
+                                HorizontalScrollBarVisibility="Disabled"
+                                MinHeight="44"
+                                Padding="4"
+                                FontFamily="Consolas"
+                                FontSize="11"
+                                Foreground="#FFF9F9C4"
+                                Background="Transparent"
+                                BorderThickness="0"/>
+                    </StackPanel>
+
+                    <Border Grid.Column="1" Margin="8,0,0,0">
+                        <TextBox x:Name="TxtStockInfo_ReturnRatio"
+                                Text="%"
+                                IsReadOnly="True"
+                                TextWrapping="Wrap"
+                                VerticalScrollBarVisibility="Auto"
+                                HorizontalScrollBarVisibility="Disabled"
+                                Padding="4"
+                                FontFamily="Consolas"
+                                FontSize="11"
+                                Foreground="#FFF9F9C4"
+                                Background="Transparent"/>
+                    </Border>
+                    <Border Grid.Column="2" Height="160" Margin="8,0,0,0"
+                            Background="#1A1B29" BorderBrush="#313244" BorderThickness="1" CornerRadius="4">
+                        <lvc:CartesianChart x:Name="MiniChart_ReturnRatio"
+                                            DrawMarginFrame="{x:Null}"
+                                            Background="#1E1E2E"
+                                            ZoomMode="None" 
+                                            TooltipPosition="Hidden"/>
+                    </Border>
+                </Grid>
             </Border>
             <!-- ══ Row 3: info ═══════════════════════ -->
             <Border Grid.Row="3" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1" Padding="10,6">
-                <TextBox x:Name="TxtStockInfo"
+                <TextBox x:Name="TxtStockInfo2"
                          Text="-"
                          IsReadOnly="True"
                          AcceptsReturn="True"

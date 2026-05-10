@@ -50,7 +50,7 @@ public partial class ChartView : UserControl
     // Labeler 및 Supply 인덱스 역매핑용
     private List<OhlcvRow> _renderData = [];
 
-    private readonly DbManager _db = DbManager.Instance;
+    private readonly DbManager _db;
     private List<OhlcvRow> _allData = [];
     private int    _periodDays    = 365;
     private string _currentTicker = "";
@@ -69,8 +69,9 @@ public partial class ChartView : UserControl
         { 120, SKColor.Parse("#CBA6F7") },
     };
 
-    public ChartView()
+    public ChartView(DbManager db)
     {
+        _db = db;
         InitializeComponent();
         DataContext = this;
         InitAxes();
@@ -145,6 +146,78 @@ public partial class ChartView : UserControl
     // ══════════════════════════════════════════════════════════
     //  데이터 로드
     // ══════════════════════════════════════════════════════════
+    private void LoadInfo_ReturnRatio(string ticker)
+    {
+        var cache = _db.GetStockCache(ticker);
+        if (cache is null)
+        {
+            TxtStockInfo_ReturnRatio.Text = "no data";
+            TxtStockInfo.Text             = "no data";
+            return;
+        }
+
+        static string Signed(double v) => v >= 0 ? $"+{v:F1}%" : $"{v:F1}%";
+
+        TxtStockInfo_ReturnRatio.Text =
+            $"today: {cache.CurrentPrice:N0}\n\n" +
+            $"1m: {Signed(cache.Ret1M)}\n" +
+            $"3m: {Signed(cache.Ret3M)}\n" +
+            $"6m: {Signed(cache.Ret6M)}\n" +
+            $"1y: {Signed(cache.Ret1Y)}\n\n" +
+            $"RS:  {Signed(cache.Rs)}";
+
+        //TxtStockInfo2.Text = TxtStockInfo_ReturnRatio.Text;
+
+        var props = cache.GetType().GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        var sb = new System.Text.StringBuilder();
+        foreach (var p in props)
+        {
+            var v = p.GetValue(cache);
+            sb.AppendLine($"{p.Name}: {v}");
+        }
+        TxtStockInfo2.Text = sb.ToString().TrimEnd();
+
+        MiniChart_ReturnRatio.Series = new ISeries[]
+        {
+            new ColumnSeries<ObservablePoint>
+            {
+                Values = new[]
+                {
+                    new ObservablePoint(0, cache?.Ret1M),
+                    new ObservablePoint(1, cache?.Ret3M),
+                    new ObservablePoint(2, cache?.Ret6M),
+                    new ObservablePoint(3, cache?.Ret1Y),
+                },
+                Fill = new SolidColorPaint(SKColor.Parse("#89B4FA")),
+                Stroke = null,
+                MaxBarWidth = 10
+            }
+        };
+
+        MiniChart_ReturnRatio.XAxes = new Axis[]
+        {
+            new Axis
+            {
+                Labels = new[] { "1M", "3M", "6M", "1Y" },
+                MinStep = 1,
+                LabelsPaint = new SolidColorPaint(SKColor.Parse("#6C7086")),
+                SeparatorsPaint = null,
+                TextSize = 8
+            }
+        };
+
+        MiniChart_ReturnRatio.YAxes = new Axis[]
+        {
+            new Axis
+            {
+                Labeler = v => $"{v:F0}%",
+                LabelsPaint = new SolidColorPaint(SKColor.Parse("#6C7086")),
+                SeparatorsPaint = new SolidColorPaint(SKColor.Parse("#313244")),
+                TextSize = 8
+            }
+        };
+    }
+
     private void LoadChart()
     {
         var ticker = TxtTickerCode.Text.Trim().ToUpper();
@@ -153,10 +226,7 @@ public partial class ChartView : UserControl
         try
         {
             RatingCtrl.Rating = _db.GetStockInfo(ticker).rating;
-            var (c, r1m, r3m, r1y) = _db.LoadPrice(ticker);
-            TxtStockInfo.Text = c > 0
-                ? $"현재가 {c:N0}\n  {(r1m >= 0 ? "+" : "")}{r1m:F1}% / {(r3m >= 0 ? "+" : "")}{r3m:F1}% / {(r1y >= 0 ? "+" : "")}{r1y:F1}%"
-                : "가격 정보 없음";
+            LoadInfo_ReturnRatio(ticker);
             LoadInfoPanel(ticker);
 
             var sql = $"""
