@@ -1,4 +1,5 @@
-﻿<UserControl x:Class="Quant.UI.Views.ChartView"
+﻿<!--  ChartView.xaml  -->
+<UserControl x:Class="Quant.UI.Views.ChartView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
@@ -6,6 +7,8 @@
              Background="#1E1E2E">
 
     <UserControl.Resources>
+
+        <!-- ── 기간 버튼 ────────────────────────────────────── -->
         <Style x:Key="PeriodBtn" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
             <Setter Property="Foreground"      Value="#6C7086"/>
@@ -33,57 +36,246 @@
             </Setter>
         </Style>
 
+        <!-- ── 토글 버튼 (선/봉, 로그, MA, 지표) ──────────── -->
+        <Style x:Key="ToggleBtn" TargetType="Button">
+            <Setter Property="Background"      Value="#252536"/>
+            <Setter Property="Foreground"      Value="#6C7086"/>
+            <Setter Property="BorderBrush"     Value="#313244"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding"         Value="7,3"/>
+            <Setter Property="FontSize"        Value="10"/>
+            <Setter Property="FontFamily"      Value="Consolas"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Margin"          Value="2,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#313244"/>
+                                <Setter Property="Foreground" Value="#CDD6F4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- 지표 레이블 -->
         <Style x:Key="MetaLabel" TargetType="TextBlock">
-            <Setter Property="FontFamily"  Value="Consolas"/>
-            <Setter Property="FontSize"    Value="10"/>
-            <Setter Property="Foreground"  Value="#6C7086"/>
+            <Setter Property="FontFamily"        Value="Consolas"/>
+            <Setter Property="FontSize"          Value="10"/>
+            <Setter Property="Foreground"        Value="#6C7086"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
         <!-- 지표 값 -->
         <Style x:Key="MetaValue" TargetType="TextBlock">
-            <Setter Property="FontFamily"  Value="Consolas"/>
-            <Setter Property="FontSize"    Value="11"/>
-            <Setter Property="FontWeight"  Value="SemiBold"/>
-            <Setter Property="Foreground"  Value="#CDD6F4"/>
+            <Setter Property="FontFamily"        Value="Consolas"/>
+            <Setter Property="FontSize"          Value="11"/>
+            <Setter Property="FontWeight"        Value="SemiBold"/>
+            <Setter Property="Foreground"        Value="#CDD6F4"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Margin"      Value="4,0,16,0"/>
+            <Setter Property="Margin"            Value="4,0,16,0"/>
         </Style>
+
+        <!-- 서브차트 레이블 -->
+        <Style x:Key="SubLabel" TargetType="TextBlock">
+            <Setter Property="FontFamily"        Value="Consolas"/>
+            <Setter Property="FontSize"          Value="9"/>
+            <Setter Property="Foreground"        Value="#45475A"/>
+            <Setter Property="VerticalAlignment" Value="Top"/>
+            <Setter Property="Margin"            Value="6,3"/>
+        </Style>
+
+        <!-- DataGrid -->
+        <Style x:Key="QuantDataGrid" TargetType="DataGrid">
+            <Setter Property="Background"               Value="#181825"/>
+            <Setter Property="Foreground"               Value="#CDD6F4"/>
+            <Setter Property="BorderBrush"              Value="#45475A"/>
+            <Setter Property="BorderThickness"          Value="1"/>
+            <Setter Property="GridLinesVisibility"      Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="#313244"/>
+            <Setter Property="RowBackground"            Value="#181825"/>
+            <Setter Property="AlternatingRowBackground" Value="#1E1E2E"/>
+            <Setter Property="ColumnHeaderHeight"       Value="28"/>
+            <Setter Property="RowHeight"                Value="24"/>
+            <Setter Property="FontSize"                 Value="11"/>
+            <Setter Property="FontFamily"               Value="Consolas"/>
+            <Setter Property="SelectionMode"            Value="Single"/>
+            <Setter Property="IsReadOnly"               Value="True"/>
+            <Setter Property="AutoGenerateColumns"      Value="True"/>
+            <Setter Property="CanUserSortColumns"       Value="True"/>
+            <Setter Property="CanUserResizeColumns"     Value="True"/>
+        </Style>
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background"      Value="#252536"/>
+            <Setter Property="Foreground"      Value="#89B4FA"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="Padding"         Value="8,0"/>
+            <Setter Property="BorderBrush"     Value="#45475A"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+        </Style>
+        <Style TargetType="DataGridRow">
+            <Setter Property="Background" Value="Transparent"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#313244"/>
+                    <Setter Property="Foreground" Value="#CDD6F4"/>
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#2A2A3C"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style TargetType="DataGridCell">
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="6,0"/>
+            <Setter Property="Foreground"      Value="#CDD6F4"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="BorderBrush" Value="Transparent"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
     </UserControl.Resources>
 
-    <!-- 전체 레이아웃: 헤더 / 상단(수급·재무) / 하단(차트) / 상태바 -->
+    <!-- ── 전체 레이아웃 Grid ──────────────────────────────── -->
     <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="44"/>   <!-- 헤더 -->
-            <RowDefinition Height="Auto"/> <!-- 상단 패널 (수급·재무) -->
-            <RowDefinition Height="*"/>    <!-- 하단 차트 -->
-            <RowDefinition Height="22"/>   <!-- 상태바 -->
-        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" MinWidth="300"/>
+            <ColumnDefinition Width="4"/>   <!-- splitter -->
+            <ColumnDefinition Width="*" MinWidth="400"/>
+        </Grid.ColumnDefinitions>
 
-        <!-- ── Row 0: 헤더 ───────────────────────────────────── -->
-        <Border Grid.Row="0" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1">
-            <Grid Margin="10,0">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="CHART" FontSize="11" FontWeight="Bold"
-                               Foreground="#6C7086" VerticalAlignment="Center"
-                               FontFamily="Consolas" Margin="0,0,12,0"/>
-                    <TextBlock Text="Ticker:" FontSize="11" Foreground="#6C7086"
-                               VerticalAlignment="Center" FontFamily="Consolas" Margin="0,0,6,0"/>
-                    <TextBox x:Name="TxtTicker" Width="80" Height="26"
+        <!-- ══ Left side ═══════════════════════ -->
+        <Grid Grid.Column="0" Cursor="">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="44"/>    <!-- 0: ticker -->
+                <RowDefinition Height="32"/>    <!-- 1: Fundamentals -->
+                <RowDefinition Height="Auto"/>  <!-- 2: Rating -->
+                <RowDefinition Height="*" MinHeight="300"/>  <!-- 3: info -->
+                <RowDefinition Height="4"/>     <!-- 4: splitter -->
+                <RowDefinition Height="Auto" MinHeight="100"/>     <!-- 5: report -->
+            </Grid.RowDefinitions>
+            <!-- ══ Row 0: ticker ══════════════════════════════════ -->
+            <Border Grid.Row="0" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1">
+                <Grid Margin="10,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="TxtStockName" Text="삼성전자" FontFamily="Consolas" Foreground="#F1DE10" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox x:Name="TxtTickerCode" Width="80" Height="26"
                              Background="#313244" Foreground="#CDD6F4"
                              BorderBrush="#45475A" BorderThickness="1"
                              FontFamily="Consolas" FontSize="12" Padding="4,2"
-                             VerticalContentAlignment="Center"
-                             Text="005930"
-                             KeyDown="TxtTicker_KeyDown"/>
-                    <Button Content="Load" Width="48" Height="26" Margin="4,0,16,0"
+                             VerticalContentAlignment="Center" Text="005930"
+                             KeyDown="TxtTickerCode_KeyDown"/>
+                        <Button Content="Load" Width="48" Height="26" Margin="4,0,16,0"
                             Background="#89B4FA" Foreground="#1E1E2E"
                             BorderThickness="0" FontWeight="Bold" FontSize="11"
                             Cursor="Hand" Click="BtnLoad_Click"/>
-                    <Button Content="🔄" Width="30" Height="26" Style="{StaticResource PeriodBtn}"
-                            Foreground="#FF8BF9BA" Click="BtnDownloadData_Click"/>
-                    <Button Content="🔗" Width="30" Height="26" Style="{StaticResource PeriodBtn}"
-                            Foreground="#FF8BF9BA" Click="BtnExternalLink_Click"/>
+                        <Button Content="🔄" Width="30" Height="26" Style="{StaticResource PeriodBtn}"
+                            Foreground="#8BF9BA" Click="BtnDownloadData_Click" ToolTip="가격 데이터 다운로드"/>
+                        <Button Content="🔗" Width="30" Height="26" Style="{StaticResource PeriodBtn}"
+                            Foreground="#8BF9BA" Click="BtnExternalLink_Click" ToolTip="네이버 금융"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <!-- ══ Row 1: Fundamentals ════════════════════════════ -->
+            <Border Grid.Row="1" Background="#1E1E2E" BorderBrush="#313244" BorderThickness="0,0,0,1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
+                        <TextBlock Text="Fundamentals" Style="{StaticResource MetaLabel}" FontSize="9" FontWeight="Bold" Foreground="#45475A" Margin="4,0,0,0"/>
+                    </StackPanel>
+                    <WrapPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                        <TextBlock Text="PER" Style="{StaticResource MetaLabel}"/>
+                        <TextBlock x:Name="TxtPer" Style="{StaticResource MetaValue}" Text="-" Foreground="#F0F15E"/>
+                        <TextBlock Text="PBR" Style="{StaticResource MetaLabel}"/>
+                        <TextBlock x:Name="TxtPbr" Style="{StaticResource MetaValue}" Text="-" Foreground="#F0F15E"/>
+                        <TextBlock Text="EPS" Style="{StaticResource MetaLabel}"/>
+                        <TextBlock x:Name="TxtEps" Style="{StaticResource MetaValue}" Text="-" Foreground="#F0F15E"/>
+                        <TextBlock Text="ROE" Style="{StaticResource MetaLabel}"/>
+                        <TextBlock x:Name="TxtBps" Style="{StaticResource MetaValue}" Text="-" Foreground="#F0F15E"/>
+                        <TextBlock x:Name="TxtFundDate" Style="{StaticResource MetaLabel}" Foreground="#45475A" FontSize="9"/>
+                    </WrapPanel>
+                </Grid>
+            </Border>
+            <!-- ══ Row 2: Rating ═══════════════════════ -->
+            <Border Grid.Row="2" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1" Padding="10,6">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
+                    <ctrl:RatingControl x:Name="RatingCtrl" Height="18" Margin="12,0,0,0"
+                                        VerticalAlignment="Center"
+                                        RatingChanged="RatingCtrl_RatingChanged" Foreground="#FFD200"/>
+                </StackPanel>
+            </Border>
+            <!-- ══ Row 3: info ═══════════════════════ -->
+            <Border Grid.Row="3" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1" Padding="10,6">
+                <TextBox x:Name="TxtStockInfo"
+                         Text="-"
+                         IsReadOnly="True"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Disabled"
+                         MinHeight="44"
+                         Padding="4"
+                         FontFamily="Consolas"
+                         FontSize="11"
+                         Foreground="#FFF9F9C4"
+                         Background="Transparent"
+                         BorderThickness="0"/>
+            </Border>
+            <!-- splitter -->
+            <GridSplitter Grid.Row="4" HorizontalAlignment="Stretch"
+                              Background="#FF878BAF" ResizeBehavior="PreviousAndNext"/>
+            <!-- ══ Row 5: Report ═══════════════════════ -->
+            <Border Grid.Row="5">
+                <DataGrid x:Name="GridReport" Grid.Column="0" Style="{StaticResource QuantDataGrid}" AutoGenerateColumns="False"
+                      SelectionChanged="GridReportClick" VerticalAlignment="Top">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="date"   Binding="{Binding date}"   Width="90"/>
+                        <DataGridTextColumn Header="title"  Binding="{Binding title}"  Width="300"/>
+                        <DataGridTextColumn Header="writer" Binding="{Binding writer}" Width="100"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+
+        </Grid>
+
+        <!-- splitter -->
+        <GridSplitter Grid.Column="1" VerticalAlignment="Stretch"
+                              Background="#FF878BAF" ResizeBehavior="PreviousAndNext" Cursor=""/>
+
+        <!-- ══ Right side ═══════════════════════ -->
+        <Grid x:Name="ChartGrid" Grid.Column="2">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="44"/>   <!-- 0: 헤더 (티커/기간) -->
+            <RowDefinition Height="32"/>   <!-- 1: 토글 툴바 -->
+            <RowDefinition Height="Auto"/> <!-- 2: 수급·재무 패널 -->
+            <RowDefinition Height="*"/>    <!-- 3: 메인 차트 -->
+            <RowDefinition Height="0"/>    <!-- 4: 거래량 (토글) -->
+            <RowDefinition Height="0"/>    <!-- 5: MACD (토글) -->
+            <RowDefinition Height="0"/>    <!-- 6: RSI (토글) -->
+            <RowDefinition Height="22"/>   <!-- 7: 상태바 -->
+        </Grid.RowDefinitions>
+
+        <!-- ══ Row 0: 헤더 ══════════════════════════════════ -->
+        <Border Grid.Row="0" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1">
+            <Grid Margin="10,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- 기간 버튼 -->
                     <Button x:Name="Btn1M"  Content="1M"  Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="30"/>
                     <Button x:Name="Btn3M"  Content="3M"  Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="90"/>
                     <Button x:Name="Btn6M"  Content="6M"  Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="180"/>
@@ -91,64 +283,80 @@
                     <Button x:Name="Btn2Y"  Content="2Y"  Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="730"/>
                     <Button x:Name="BtnAll" Content="ALL" Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="0"/>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <TextBlock x:Name="TxtName" FontFamily="Consolas" Foreground="#FFF1DE10" VerticalAlignment="Center"/>
-                    <TextBlock x:Name="TxtInfo" FontSize="10" FontFamily="Consolas"
-                               Foreground="#FFF4F4F5" VerticalAlignment="Center" Margin="8,0,0,0"/>
-                    <ctrl:RatingControl x:Name="RatingCtrl" Height="18" Margin="12,0,0,0"
-                                        VerticalAlignment="Center"
-                                        RatingChanged="RatingCtrl_RatingChanged" Foreground="#FFFFD200"/>
+                <StackPanel Orientation="Vertical" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="8,0,0,0">
+                        <TextBlock x:Name="TxtChartPriceInfo" FontSize="10" FontFamily="Consolas" Text="price"
+                               Foreground="#FFD5D5EF" VerticalAlignment="Center" Margin="0,4,0,0" HorizontalAlignment="Right"/>
+                        <TextBlock x:Name="TxtChartDataLoadingInfo" FontSize="10" FontFamily="Consolas" Text="loading..."
+                               Foreground="#FF5B5B7B" VerticalAlignment="Center" Margin="0,2,0,0" HorizontalAlignment="Right"/>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- ── Row 1: 상단 패널 (수급 + 재무) ──────────────────── -->
-        <Border Grid.Row="1" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1" Padding="10,6">
+        <!-- ══ Row 1: 토글 툴바 ════════════════════════════ -->
+        <Border Grid.Row="1" Background="#1E1E2E" BorderBrush="#313244" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
+
+                <!-- 차트 타입 -->
+                <Button x:Name="BtnChartType" Content="선" Style="{StaticResource ToggleBtn}"
+                        Click="BtnChartType_Click" ToolTip="선/봉 전환"/>
+                <!-- 로그 스케일 -->
+                    <!-- <Button x:Name="BtnLog" Content="Log" Style="{StaticResource ToggleBtn}" Click="BtnLog_Click" ToolTip="로그 스케일"/> -->
+
+                <Rectangle Fill="#313244" Width="1" Margin="6,4"/>
+
+                <!-- MA 토글 -->
+                <TextBlock Text="MA" FontFamily="Consolas" FontSize="10"
+                           Foreground="#45475A" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                <Button Content="5"   Tag="5"   Style="{StaticResource ToggleBtn}" Click="BtnMa_Click"
+                        Foreground="#F9E2AF" ToolTip="MA5 (노랑)"/>
+                <Button Content="20"  Tag="20"  Style="{StaticResource ToggleBtn}" Click="BtnMa_Click"
+                        Foreground="#A6E3A1" ToolTip="MA20 (초록)"/>
+                <Button Content="60"  Tag="60"  Style="{StaticResource ToggleBtn}" Click="BtnMa_Click"
+                        Foreground="#FAB387" ToolTip="MA60 (주황)"/>
+                <Button Content="120" Tag="120" Style="{StaticResource ToggleBtn}" Click="BtnMa_Click"
+                        Foreground="#CBA6F7" ToolTip="MA120 (보라)"/>
+
+                <Rectangle Fill="#313244" Width="1" Margin="6,4"/>
+
+                <!-- 보조지표 -->
+                <Button x:Name="BtnVol"  Content="VOL"  Style="{StaticResource ToggleBtn}"
+                        Click="BtnVol_Click"  ToolTip="거래량"/>
+                <Button x:Name="BtnMacd" Content="MACD" Style="{StaticResource ToggleBtn}"
+                        Click="BtnMacd_Click" ToolTip="MACD (12/26/9)"/>
+                <Button x:Name="BtnRsi"  Content="RSI"  Style="{StaticResource ToggleBtn}"
+                        Click="BtnRsi_Click"  ToolTip="RSI (14)"/>
+
+            </StackPanel>
+        </Border>
+
+        <!-- ══ Row 2: 수급·재무 패널 ═══════════════════════ -->
+        <Border Grid.Row="2" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1" Padding="10,6">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>  <!-- 구분 레이블 -->
-                    <ColumnDefinition Width="*"/>     <!-- 수급 -->
-                    <ColumnDefinition Width="1"/>     <!-- 구분선 -->
-                    <ColumnDefinition Width="*"/>     <!-- 재무 -->
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- 수급 섹션 -->
-                <StackPanel Grid.Column="0" Orientation="Vertical" VerticalAlignment="Center" Margin="0,0,12,0">
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
                     <TextBlock Text="SUPPLY" Style="{StaticResource MetaLabel}" FontSize="9" FontWeight="Bold" Foreground="#45475A"/>
                 </StackPanel>
 
                 <WrapPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="기관(주)"  Style="{StaticResource MetaLabel}"/>
+                    <TextBlock Text="기관(주)"         Style="{StaticResource MetaLabel}"/>
                     <TextBlock x:Name="TxtInstNet"    Style="{StaticResource MetaValue}" Text="-"/>
-                    <TextBlock Text="외인(주)"  Style="{StaticResource MetaLabel}"/>
+                    <TextBlock Text="외인(주)"         Style="{StaticResource MetaLabel}"/>
                     <TextBlock x:Name="TxtForeignNet" Style="{StaticResource MetaValue}" Text="-"/>
-                    <TextBlock Text="기관(억)"  Style="{StaticResource MetaLabel}"/>
+                    <TextBlock Text="기관(억)"         Style="{StaticResource MetaLabel}"/>
                     <TextBlock x:Name="TxtInstAmt"    Style="{StaticResource MetaValue}" Text="-"/>
-                    <TextBlock Text="외인(억)"  Style="{StaticResource MetaLabel}"/>
-                    <TextBlock x:Name="TxtForeignAmt" Style="{StaticResource MetaValue}" Text="-" Foreground="#FFF0F15E"/>
+                    <TextBlock Text="외인(억)"         Style="{StaticResource MetaLabel}"/>
+                    <TextBlock x:Name="TxtForeignAmt" Style="{StaticResource MetaValue}" Text="-" Foreground="#F0F15E"/>
                     <TextBlock x:Name="TxtSupplyDate" Style="{StaticResource MetaLabel}" Foreground="#45475A" FontSize="9"/>
-                </WrapPanel>
-
-                <!-- 구분선 -->
-                <Rectangle Grid.Column="2" Fill="#FF94F3F5" Width="1" Margin="8,0"/>
-
-                <!-- 재무 섹션 -->
-                <WrapPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
-                    <TextBlock Text="PER"  Style="{StaticResource MetaLabel}"/>
-                    <TextBlock x:Name="TxtPer"  Style="{StaticResource MetaValue}" Text="-" Foreground="#FFF0F15E"/>
-                    <TextBlock Text="PBR"  Style="{StaticResource MetaLabel}"/>
-                    <TextBlock x:Name="TxtPbr"  Style="{StaticResource MetaValue}" Text="-" Foreground="#FFF0F15E"/>
-                    <TextBlock Text="EPS"  Style="{StaticResource MetaLabel}"/>
-                    <TextBlock x:Name="TxtEps"  Style="{StaticResource MetaValue}" Text="-" Foreground="#FFF0F15E"/>
-                    <TextBlock Text="ROE"  Style="{StaticResource MetaLabel}"/>
-                    <TextBlock x:Name="TxtBps"  Style="{StaticResource MetaValue}" Text="-" Foreground="#FFF0F15E"/>
-                    <TextBlock x:Name="TxtFundDate" Style="{StaticResource MetaLabel}" Foreground="#45475A" FontSize="9"/>
                 </WrapPanel>
             </Grid>
         </Border>
 
-        <!-- ── Row 2: 하단 차트 ──────────────────────────────── -->
-        <lvc:CartesianChart x:Name="Chart" Grid.Row="2"
+        <!-- ══ Row 3: 메인 차트 ════════════════════════════ -->
+        <lvc:CartesianChart Grid.Row="3"
                             Background="#1E1E2E"
                             Series="{Binding Series}"
                             XAxes="{Binding XAxes}"
@@ -156,11 +364,52 @@
                             ZoomMode="X"
                             TooltipPosition="Top"/>
 
-        <!-- ── Row 3: 상태바 ─────────────────────────────────── -->
-        <Border Grid.Row="3" Background="#252536" Padding="10,0">
+        <!-- ══ Row 4: 거래량 서브차트 (높이=0 → 토글로 제어) -->
+        <Grid Grid.Row="4" Background="#1A1A2E">
+            <TextBlock Text="VOL" Style="{StaticResource SubLabel}"/>
+            <lvc:CartesianChart Margin="0,16,0,0"
+                                Background="Transparent"
+                                Series="{Binding VolSeries}"
+                                XAxes="{Binding VolXAxes}"
+                                YAxes="{Binding VolYAxes}"
+                                ZoomMode="X"
+                                TooltipPosition="Hidden"
+                                LegendPosition="Hidden"/>
+        </Grid>
+
+        <!-- ══ Row 5: MACD 서브차트 ════════════════════════ -->
+        <Grid Grid.Row="5" Background="#1A1A2E">
+            <TextBlock Text="MACD(12,26,9)" Style="{StaticResource SubLabel}"/>
+            <lvc:CartesianChart Margin="0,16,0,0"
+                                Background="Transparent"
+                                Series="{Binding MacdSeries}"
+                                XAxes="{Binding MacdXAxes}"
+                                YAxes="{Binding MacdYAxes}"
+                                ZoomMode="X"
+                                TooltipPosition="Hidden"
+                                LegendPosition="Hidden"/>
+        </Grid>
+
+        <!-- ══ Row 6: RSI 서브차트 ═════════════════════════ -->
+        <Grid Grid.Row="6" Background="#1A1A2E">
+            <TextBlock Text="RSI(14)" Style="{StaticResource SubLabel}"/>
+            <lvc:CartesianChart Margin="0,16,0,0"
+                                Background="Transparent"
+                                Series="{Binding RsiSeries}"
+                                XAxes="{Binding RsiXAxes}"
+                                YAxes="{Binding RsiYAxes}"
+                                ZoomMode="X"
+                                TooltipPosition="Hidden"
+                                LegendPosition="Hidden"/>
+        </Grid>
+
+        <!-- ══ Row 7: 상태바 ════════════════════════════════ -->
+        <Border Grid.Row="7" Background="#252536" Padding="10,0">
             <TextBlock x:Name="TxtStatus" Text=""
                        FontSize="10" FontFamily="Consolas"
                        Foreground="#6C7086" VerticalAlignment="Center"/>
         </Border>
+
+    </Grid>
     </Grid>
 </UserControl>

@@ -5,6 +5,7 @@ collector.py  ─  독립 실행형 데이터 수집기
 데이터 소스: pykrx (국내 주식 전용)
 
 실행 방법
+    cd C:/Users/tien7/source/repos/quant
                python collector.py               # 전체 incremental update
     특정 종목   python collector.py --tickers 005930 000660
     특정 테이블 python collector.py --tables prices supply
@@ -34,20 +35,10 @@ incremental     ticker별 MAX(date) 1회 사전 로드    old_price_collector의
 [주의] fundamentals의 분기 항목(revenue, operating_income, net_income, roe)은 
 pykrx가 제공하지 않아 0으로 채웁니다. 정확한 재무 데이터는 DART OpenAPI 연동이 필요합니다.
 
-
-
-supply, fundamentals: download 실패함, krx 이외의 대안 필요 -> dart (재무제표, 분기실적, 공시) ?
-
-
-
 ============================================================
 test: 005930 삼성전자
 ============================================================
 python collector.py --from 2025-05-07 --tables supply --tickers 005930
-
-전체 수집 시 예상 소요 시간
-2,768종목 × 월단위 루프(2020~2026, 75개월) × DELAY_SHORT(0.4s) 기준으로 상당히 오래 걸립니다. 
-초기 full-load는 야간 실행 권장입니다.
 
 # 야간 실행 예시
 Start-Process python -ArgumentList "collector.py --from 2020-01-01 --tables supply" -WindowStyle Hidden
@@ -56,11 +47,13 @@ Start-Process python -ArgumentList "collector.py --from 2020-01-01 --tables supp
 python collector.py --from 2020-01-01 --tables prices --no-sync *>> logs/collector.log
 python collector.py --from 2020-01-01 --tables prices --no-sync >> logs/collector.log 2>&1
 python collector.py --from 2025-01-01 --tables supply --no-sync >> logs/collector.log 2>&1
-python collector.py --from 2025-01-01 --tables fundamentals --no-sync >> logs/collector.log 2>&1
+
+최초수행: python collector.py --from 2025-01-01 --tables fundamentals --no-sync >> logs/collector.log 2>&1
+증분실행: python collector.py --tables fundamentals --no-sync >> logs/collector.log 2>&1
 Get-Content -Path "logs/collector.log" -Wait -Tail 10
 
 
-TODO: 전체종목 순회시 매우 오랜 시간 소요 -> 증분 방식을 get_market_fundamental(date) 형태로 변경 필요
+TODO: 전체종목 순회시 매우 오랜 시간 소요 -> 증분 방식을 get_market_fundamental(date) 형태로 변경 필요?
 ============================================================
 """
 
@@ -420,83 +413,102 @@ def _month_ranges(start: str, end: str) -> list[tuple[str, str]]:
 # ──────────────────────────────────────────────────────────
 #  3. fundamentals  (재무 데이터)
 # ──────────────────────────────────────────────────────────
+#
+#  [설계 변경] ticker 순회 → 날짜 순회 (날짜별 전종목 스냅샷)
+#
+#  변경 전: for ticker in tickers → get_market_fundamental_by_date(ticker)
+#            API 호출수 = 종목수(~2,500) × 기간(일)
+#
+#  변경 후: for d in missing_dates → get_market_fundamental(date, market)
+#            API 호출수 = 누락 날짜수 × 2(KOSPI+KOSDAQ)
+#            증분 실행 시 = 1~5일 × 2 = 2~10회
+#
+#  [주의] get_market_fundamental(date) 는 ticker 인자 없이
+#         해당 날짜의 전종목 PER/PBR/EPS/BPS/DPS 를 DataFrame으로 반환.
+#         인덱스 = ticker (종목코드)
+#
+#  pykrx는 분기 재무 데이터를 직접 제공하지 않음.
+#  분기 EPS·ROE·매출은 pykrx 미지원 → 0으로 채워 구조 유지.
 
-# pykrx는 분기 재무 데이터를 직접 제공하지 않음.
-# get_market_fundamental_by_date: PER, PBR (일별 시장가 기반)
-# get_market_cap_by_date         : 시가총액, 상장주식수
-# 분기 EPS·ROE·매출은 pykrx 미지원 → 0으로 채워 구조 유지.
 
-def fetch_fundamentals(ticker: str, start: str, end: str) -> pd.DataFrame:
+def _trading_dates(start: str, end: str) -> list[str]:
     """
-    pykrx get_market_fundamental_by_date → PER, PBR 일별 수집.
-    EPS, ROE, 매출 등 pykrx 미지원 항목은 0으로 채움.
-    report_date = 해당 날짜, announce_date = None, fiscal_quarter = 'DAILY'
+    start~end 범위의 KRX 개장일 목록 반환.
+    KOSPI 지수('1028') OHLCV를 이용해 실제 개장일만 추출.
+    """
+    try:
+        raw = krx.get_market_ohlcv_by_date(
+            to_yyyymmdd(start), to_yyyymmdd(end), "1028"  # KOSPI 지수 코드
+        )
+        if raw is None or raw.empty:
+            return []
+        return [d.strftime("%Y-%m-%d") for d in raw.index]
+    except Exception:
+        # fallback: 주말 제외 달력일 (공휴일 포함될 수 있음)
+        result = []
+        cur = date.fromisoformat(start)
+        fin = date.fromisoformat(end)
+        while cur <= fin:
+            if cur.weekday() < 5:
+                result.append(cur.isoformat())
+            cur += timedelta(days=1)
+        return result
+
+
+def fetch_market_fundamentals_snapshot(target_date: str, market: str) -> pd.DataFrame:
+    """
+    pykrx get_market_fundamental(date, market) → 전종목 스냅샷 1회 호출.
+    반환: 전종목 PER/PBR/EPS/BPS/DPS (인덱스=ticker).
+
+    market: 'KOSPI' | 'KOSDAQ'
     """
     for attempt in range(3):
         try:
-            raw = krx.get_market_fundamental_by_date(
-                to_yyyymmdd(start),
-                to_yyyymmdd(end),
-                ticker
-            )
-
+            raw = krx.get_market_fundamental(to_yyyymmdd(target_date), market=market)
             if raw is None or raw.empty:
                 return pd.DataFrame()
-
             break
-
-#TODO: logger.warning(f"{ticker=} failed: {e}")
-
         except json.JSONDecodeError:
-            # KRX 빈 응답 대응
             if attempt < 2:
                 time.sleep(2.0 * (attempt + 1))
                 continue
-
             return pd.DataFrame()
-
         except Exception:
             raise
 
     raw = raw.reset_index()
-    # 인덱스 컬럼명 정규화: '날짜' 또는 영문 date 계열 → report_date
+
+    # 첫 컬럼(ticker) 정규화
+    first_col = raw.columns[0]
+    raw = raw.rename(columns={first_col: "ticker"})
+
+    # 수치 컬럼 대소문자 정규화
     col_map = {}
     for c in raw.columns:
-        cl = str(c).lower().strip()
-        if c == "날짜" or cl in ("date", "trd_dd", "report_date"):
-            col_map[c] = "report_date"
-        elif cl == "per":  col_map[c] = "per"
-        elif cl == "pbr":  col_map[c] = "pbr"
-        elif cl == "eps":  col_map[c] = "eps"
-        elif cl == "bps":  col_map[c] = "bps"
-        elif cl == "dps":  col_map[c] = "dps"
+        cl = str(c).upper().strip()
+        if cl == "PER":   col_map[c] = "per"
+        elif cl == "PBR": col_map[c] = "pbr"
+        elif cl == "EPS": col_map[c] = "eps"
+        elif cl == "BPS": col_map[c] = "bps"
+        elif cl == "DPS": col_map[c] = "dps"
     raw = raw.rename(columns=col_map)
 
-    if "report_date" not in raw.columns:
-        return pd.DataFrame()
-
     out = pd.DataFrame({
-        "ticker":            ticker,
-        "report_date":       pd.to_datetime(raw["report_date"]).dt.date,
-        "announce_date":     None,
-        "fiscal_quarter":    "DAILY",
-        "eps":               pd.to_numeric(raw.get("eps", 0), errors="coerce").fillna(0),
-        "per":               pd.to_numeric(raw.get("per", 0), errors="coerce").fillna(0),
-        "pbr":               pd.to_numeric(raw.get("pbr", 0), errors="coerce").fillna(0),
-        "roe":               0.0,
-        "revenue":           0,
-        "operating_income":  0,
-        "net_income":        0,
-        "debt_ratio":        0.0,
+        "ticker":           raw["ticker"].astype(str),
+        "report_date":      date.fromisoformat(target_date),
+        "announce_date":    None,
+        "fiscal_quarter":   "DAILY",
+        "eps":              pd.to_numeric(raw.get("eps", 0), errors="coerce").fillna(0),
+        "per":              pd.to_numeric(raw.get("per", 0), errors="coerce").fillna(0),
+        "pbr":              pd.to_numeric(raw.get("pbr", 0), errors="coerce").fillna(0),
+        "roe":              0.0,
+        "revenue":          0,
+        "operating_income": 0,
+        "net_income":       0,
+        "debt_ratio":       0.0,
     })
-    out["operating_income"] = 0     # pykrx 미지원
-    out["net_income"]      = 0      # pykrx 미지원
-    out["debt_ratio"]      = 0.0    # pykrx 미지원
-
-    # CHECK 조건: per, pbr은 스키마 상 제약 없음 (현재 스키마에서 CHECK 제거됨)
-    # 0값은 허용, 음수 PER(적자)도 허용
-    out = out[out["report_date"].notna()].copy()
-
+    # 6자리 숫자 종목코드만 (지수·ETF 혼입 방어)
+    out = out[out["ticker"].str.match(r"^\d{6}$")].copy()
     return out[["ticker", "report_date", "announce_date", "fiscal_quarter",
                 "eps", "per", "pbr", "roe", "revenue", "operating_income",
                 "net_income", "debt_ratio"]]
@@ -513,46 +525,86 @@ def upsert_fundamentals(conn, df: pd.DataFrame):
     """)
 
 
+def _load_existing_fundamental_dates(conn) -> set[str]:
+    """fundamentals 테이블에 이미 수집된 날짜 집합 반환."""
+    try:
+        rows = conn.execute(
+            "SELECT DISTINCT report_date::VARCHAR FROM fundamentals"
+        ).fetchall()
+        return {r[0] for r in rows}
+    except Exception:
+        return set()
+
+
 def run_fundamentals(conn, tickers: list[tuple[str, str]], force_start: str | None = None):
+    """
+    [변경] ticker 순회 → 날짜 순회 방식.
+    누락된 개장일을 구한 뒤 날짜별 전종목 스냅샷을 1회 호출로 수집.
+
+    증분 실행: fundamentals.MAX(report_date)+1일 이후 누락일만 처리.
+    force_start 지정 시: 해당일 이후 전체 재수집.
+    tickers 인자는 시그니처 호환성을 위해 유지하나 사용하지 않음.
+    """
     log("=" * 60)
-    log(f"[fundamentals] 시작  종목수={len(tickers)}")
+    log("[fundamentals] 시작  방식=날짜순회(전종목스냅샷)")
 
-    # fundamentals incremental: report_date 기준 last_date
-    last_dates = {} if force_start else load_last_dates(conn, "fundamentals", "report_date")
-    today      = date.today().isoformat()
-    default_start = DEFAULT_START  # 첫 실행: 전체 수집
+    today = date.today().isoformat()
 
-    skipped = updated = errors = 0
-
-    for i, (ticker, _) in enumerate(tickers, 1):
-        last = last_dates.get(ticker)
-        start = force_start or (
-            (date.fromisoformat(last) + timedelta(days=1)).isoformat() if last else default_start
-        )
-
-        if start > today:
-            skipped += 1
-            continue
-
+    if force_start:
+        start = force_start
+        existing_dates: set[str] = set()
+    else:
         try:
-            # df = fetch_fundamentals(ticker, start, today)
+            row = conn.execute(
+                "SELECT MAX(report_date)::VARCHAR FROM fundamentals"
+            ).fetchone()
+            last_global = row[0] if row and row[0] else None
+        except Exception:
+            last_global = None
+
+        start = (
+            (date.fromisoformat(last_global) + timedelta(days=1)).isoformat()
+            if last_global else DEFAULT_START
+        )
+        existing_dates = _load_existing_fundamental_dates(conn)
+
+    if start > today:
+        log("[fundamentals] 이미 최신 상태 -- skip")
+        return
+
+    # 실제 개장일 목록 조회 (1회 API 호출)
+    all_dates = _trading_dates(start, today)
+    missing   = [d for d in all_dates if d not in existing_dates]
+
+    log(f"  수집 대상: {len(missing)}일  ({start} ~ {today})")
+    if not missing:
+        log("[fundamentals] 누락 날짜 없음 -- skip")
+        return
+
+    updated = errors = 0
+
+    for i, target_date in enumerate(missing, 1):
+        rows_today = 0
+        for pykrx_mkt in ("KOSPI", "KOSDAQ"):
             try:
-                df = fetch_fundamentals(ticker, start, today)
-            except json.JSONDecodeError:
-                continue            
+                df = fetch_market_fundamentals_snapshot(target_date, pykrx_mkt)
+                if not df.empty:
+                    upsert_fundamentals(conn, df)
+                    rows_today += len(df)
+                time.sleep(DELAY_SHORT)
+            except Exception as e:
+                errors += 1
+                log_result(conn, "ALL", target_date,
+                           f"pykrx_fundamental_{pykrx_mkt}", "fail",
+                           traceback.format_exc(limit=3))
+                log(f"  [ERR] {target_date} {pykrx_mkt}: {e}")
 
-            if not df.empty:
-                upsert_fundamentals(conn, df)
-                updated += len(df)
-                log_result(conn, ticker, today, "pykrx_fundamental", "success")
-        except Exception as e:
-            errors += 1
-            log_result(conn, ticker, today, "pykrx_fundamental", "fail", traceback.format_exc(limit=3))
-            log(f"  [ERR] {ticker}: {e}")
+        updated += rows_today
+        if i % BATCH_LOG == 0 or i == len(missing):
+            log(f"  진행: {i}/{len(missing)}  누적rows={updated}")
+        time.sleep(DELAY_SHORT)
 
-        _throttle(i, len(tickers))
-
-    log(f"[fundamentals] 완료  rows={updated}  skip={skipped}  err={errors}")
+    log(f"[fundamentals] 완료  rows={updated}  날짜={len(missing)}  err={errors}")
 
 
 # ──────────────────────────────────────────────────────────

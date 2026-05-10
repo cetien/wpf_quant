@@ -1,7 +1,7 @@
 <Window x:Class="Quant.UI.Views.OptionDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Options" Width="480" Height="356"
+        Title="Options" Width="480" Height="420"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="#1E1E2E" Foreground="#CDD6F4">
@@ -65,20 +65,23 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- ── Auto Append History ── -->
+        <!-- ── Checkboxes ── -->
         <StackPanel Grid.Row="0">
-            <CheckBox 
-                  x:Name="ChkAutoAppend" Content="Auto append to history"
-                  Foreground="#CDD6F4" FontFamily="Consolas" FontSize="12"/>
-            <CheckBox 
-                  x:Name="ChkQueryFilterPreferred" Content="QueryFilter: Preferred/Spec"
-                  Foreground="#CDD6F4" FontFamily="Consolas" FontSize="12"/>
-            <CheckBox 
-                  x:Name="ChkQueryFilterCovered" Content="QueryFilter: Leverage/Covered"
-                  Foreground="#CDD6F4" FontFamily="Consolas" FontSize="12"/>
-            <CheckBox 
-                  x:Name="ChkQueryFilterCheap" Content="QueryFilter: Price &lt; 1000"
-                  Foreground="#CDD6F4" FontFamily="Consolas" FontSize="12"/>
+            <CheckBox x:Name="ChkAutoAppend" Content="Auto append to history"
+                      Foreground="#CDD6F4" FontFamily="Consolas" FontSize="12"/>
+            <CheckBox x:Name="ChkQueryFilterPreferred" Content="QueryFilter: Preferred/Spec"
+                      Foreground="#CDD6F4" FontFamily="Consolas" FontSize="12" Margin="0,4,0,0"/>
+            <CheckBox x:Name="ChkQueryFilterCovered" Content="QueryFilter: Leverage/Covered"
+                      Foreground="#CDD6F4" FontFamily="Consolas" FontSize="12" Margin="0,4,0,0"/>
+            <CheckBox x:Name="ChkQueryFilterCheap" Content="QueryFilter: Price &lt; 1000"
+                      Foreground="#CDD6F4" FontFamily="Consolas" FontSize="12" Margin="0,4,0,0"/>
+            <Separator Background="#313244" Margin="0,10,0,6"/>
+            <TextBlock Text="Global Stock Filter" Foreground="#6C7086"
+                       FontFamily="Consolas" FontSize="10" Margin="0,0,0,4"/>
+            <CheckBox x:Name="ChkExcludeSpac" Content="스팩(SPAC) 종목 제외  (name LIKE '%스팩%')"
+                      Foreground="#CDD6F4" FontFamily="Consolas" FontSize="12"/>
+            <CheckBox x:Name="ChkExcludePrefStock" Content="우선주 제외  (ticker 끝자리 &#x2260; 0)"
+                      Foreground="#CDD6F4" FontFamily="Consolas" FontSize="12" Margin="0,4,0,0"/>
         </StackPanel>
         <!-- ── Report PDF Folder ── -->
         <StackPanel Grid.Row="2">

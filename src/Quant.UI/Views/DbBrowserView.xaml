@@ -1,4 +1,4 @@
-<UserControl x:Class="Quant.UI.Views.DbBrowserView"
+﻿<UserControl x:Class="Quant.UI.Views.DbBrowserView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="#1E1E2E">
@@ -116,6 +116,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="36"/>
                     <RowDefinition Height="*"/>
+                    <RowDefinition Height="200"/>
                 </Grid.RowDefinitions>
                 <Border Grid.Row="0" Background="#252536" Padding="12,0">
                     <TextBlock Text="TABLES" FontSize="10" FontWeight="Bold"
@@ -125,6 +126,7 @@
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                     <StackPanel x:Name="TableList" Margin="4,4"/>
                 </ScrollViewer>
+                <TextBox x:Name="TxtSqlSample" Grid.Row="2" Style="{StaticResource SqlBox}" Text="SELECT * FROM stocks LIMIT 500"/>
             </Grid>
         </Border>
 

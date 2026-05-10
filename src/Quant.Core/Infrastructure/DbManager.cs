@@ -1,8 +1,12 @@
-// Infrastructure/DbManager.cs
+﻿// Infrastructure/DbManager.cs
 using Dapper;
+
 using DuckDB.NET.Data;
+
 using Quant.Core.Models;
+
 using System.Data;
+using System.Security.Cryptography;
 
 namespace Quant.Core.Infrastructure;
 
@@ -254,15 +258,106 @@ public sealed class DbManager
         return DateOnly.TryParse(result.ToString(), out var date) ? date : null;
     }
 
+    // ──────────────────────────────────────────────────────────
+    //  Data helpers
+    // ──────────────────────────────────────────────────────────
     /// <summary>ticker → 종목명. 없으면 ticker 반환.</summary>
-    public string GetStockName(string ticker)
+    public (string name, int rating, string market, bool isActive) GetStockInfo(string ticker)
     {
         using var conn = OpenConnection();
         using var cmd  = conn.CreateCommand();
-        cmd.CommandText = "SELECT name FROM stocks WHERE ticker = $1";
+        cmd.CommandText = "SELECT name, rating, market, is_active FROM stocks WHERE ticker = $1";
         cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
-        var result = cmd.ExecuteScalar();
-        return (result is null || result is DBNull) ? ticker : result.ToString()!;
+        using var reader = cmd.ExecuteReader();
+        if (!reader.Read()) return (ticker, 0, "", false);
+
+        var name = reader.IsDBNull(0) ? ticker : reader.GetValue(0)?.ToString() ?? ticker;
+        var rating = reader.IsDBNull(1) ? 0 : Math.Clamp(Convert.ToInt32(reader.GetValue(1)), 0, 10);
+        var market = reader.IsDBNull(2) ? "" : reader.GetValue(2)?.ToString() ?? "";
+        var isActive = !reader.IsDBNull(3) && Convert.ToBoolean(reader.GetValue(3));
+        return (name, rating, market, isActive);
+    }
+    public string GetStockName(string ticker) => GetStockInfo(ticker).name;
+
+    public bool SetStockRating(int rating, string ticker) => SetRating("stocks", rating, $"ticker = '{ticker}'");
+    public bool SetGroupRating(int rating, int group_id) => SetRating("groups", rating, $"group_id = {group_id}");
+    private bool SetRating(string table, int rating, string where)
+    {
+        try
+        {
+            var safeTable = SanitizeIdentifier(table);
+            using var conn = OpenConnection();
+            using var cmd  = conn.CreateCommand();
+            cmd.CommandText = $"UPDATE {safeTable} SET rating=$1, updated_at=CURRENT_TIMESTAMP WHERE {where}";
+            cmd.Parameters.Add(new DuckDBParameter { Value = rating });
+            cmd.ExecuteNonQuery();
+            return true;
+        }
+        catch { return false; }
+    }
+
+    public (double current, double ret1m, double ret3m, double ret1y) LoadPrice(string ticker)
+    {
+        try
+        {
+            using var conn = OpenConnection();
+            using var cmd = conn.CreateCommand();
+            // ticker를 리터럴로 삽입: DuckDB positional $1 다중 CTE 재사용 불안정 방어
+            // ticker는 6자리 숫자 코드 또는 IDX_ 접두사 — SQL 인젝션 위험 없음
+            var t = ticker.Replace("'", "''"); // 방어적 escape
+            cmd.CommandText =
+                $"WITH latest AS ( " +
+                $"  SELECT adj_close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn " +
+                $"  FROM daily_prices WHERE ticker = '{t}' " +
+                $"), " +
+                $"price_1m AS ( " +
+                $"  SELECT adj_close, " +
+                $"    ROW_NUMBER() OVER (ORDER BY ABS(DATEDIFF('day', date, CURRENT_DATE - INTERVAL 1 MONTH))) AS rn " +
+                $"  FROM daily_prices " +
+                $"  WHERE ticker = '{t}' " +
+                $"    AND date BETWEEN CURRENT_DATE - INTERVAL 1 MONTH - INTERVAL 7 DAY " +
+                $"                 AND CURRENT_DATE - INTERVAL 1 MONTH + INTERVAL 7 DAY " +
+                $"), " +
+                $"price_3m AS ( " +
+                $"  SELECT adj_close, " +
+                $"    ROW_NUMBER() OVER (ORDER BY ABS(DATEDIFF('day', date, CURRENT_DATE - INTERVAL 3 MONTH))) AS rn " +
+                $"  FROM daily_prices " +
+                $"  WHERE ticker = '{t}' " +
+                $"    AND date BETWEEN CURRENT_DATE - INTERVAL 3 MONTH - INTERVAL 7 DAY " +
+                $"                 AND CURRENT_DATE - INTERVAL 3 MONTH + INTERVAL 7 DAY " +
+                $"), " +
+                $"price_1y AS ( " +
+                $"  SELECT adj_close, " +
+                $"    ROW_NUMBER() OVER (ORDER BY ABS(DATEDIFF('day', date, CURRENT_DATE - INTERVAL 1 YEAR))) AS rn " +
+                $"  FROM daily_prices " +
+                $"  WHERE ticker = '{t}' " +
+                $"    AND date BETWEEN CURRENT_DATE - INTERVAL 1 YEAR - INTERVAL 7 DAY " +
+                $"                 AND CURRENT_DATE - INTERVAL 1 YEAR + INTERVAL 7 DAY " +
+                $") " +
+                $"SELECT " +
+                $"  l.adj_close AS current, " +
+                $"  ROUND((l.adj_close - p1.adj_close)  / p1.adj_close  * 100, 2) AS ret_1m, " +
+                $"  ROUND((l.adj_close - p3.adj_close)  / p3.adj_close  * 100, 2) AS ret_3m, " +
+                $"  ROUND((l.adj_close - p1y.adj_close) / p1y.adj_close * 100, 2) AS ret_1y " +
+                $"FROM latest l " +
+                $"LEFT JOIN price_1m  p1  ON p1.rn  = 1 " +
+                $"LEFT JOIN price_3m  p3  ON p3.rn  = 1 " +
+                $"LEFT JOIN price_1y  p1y ON p1y.rn = 1 " +
+                $"WHERE l.rn = 1";
+
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read()) return (0, 0, 0, 0);
+
+            double.TryParse(reader["current"]?.ToString(), out var current);
+            double.TryParse(reader["ret_1m"]?.ToString(), out var ret1m);
+            double.TryParse(reader["ret_3m"]?.ToString(), out var ret3m);
+            double.TryParse(reader["ret_1y"]?.ToString(), out var ret1y);
+            return (current, ret1m, ret3m, ret1y);
+        }
+        catch
+        {
+            return (0, 0, 0, 0);
+        }
     }
 
     /// <summary>stock_cache 전체 지표 (rs DESC).</summary>
@@ -280,6 +375,7 @@ public sealed class DbManager
         return rows.ToDictionary(r => r.Ticker, r => r.Sector);
     }
 
+    // ──────────────────────────────────────────────────────────
     /// <summary>stocks 마스터 upsert (market='KP', security_type='stock' 기본값).</summary>
     public void UpsertHistory(string ticker, string name)
     {
@@ -299,6 +395,7 @@ public sealed class DbManager
     public IEnumerable<Stock> GetHistory()
         => Query<Stock>("SELECT * FROM stocks ORDER BY ticker");
 
+    // ──────────────────────────────────────────────────────────
     /// <summary>data_update_log 기록.</summary>
     public void LogUpdate(string? ticker, DateOnly? date, string source, string status, string? errorMsg = null)
     {
@@ -344,6 +441,10 @@ public sealed class DbManager
                 opts.QueryFilterCovered = v4 == "true";
             if (map.TryGetValue("query_filter_cheap", out var v5))
                 opts.QueryFilterCheap = v5 == "true";
+            if (map.TryGetValue("exclude_spac", out var v6))
+                opts.ExcludeSpac = v6 != "false";
+            if (map.TryGetValue("exclude_pref_stock", out var v7))
+                opts.ExcludePrefStock = v7 != "false";
         }
         catch { /* options 테이블 미생성 시 기본값 반환 */ }
         return opts;
@@ -359,6 +460,27 @@ public sealed class DbManager
         UpsertOption("query_filter_preferred", opts.QueryFilterPreferred ? "true" : "false");
         UpsertOption("query_filter_covered",   opts.QueryFilterCovered ? "true" : "false");
         UpsertOption("query_filter_cheap",     opts.QueryFilterCheap ? "true" : "false");
+        UpsertOption("exclude_spac",           opts.ExcludeSpac ? "true" : "false");
+        UpsertOption("exclude_pref_stock",     opts.ExcludePrefStock ? "true" : "false");
+    }
+
+    /// <summary>
+    /// stocks 조회 쿼리에 삽입할 전역 제외 필터 절 반환.
+    /// alias: SQL에서 stocks 테이블에 붙인 별칭 (기본 "s").
+    /// 반환 예: "AND s.name NOT LIKE '%스팩%' AND RIGHT(s.ticker,1)='0'"
+    /// 필터 없으면 빈 문자열 반환.
+    /// </summary>
+    public string BuildStockExcludeFilter(string alias = "s")
+    {
+        var opts = LoadOptions();
+        var clauses = new List<string>();
+        if (opts.ExcludeSpac)
+            clauses.Add($"{alias}.name NOT LIKE '%스팩%'");
+        if (opts.ExcludePrefStock)
+            clauses.Add($"RIGHT({alias}.ticker, 1) = '0'");
+        return clauses.Count > 0
+            ? "AND " + string.Join(" AND ", clauses)
+            : "";
     }
 
     private void UpsertOption(string key, string value)

@@ -1,4 +1,4 @@
-using DuckDB.NET.Data;
+﻿using DuckDB.NET.Data;
 using Quant.Core.Infrastructure;
 using System.Data;
 using System.Windows;
@@ -58,12 +58,12 @@ public partial class GroupEditDialog : Window
                 var id = long.Parse(_row!["group_id"]?.ToString() ?? "0");
                 cmd.CommandText =
                     "UPDATE groups " +
-					"SET description=$1, rating=$2, updated_at=CURRENT_TIMESTAMP " +
-					"WHERE group_id=$3";
-				    //"SET kind=$1, name=$2, description=$3, rating=$4, updated_at=CURRENT_TIMESTAMP " +
-				    //"WHERE group_id=$5";
-                //cmd.Parameters.Add(new DuckDBParameter { Value = kind   });
-                //cmd.Parameters.Add(new DuckDBParameter { Value = name   });
+					//"SET description=$1, rating=$2, updated_at=CURRENT_TIMESTAMP " +
+					//"WHERE group_id=$3";
+				    "SET kind=$1, name=$2, description=$3, rating=$4, updated_at=CURRENT_TIMESTAMP " +
+				    "WHERE group_id=$5";
+                cmd.Parameters.Add(new DuckDBParameter { Value = kind   });
+                cmd.Parameters.Add(new DuckDBParameter { Value = name   });
                 cmd.Parameters.Add(new DuckDBParameter { Value = desc   });
                 cmd.Parameters.Add(new DuckDBParameter { Value = rating });
                 cmd.Parameters.Add(new DuckDBParameter { Value = id     });

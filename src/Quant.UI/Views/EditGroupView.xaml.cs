@@ -169,10 +169,13 @@ public partial class EditGroupView : UserControl
     //  좌하: 티커 Grid
     // ═════════════════════════════════════════════════════════
 
+
+
     private void LoadTickers(int groupId)
     {
         try
         {
+            var excludeFilter = _db.BuildStockExcludeFilter("s");
             var dt = _db.Query(
                 $"WITH latest AS ( " +
                 $"  SELECT ticker, adj_close, date, " +
@@ -201,7 +204,7 @@ public partial class EditGroupView : UserControl
                 $"LEFT JOIN latest   l  ON l.ticker  = m.ticker AND l.rn  = 1 " +
                 $"LEFT JOIN price_1m p1 ON p1.ticker = m.ticker AND p1.rn = 1 " +
                 $"LEFT JOIN price_3m p3 ON p3.ticker = m.ticker AND p3.rn = 1 " +
-                $"WHERE m.group_id = {groupId} " +
+                $"WHERE m.group_id = {groupId} {excludeFilter} " +
                 $"ORDER BY ret_1m DESC NULLS LAST");
 
             if (!dt.Columns.Contains("chart_selected"))
@@ -215,7 +218,14 @@ public partial class EditGroupView : UserControl
         catch (Exception ex) { TxtStatus.Text = $"티커 로드 오류: {ex.Message}"; }
     }
 
-    private void GridTicker_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
+    private void GridTicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // 체크된 종목이 없을 때만 선택 종목으로 차트 갱신
+        if (GridTicker.ItemsSource is not DataView dv || dv.Table == null) return;
+        if (dv.Table.Columns.Contains("chart_selected") &&
+            dv.Table.Rows.Cast<DataRow>().Any(r => r["chart_selected"] is true)) return;
+        ApplyPeriod();
+    }
 
     private void GridTicker_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
@@ -417,12 +427,14 @@ public partial class EditGroupView : UserControl
                 foreach (DataRow r in dv.Table.Rows)
                     if (r["chart_selected"] is true) checkedTickers.Add(r["ticker"].ToString()!);
 
-            // 체크된 종목이 없으면 첫 번째 종목을 기본으로 선택
+            // 체크된 종목이 없으면 GridTicker 선택(selected) 종목을 그림
             if (checkedTickers.Count == 0)
             {
-                var firstTicker = dv.Table.Rows[0]["ticker"]?.ToString();
-                if (!string.IsNullOrWhiteSpace(firstTicker) && _rawData.ContainsKey(firstTicker))
-                    checkedTickers.Add(firstTicker);
+                var fallbackTicker =
+                    (GridTicker.SelectedItem as DataRowView)?["ticker"]?.ToString()
+                    ?? dv.Table.Rows[0]["ticker"]?.ToString();
+                if (!string.IsNullOrWhiteSpace(fallbackTicker) && _rawData.ContainsKey(fallbackTicker))
+                    checkedTickers.Add(fallbackTicker);
             }
         }
 
@@ -560,7 +572,7 @@ public partial class EditGroupView : UserControl
         if (_currentGroupId < 0) return;
         try
         {
-            _db.Execute($"UPDATE groups SET rating={rating}, updated_at=CURRENT_TIMESTAMP WHERE group_id={_currentGroupId}");
+            _db.SetGroupRating(rating, _currentGroupId);
             if (_groupTable != null && GridGroup.SelectedItem is DataRowView row)
                 row.Row["rating"] = rating;
             StatusChanged?.Invoke($"[{TxtGroupNameAtChart.Text}] rating 저장: {rating}", "#A6E3A1");

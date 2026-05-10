@@ -13,6 +13,11 @@ public class AppOptions
     public bool QueryFilterCovered { get; set; } = true;
     public bool QueryFilterCheap { get; set; } = true;
 
+    /// <summary>종목명에 '스팩' 포함된 종목 전역 제외</summary>
+    public bool ExcludeSpac { get; set; } = true;
+    /// <summary>우선주(ticker 끝자리 ≠ '0') 전역 제외</summary>
+    public bool ExcludePrefStock { get; set; } = true;
+
     /// <summary>PDF 리포트 감시 폴더 경로. 빈 문자열이면 미설정.</summary>
     public string ReportPdfFolder { get; set; } = string.Empty;
 

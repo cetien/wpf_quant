@@ -1,4 +1,4 @@
-using Quant.Core.Infrastructure;
+﻿using Quant.Core.Infrastructure;
 using System.Data;
 using System.Diagnostics;
 using System.Windows;
@@ -15,8 +15,9 @@ public partial class DbBrowserView : UserControl
         "stocks", "groups", "stock_group_map",
         "fundamentals", "daily_prices", "supply",
         "watchlists", "watchlist_items", "pdf_reports",
-        "data_update_log", "trading_calendar", "options"
-	];
+        "data_update_log", "trading_calendar", "options",
+        "v_sectors", "v_themes", "v_active_group_map", "v_stock_primary_sector"
+    ];
 
     public event Action<string, string>? StatusChanged;
     public event Action<string>? ElapsedChanged;
@@ -63,6 +64,31 @@ public partial class DbBrowserView : UserControl
         btn.Foreground  = MakeBrush("#89B4FA");
         TxtSql.Text     = $"SELECT * FROM {btn.Tag} LIMIT 500";
         RunQuery(TxtSql.Text);
+
+        TxtSqlSample.Text = $@"
+SELECT c.category_name,COUNT(*)
+FROM {btn.Tag} p
+JOIN categories c ON p.category_id = c.id
+WHERE p.price >= 100
+GROUP BY c.category_name
+HAVING COUNT(*) >= 5
+ORDER BY COUNT(*) DESC
+LIMIT 10;
+
+UPDATE {btn.Tag}
+SET name = 'Alice Kim', age  = 27
+WHERE id = 1;
+
+INSERT INTO {btn.Tag} (id, name, age)
+VALUES (2, 'Bob', 30),(3, 'Charlie', 28);
+
+DELETE FROM {btn.Tag} WHERE id = 1;
+
+WHERE age BETWEEN 20 AND 30
+WHERE category IN ('A', 'B', 'C')
+WHERE name LIKE 'Kim%'
+WHERE deleted_at IS NULL
+        ";
     }
 
     internal void BtnRun_Click(object sender, RoutedEventArgs e) => RunQuery(TxtSql.Text);

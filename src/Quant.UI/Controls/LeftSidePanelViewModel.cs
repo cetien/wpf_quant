@@ -285,8 +285,8 @@ public partial class LeftSidePanelViewModel : ObservableObject
     {
         try
         {
-            // fundamentals는 ticker당 여러 행 존재 → 최신 report_date 1건만 사용
-            var activeFilter = ShowOnlyActive ? "AND s.is_active = TRUE" : "";
+            var activeFilter  = ShowOnlyActive ? "AND s.is_active = TRUE" : "";
+            var excludeFilter = _db.BuildStockExcludeFilter("s");
             var sql = $"""
                 WITH latest_f AS (
                     SELECT ticker, pbr, per, roe,
@@ -296,7 +296,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
                 SELECT s.ticker, s.name, s.market, s.rating
                 FROM stocks s
                 JOIN latest_f f ON s.ticker = f.ticker AND f.rn = 1
-                WHERE {whereClause} {activeFilter}
+                WHERE {whereClause} {activeFilter} {excludeFilter}
                 ORDER BY s.ticker
                 """;
 
@@ -388,13 +388,13 @@ public partial class LeftSidePanelViewModel : ObservableObject
     {
         try
         {
-            var activeFilter = ShowOnlyActive ? "AND s.is_active = TRUE" : "";
-            // groupId는 int이므로 SQL 인젝션 위험 없음
+            var activeFilter  = ShowOnlyActive ? "AND s.is_active = TRUE" : "";
+            var excludeFilter = _db.BuildStockExcludeFilter("s");
             var sql = $"""
                 SELECT s.ticker, s.name, s.market, s.rating
                 FROM stocks s
                 JOIN stock_group_map sgm ON s.ticker = sgm.ticker
-                WHERE sgm.group_id = {groupId} {activeFilter}
+                WHERE sgm.group_id = {groupId} {activeFilter} {excludeFilter}
                 ORDER BY s.ticker
                 """;
 

@@ -1,8 +1,8 @@
-<Window x:Class="Quant.UI.Views.MainWindow"
+﻿<Window x:Class="Quant.UI.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ctrl="clr-namespace:Quant.UI.Controls"
-        Title="Quant" Height="900" Width="1440"
+        Title="Quant" Height="1000" Width="1540"
         WindowStartupLocation="CenterScreen"
         Background="#1E1E2E">
 
@@ -180,7 +180,7 @@
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <!-- 사이드패널 (토글 가능) -->
-                <ColumnDefinition x:Name="SideColumn" Width="222"/>
+                <ColumnDefinition x:Name="SideColumn" Width="282"/>
                 <!-- 구분선 -->
                 <ColumnDefinition Width="1"/>
                 <!-- 메인 콘텐츠 -->
@@ -195,7 +195,7 @@
                                 IndicatorSelected="SidePanel_IndicatorSelected"/>
 
             <!-- 수직 구분선 -->
-            <Rectangle Grid.Column="1" Fill="#313244"/>
+            <Rectangle Grid.Column="1" Fill="#FF74769C"/>
 
             <!-- 메인 컨텐츠 영역 -->
             <ContentPresenter Grid.Column="2" x:Name="MainContent"/>

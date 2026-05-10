@@ -25,6 +25,8 @@ public partial class OptionDialog : Window
 		ChkQueryFilterPreferred.IsChecked = opts.QueryFilterPreferred;
 		ChkQueryFilterCovered.IsChecked = opts.QueryFilterCovered;
 		ChkQueryFilterCheap.IsChecked = opts.QueryFilterCheap;
+		ChkExcludeSpac.IsChecked = opts.ExcludeSpac;
+		ChkExcludePrefStock.IsChecked = opts.ExcludePrefStock;
 	}
 
     private void BtnBrowse_Click(object sender, RoutedEventArgs e)
@@ -47,8 +49,10 @@ public partial class OptionDialog : Window
             AutoAppendHistory = ChkAutoAppend.IsChecked == true,
             ReportPdfFolder   = TxtPdfFolder.Text.Trim(),
             QueryFilterPreferred = ChkQueryFilterPreferred.IsChecked == true,
-            QueryFilterCovered = ChkQueryFilterCovered.IsChecked == true,
-            QueryFilterCheap = ChkQueryFilterCheap.IsChecked == true,
+            QueryFilterCovered   = ChkQueryFilterCovered.IsChecked == true,
+            QueryFilterCheap     = ChkQueryFilterCheap.IsChecked == true,
+            ExcludeSpac          = ChkExcludeSpac.IsChecked == true,
+            ExcludePrefStock     = ChkExcludePrefStock.IsChecked == true,
 		};
         _db.SaveOptions(Result);
         DialogResult = true;

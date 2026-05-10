@@ -1,7 +1,6 @@
 ﻿using Quant.Core.Infrastructure;
 
 using System.Data;
-using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
 using System.Windows;
@@ -10,7 +9,6 @@ using System.Windows.Input;
 
 namespace Quant.UI.Views;
 
-//TODO: ticker의 대표 group을 찾아서, GridReport에 3번째 컬럼으로 표시 (using v_stock_primary_sector 또는 개선하여 사용)
 //TODO: TxtSliderFrom/TxtSliderTo 에 현재 범위 표시 (report 목록의 min/max 날자 이용)
 //TODO: SliderFrom/SliderTo 에서 조절한 날자 범위 이용하여 목록 filtering
 
@@ -204,8 +202,12 @@ public partial class ReportView : UserControl
         try
         {
             _allReports = _db.Query(
-                "SELECT id, date, ticker, title, writer, filepath " +
-                "FROM pdf_reports ORDER BY date DESC, ticker ASC LIMIT 5000");
+                "SELECT r.id, r.date, r.ticker, s.sector AS \"group\", r.title, r.writer, r.filepath " +
+                "FROM pdf_reports r " +
+                "LEFT JOIN v_stock_primary_sector s ON s.name = r.ticker " +
+                "ORDER BY r.date DESC, r.ticker ASC LIMIT 5000");
+
+            //SELECT * FROM v_stock_primary_sector where name='삼성전자'
 
             ApplyReportFilter(null, null);
             RefreshCompanyGrid();
@@ -291,9 +293,8 @@ public partial class ReportView : UserControl
     {
         if (GridReport.SelectedItem is not DataRowView row) return;
         var filepath = row["filepath"]?.ToString();
-        if (string.IsNullOrWhiteSpace(filepath)) { TxtStatus.Text = "파일 경로 없음"; return; }
-        if (!File.Exists(filepath))              { TxtStatus.Text = $"파일 없음: {filepath}"; return; }
-        OpenWithChrome(filepath);
+        var (ok, message) = Helpers.OpenWithChrome(filepath);
+        SetStatus(message, ok ? "#89B4FA" : "#F38BA8");
     }
 
 	private void ButtonShowAll_Click(object sender, RoutedEventArgs e)
@@ -350,31 +351,6 @@ public partial class ReportView : UserControl
 		TxtRowCount.Text = $"{_allReports.DefaultView.Count:N0} rows";
 		SetStatus($"삭제 완료: {Path.GetFileName(filepath)}", "#A6E3A1");
 	}
-
-	// ══════════════════════════════════════════════════════════
-	//  Chrome 열기
-	// ══════════════════════════════════════════════════════════
-
-	private void OpenWithChrome(string path)
-    {
-        string[] candidates =
-        [
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-                "Google", "Chrome", "Application", "chrome.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
-                "Google", "Chrome", "Application", "chrome.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Google", "Chrome", "Application", "chrome.exe"),
-        ];
-        var chrome = candidates.FirstOrDefault(File.Exists);
-        try
-        {
-            if (chrome is not null) Process.Start(chrome, $"\"{path}\"");
-            else Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-            SetStatus($"열기: {Path.GetFileName(path)}", "#89B4FA");
-        }
-        catch (Exception ex) { SetStatus($"열기 오류: {ex.Message}", "#F38BA8"); }
-    }
 
     // ══════════════════════════════════════════════════════════
     //  Helpers
