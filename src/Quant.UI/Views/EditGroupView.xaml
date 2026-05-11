@@ -3,8 +3,15 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ctrl="clr-namespace:Quant.UI.Controls"
              xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
+             xmlns:ui="clr-namespace:Quant.UI"
              Background="#1E1E2E">
     <UserControl.Resources>
+
+        <!-- Converters -->
+        <ui:DbNullDoubleConverter x:Key="FmtF2"/>
+        <ui:DbNullDoubleConverter x:Key="FmtF1"/>
+        <ui:DbNullDoubleConverter x:Key="FmtN0"/>
+        <ui:DbNullDoubleConverter x:Key="FmtVol"/>
 
         <!-- DataGrid -->
         <Style x:Key="QuantDataGrid" TargetType="DataGrid">
@@ -269,12 +276,21 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="ticker"   Binding="{Binding ticker}"   Width="90"/>
                             <DataGridTextColumn Header="name"     Binding="{Binding name}"     Width="90"/>
                             <DataGridTextColumn Header="market"   Binding="{Binding market}"   Width="60"/>
-                            <DataGridTextColumn Header="weight"   Binding="{Binding weight}"   Width="55"/>
-                            <DataGridTextColumn Header="1M %"     Binding="{Binding ret_1m}"   Width="60"/>
-                            <DataGridTextColumn Header="3M %"     Binding="{Binding ret_3m}"   Width="60"/>
+                            <DataGridTextColumn Header="weight"   Binding="{Binding weight}"   Width="30"/>
+                            <DataGridTextColumn Header="1M %" Binding="{Binding ret_1m, Converter={StaticResource FmtF2}, ConverterParameter=F2}" Width="60"/>
+                            <DataGridTextColumn Header="3M %"     Binding="{Binding ret_3m, Converter={StaticResource FmtF2}, ConverterParameter=F2}"   Width="60"/>
+                            <DataGridTextColumn Header="6M %"     Binding="{Binding ret_6m, Converter={StaticResource FmtF2}, ConverterParameter=F2}"   Width="60"/>
+                            <DataGridTextColumn Header="1Y %"     Binding="{Binding ret_1y, Converter={StaticResource FmtF2}, ConverterParameter=F2}"   Width="60"/>
+                            <DataGridTextColumn Header="rs"     Binding="{Binding rs, Converter={StaticResource FmtF1}, ConverterParameter=F1}"   Width="60"/>
+                            <DataGridTextColumn Header="per"     Binding="{Binding per, Converter={StaticResource FmtN0}, ConverterParameter=N0}"   Width="60"/>
+                            <DataGridTextColumn Header="pbr"     Binding="{Binding pbr, Converter={StaticResource FmtN0}, ConverterParameter=F2}"   Width="60"/>
+                            <DataGridTextColumn Header="roe"     Binding="{Binding roe, Converter={StaticResource FmtN0}, ConverterParameter=F2}"   Width="60"/>
+                            <DataGridTextColumn Header="%atr"     Binding="{Binding atr_percent, Converter={StaticResource FmtF1}, ConverterParameter=F1}"   Width="60"/>
+                            <DataGridTextColumn Header="distance_from_high"     Binding="{Binding distance_from_high, Converter={StaticResource FmtF1}, ConverterParameter=F1}"   Width="60"/>
+                            <DataGridTextColumn Header="volume_avg_20d"     Binding="{Binding volume_avg_20d, Converter={StaticResource FmtVol}, ConverterParameter=vol}"   Width="60"/>
+
                             <DataGridTemplateColumn Header="" Width="36" CanUserSort="False" CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>

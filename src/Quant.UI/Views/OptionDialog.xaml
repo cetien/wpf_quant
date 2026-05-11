@@ -82,6 +82,8 @@
                       Foreground="#CDD6F4" FontFamily="Consolas" FontSize="12"/>
             <CheckBox x:Name="ChkExcludePrefStock" Content="우선주 제외  (ticker 끝자리 &#x2260; 0)"
                       Foreground="#CDD6F4" FontFamily="Consolas" FontSize="12" Margin="0,4,0,0"/>
+            <CheckBox x:Name="ChkExcludeHalted" Content="거래정지 제외  (stock_cache.current_price = 0)"
+                      Foreground="#CDD6F4" FontFamily="Consolas" FontSize="12" Margin="0,4,0,0"/>
         </StackPanel>
         <!-- ── Report PDF Folder ── -->
         <StackPanel Grid.Row="2">

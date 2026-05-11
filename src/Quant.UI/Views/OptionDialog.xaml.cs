@@ -27,6 +27,7 @@ public partial class OptionDialog : Window
 		ChkQueryFilterCheap.IsChecked = opts.QueryFilterCheap;
 		ChkExcludeSpac.IsChecked = opts.ExcludeSpac;
 		ChkExcludePrefStock.IsChecked = opts.ExcludePrefStock;
+		ChkExcludeHalted.IsChecked = opts.ExcludeHalted;
 	}
 
     private void BtnBrowse_Click(object sender, RoutedEventArgs e)
@@ -53,6 +54,7 @@ public partial class OptionDialog : Window
             QueryFilterCheap     = ChkQueryFilterCheap.IsChecked == true,
             ExcludeSpac          = ChkExcludeSpac.IsChecked == true,
             ExcludePrefStock     = ChkExcludePrefStock.IsChecked == true,
+            ExcludeHalted        = ChkExcludeHalted.IsChecked == true,
 		};
         _db.SaveOptions(Result);
         DialogResult = true;

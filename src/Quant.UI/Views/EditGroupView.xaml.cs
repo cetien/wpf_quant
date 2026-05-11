@@ -169,54 +169,74 @@ public partial class EditGroupView : UserControl
     // ═════════════════════════════════════════════════════════
     //  좌하: 티커 Grid
     // ═════════════════════════════════════════════════════════
-
-
-
     private void LoadTickers(int groupId)
     {
         try
         {
-            var excludeFilter = _db.BuildStockExcludeFilter("s");
-            var dt = _db.Query(
-                $"WITH latest AS ( " +
-                $"  SELECT ticker, adj_close, date, " +
-                $"    ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) AS rn " +
-                $"  FROM daily_prices " +
-                $"), " +
-                $"price_1m AS ( " +
-                $"  SELECT ticker, adj_close, " +
-                $"    ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY ABS(DATEDIFF('day', date, CURRENT_DATE - INTERVAL 1 MONTH))) AS rn " +
-                $"  FROM daily_prices " +
-                $"  WHERE date BETWEEN CURRENT_DATE - INTERVAL 1 MONTH - INTERVAL 5 DAY " +
-                $"                 AND CURRENT_DATE - INTERVAL 1 MONTH + INTERVAL 5 DAY " +
-                $"), " +
-                $"price_3m AS ( " +
-                $"  SELECT ticker, adj_close, " +
-                $"    ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY ABS(DATEDIFF('day', date, CURRENT_DATE - INTERVAL 3 MONTH))) AS rn " +
-                $"  FROM daily_prices " +
-                $"  WHERE date BETWEEN CURRENT_DATE - INTERVAL 3 MONTH - INTERVAL 5 DAY " +
-                $"                 AND CURRENT_DATE - INTERVAL 3 MONTH + INTERVAL 5 DAY " +
-                $") " +
-                $"SELECT m.ticker, s.name, s.market, m.weight, " +
-                $"  ROUND((l.adj_close - p1.adj_close) / p1.adj_close * 100, 2) AS ret_1m, " +
-                $"  ROUND((l.adj_close - p3.adj_close) / p3.adj_close * 100, 2) AS ret_3m " +
-                $"FROM stock_group_map m " +
-                $"JOIN stocks s ON s.ticker = m.ticker " +
-                $"LEFT JOIN latest   l  ON l.ticker  = m.ticker AND l.rn  = 1 " +
-                $"LEFT JOIN price_1m p1 ON p1.ticker = m.ticker AND p1.rn = 1 " +
-                $"LEFT JOIN price_3m p3 ON p3.ticker = m.ticker AND p3.rn = 1 " +
-                $"WHERE m.group_id = {groupId} {excludeFilter} " +
-                $"ORDER BY ret_1m DESC NULLS LAST");
+            var excludeFilter = _db.BuildStockExcludeFilter("s", "c");
+
+            var dt = _db.Query($@"
+            SELECT
+                m.ticker,
+                s.name,
+
+                CASE s.market
+                    WHEN 'KP' THEN 'KOSPI'
+                    WHEN 'KQ' THEN 'KOSDAQ'
+                    WHEN 'NYSE' THEN 'NYSE'
+                    ELSE s.market
+                END AS market,
+
+                m.weight,
+
+                c.ret_1m,
+                c.ret_3m,
+                c.ret_6m,
+                c.ret_1y,
+
+                c.rs,
+
+                c.per,
+                c.pbr,
+                c.roe,
+
+                c.atr_percent,
+
+                c.distance_from_high,
+
+                c.volume_avg_20d
+
+            FROM stock_group_map m
+
+            JOIN stocks s
+                ON s.ticker = m.ticker
+
+            LEFT JOIN stock_cache c
+                ON c.ticker = m.ticker
+
+            WHERE
+                m.group_id = {groupId}
+                {excludeFilter}
+
+            ORDER BY
+                c.ret_1m DESC NULLS LAST
+        ");
 
             if (!dt.Columns.Contains("chart_selected"))
             {
                 var col = dt.Columns.Add("chart_selected", typeof(bool));
                 col.DefaultValue = false;
-                foreach (DataRow r in dt.Rows) r["chart_selected"] = false;
+
+                foreach (DataRow r in dt.Rows)
+                    r["chart_selected"] = false;
             }
+
             GridTicker.ItemsSource = dt.DefaultView;
         }
-        catch (Exception ex) { TxtStatus.Text = $"티커 로드 오류: {ex.Message}"; }
+        catch (Exception ex)
+        {
+            TxtStatus.Text = $"티커 로드 오류: {ex.Message}";
+        }
     }
 
     private void GridTicker_SelectionChanged(object sender, SelectionChangedEventArgs e)

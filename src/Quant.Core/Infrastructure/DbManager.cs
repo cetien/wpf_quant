@@ -174,13 +174,27 @@ public sealed class DbManager
         using var cmd    = conn.CreateCommand();
         cmd.CommandText  = sql;
         using var reader = cmd.ExecuteReader();
+
+        // 컬럼 타입을 DB 실제 타입으로 매핑 (숫자형 정렬 정확성을 위해)
+        var colTypes = new Type[reader.FieldCount];
         for (int i = 0; i < reader.FieldCount; i++)
-            dt.Columns.Add(reader.GetName(i), typeof(string));
+        {
+            var t = reader.GetFieldType(i);
+            // DBNull-safe: nullable 숫자도 double?/long?로 보존
+            colTypes[i] = t == typeof(float) ? typeof(double) : t;  // float → double 통일
+            dt.Columns.Add(reader.GetName(i), colTypes[i]);
+        }
+
         while (reader.Read())
         {
             var row = dt.NewRow();
             for (int i = 0; i < reader.FieldCount; i++)
-                row[i] = reader.IsDBNull(i) ? "NULL" : reader.GetValue(i)?.ToString() ?? "";
+            {
+                if (reader.IsDBNull(i)) { row[i] = DBNull.Value; continue; }
+                var v = reader.GetValue(i);
+                // float → double 통일 (DataGrid 정렬 일관성)
+                row[i] = v is float f ? (double)f : v;
+            }
             dt.Rows.Add(row);
         }
         return dt;
@@ -955,6 +969,8 @@ final_select AS (
                 opts.ExcludeSpac = v6 != "false";
             if (map.TryGetValue("exclude_pref_stock", out var v7))
                 opts.ExcludePrefStock = v7 != "false";
+            if (map.TryGetValue("exclude_halted", out var v8))
+                opts.ExcludeHalted = v8 != "false";
         }
         catch { /* options 테이블 미생성 시 기본값 반환 */ }
         return opts;
@@ -972,15 +988,17 @@ final_select AS (
         UpsertOption("query_filter_cheap",     opts.QueryFilterCheap ? "true" : "false");
         UpsertOption("exclude_spac",           opts.ExcludeSpac ? "true" : "false");
         UpsertOption("exclude_pref_stock",     opts.ExcludePrefStock ? "true" : "false");
+        UpsertOption("exclude_halted",           opts.ExcludeHalted ? "true" : "false");
     }
 
     /// <summary>
     /// stocks 조회 쿼리에 삽입할 전역 제외 필터 절 반환.
     /// alias: SQL에서 stocks 테이블에 붙인 별칭 (기본 "s").
-    /// 반환 예: "AND s.name NOT LIKE '%스팩%' AND RIGHT(s.ticker,1)='0'"
+    /// cacheAlias: stock_cache 테이블 별칭. null이면 ExcludeHalted 필터 제외.
+    /// 반환 예: "AND s.name NOT LIKE '%스팩%' AND RIGHT(s.ticker,1)='0' AND c.current_price > 0"
     /// 필터 없으면 빈 문자열 반환.
     /// </summary>
-    public string BuildStockExcludeFilter(string alias = "s")
+    public string BuildStockExcludeFilter(string alias = "s", string? cacheAlias = null)
     {
         var opts = LoadOptions();
         var clauses = new List<string>();
@@ -988,6 +1006,8 @@ final_select AS (
             clauses.Add($"{alias}.name NOT LIKE '%스팩%'");
         if (opts.ExcludePrefStock)
             clauses.Add($"RIGHT({alias}.ticker, 1) = '0'");
+        if (opts.ExcludeHalted && cacheAlias is not null)
+            clauses.Add($"COALESCE({cacheAlias}.current_price, 0) > 0");
         return clauses.Count > 0
             ? "AND " + string.Join(" AND ", clauses)
             : "";

@@ -59,7 +59,7 @@ public partial class ChartView : UserControl
     private bool _showVol       = true;
     private bool _showMacd      = true;
     private bool _showRsi       = true;
-    private readonly HashSet<int> _activeMas = [];
+    private readonly HashSet<int> _activeMas = [20, 60];
 
     private static readonly Dictionary<int, SKColor> MaColors = new()
     {
@@ -75,7 +75,11 @@ public partial class ChartView : UserControl
         InitializeComponent();
         DataContext = this;
         InitAxes();
-        Loaded += (_, _) => LoadChart();
+        Loaded += (_, _) =>
+        {
+            HighlightPeriodBtn(Btn1Y, new[] { Btn1M, Btn3M, Btn6M, Btn1Y, Btn2Y, BtnAll });
+            LoadChart();
+        };
     }
 
     // ══════════════════════════════════════════════════════════
@@ -118,7 +122,7 @@ public partial class ChartView : UserControl
                 : d.ToString("MM/dd");
         },
         UnitWidth       = _unitTicks,
-        MinStep         = _unitTicks,
+        MinStep         = _unitTicks * 20,   // 최소 20영업일(~1개월) 간격 — label 겹침 방지
         LabelsPaint     = showLabels ? new SolidColorPaint(SKColor.Parse("#6C7086")) : null,
         SeparatorsPaint = new SolidColorPaint(SKColor.Parse("#313244")),
         TextSize        = 9,
@@ -149,10 +153,13 @@ public partial class ChartView : UserControl
     private void LoadInfo_ReturnRatio(string ticker)
     {
         var cache = _db.GetStockCache(ticker);
+        var kospi = _db.GetStockCache("IDX_KOSPI");
+
         if (cache is null)
         {
             TxtStockInfo_ReturnRatio.Text = "no data";
             TxtStockInfo.Text             = "no data";
+            MiniChart_ReturnRatio.Series  = Array.Empty<ISeries>();
             return;
         }
 
@@ -166,43 +173,83 @@ public partial class ChartView : UserControl
             $"1y: {Signed(cache.Ret1Y)}\n\n" +
             $"RS:  {Signed(cache.Rs)}";
 
-        //TxtStockInfo2.Text = TxtStockInfo_ReturnRatio.Text;
-
-        var props = cache.GetType().GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        var props = cache.GetType().GetProperties(
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
         var sb = new System.Text.StringBuilder();
         foreach (var p in props)
-        {
-            var v = p.GetValue(cache);
-            sb.AppendLine($"{p.Name}: {v}");
-        }
+            sb.AppendLine($"{p.Name}: {p.GetValue(cache)}");
         TxtStockInfo2.Text = sb.ToString().TrimEnd();
 
-        MiniChart_ReturnRatio.Series = new ISeries[]
-        {
-            new ColumnSeries<ObservablePoint>
+        // ── MiniChart: Line ─────────────────────────────────
+        // X: 0=1M, 1=3M, 2=6M, 3=1Y  (ObservablePoint)
+        static ObservablePoint[] ToPoints(double? r1m, double? r3m, double? r6m, double? r1y)
+            => new[]
             {
-                Values = new[]
-                {
-                    new ObservablePoint(0, cache?.Ret1M),
-                    new ObservablePoint(1, cache?.Ret3M),
-                    new ObservablePoint(2, cache?.Ret6M),
-                    new ObservablePoint(3, cache?.Ret1Y),
-                },
-                Fill = new SolidColorPaint(SKColor.Parse("#89B4FA")),
-                Stroke = null,
-                MaxBarWidth = 10
-            }
+                new ObservablePoint(0, r1m),
+                new ObservablePoint(1, r3m),
+                new ObservablePoint(2, r6m),
+                new ObservablePoint(3, r1y),
+            };
+
+        var stockPts = ToPoints(cache.Ret1M, cache.Ret3M, cache.Ret6M, cache.Ret1Y);
+
+        var series = new List<ISeries>
+        {
+            new LineSeries<ObservablePoint>
+            {
+                Name   = ticker,
+                Values = stockPts,
+                Stroke = new SolidColorPaint(SKColor.Parse("#89B4FA")) { StrokeThickness = 2 },
+                Fill   = null,
+                GeometrySize   = 5,
+                GeometryFill   = new SolidColorPaint(SKColor.Parse("#89B4FA")),
+                GeometryStroke = null,
+                LineSmoothness = 0,
+            },
         };
+
+        if (kospi is not null)
+        {
+            var kospiPts = ToPoints(kospi.Ret1M, kospi.Ret3M, kospi.Ret6M, kospi.Ret1Y);
+            series.Add(new LineSeries<ObservablePoint>
+            {
+                Name   = "KOSPI",
+                Values = kospiPts,
+                Stroke = new SolidColorPaint(SKColor.Parse("#F38BA8"))
+                {
+                    StrokeThickness = 1,
+                    PathEffect = new LiveChartsCore.SkiaSharpView.Painting.Effects.DashEffect(new float[] { 4, 3 })
+                },
+                Fill   = null,
+                GeometrySize   = 4,
+                GeometryFill   = new SolidColorPaint(SKColor.Parse("#F38BA8")),
+                GeometryStroke = null,
+                LineSmoothness = 0,
+            });
+        }
+
+        // 0 기준선
+        series.Add(new LineSeries<ObservablePoint>
+        {
+            Name   = "",
+            Values = new ObservablePoint[] { new(0, 0), new(1, 0), new(2, 0), new(3, 0) },
+            Stroke = new SolidColorPaint(SKColor.Parse("#45475A")) { StrokeThickness = 1 },
+            Fill   = null,
+            GeometrySize = 0, GeometryFill = null, GeometryStroke = null,
+            LineSmoothness = 0,
+        });
+
+        MiniChart_ReturnRatio.Series = series.ToArray();
 
         MiniChart_ReturnRatio.XAxes = new Axis[]
         {
             new Axis
             {
-                Labels = new[] { "1M", "3M", "6M", "1Y" },
-                MinStep = 1,
-                LabelsPaint = new SolidColorPaint(SKColor.Parse("#6C7086")),
+                Labels          = new[] { "1M", "3M", "6M", "1Y" },
+                MinStep         = 1,
+                LabelsPaint     = new SolidColorPaint(SKColor.Parse("#6C7086")),
                 SeparatorsPaint = null,
-                TextSize = 8
+                TextSize        = 8,
             }
         };
 
@@ -210,12 +257,14 @@ public partial class ChartView : UserControl
         {
             new Axis
             {
-                Labeler = v => $"{v:F0}%",
-                LabelsPaint = new SolidColorPaint(SKColor.Parse("#6C7086")),
+                Labeler         = v => $"{v:F0}%",
+                LabelsPaint     = new SolidColorPaint(SKColor.Parse("#6C7086")),
                 SeparatorsPaint = new SolidColorPaint(SKColor.Parse("#313244")),
-                TextSize = 8
+                TextSize        = 8,
             }
         };
+
+        MiniChart_ReturnRatio.LegendPosition = LiveChartsCore.Measure.LegendPosition.Hidden;
     }
 
     private void LoadChart()
@@ -286,6 +335,17 @@ public partial class ChartView : UserControl
         RenderMacd(data);
         RenderRsi(data);
         RenderSupply(data);
+
+        // 구간 변경 시 모든 X축 범위를 _renderData에 맞춰 동기화
+        // 없으면 서브차트가 전체 데이터 기준으로 auto-fit해 범위 뺈어남
+        var xMin = (double)_epoch.AddDays(0).Ticks;
+        var xMax = (double)_epoch.AddDays(data.Count - 1).Ticks;
+        foreach (var ax in new[] { XAxes, VolXAxes, MacdXAxes, RsiXAxes })
+        {
+            if (ax.Count == 0) continue;
+            ax[0].MinLimit = xMin;
+            ax[0].MaxLimit = xMax;
+        }
 
         var hi  = data.MaxBy(d => d.AdjClose)!;
         var lo  = data.MinBy(d => d.AdjClose)!;
@@ -474,66 +534,98 @@ public partial class ChartView : UserControl
     }
 
     // ══════════════════════════════════════════════════════════
-    //  수급 오버레이 (supply 데이터 준비 시 활성화)
+    //  수급 오버레이
+    //  VolSeries[0] = 거래량 bar (RenderVolume)
+    //  VolSeries[1] = 외인순매수 line  (ScalesYAt=1)
+    //  VolSeries[2] = 기관순매수 line  (ScalesYAt=1)
+    //  VolYAxes[0]  = 거래량 Y (End)
+    //  VolYAxes[1]  = 수급 Y   (Start) — 처음 한 번만 추가
     // ══════════════════════════════════════════════════════════
     private void RenderSupply(List<OhlcvRow> data)
     {
-        var toRemove = VolSeries.Where(s => s.Name is "외인순매수" or "기관순매수").ToList();
-        foreach (var s in toRemove) VolSeries.Remove(s);
+        // 이전 수급 series 제거 (거래량 bar는 유지)
+        for (int i = VolSeries.Count - 1; i >= 0; i--)
+            if (VolSeries[i].Name is "외인순매수" or "기관순매수")
+                VolSeries.RemoveAt(i);
+
         if (data.Count == 0) return;
 
-        var dateToIdx = data.Select((r, i) => (r.Date.Date, i))
-                            .ToDictionary(x => x.Date, x => x.i);
-        var sql = $"""
-            SELECT date, inst_net_buy, foreign_net_buy
-            FROM supply WHERE ticker='{_currentTicker}'
-              AND date >= '{data.First().Date:yyyy-MM-dd}'
-              AND date <= '{data.Last().Date:yyyy-MM-dd}'
-            ORDER BY date ASC
-            """;
+        // 수급 Y축: VolYAxes[1] — 없을 때만 추가
+        if (VolYAxes.Count < 2)
+            VolYAxes.Add(MakeYAxis(v =>
+            {
+                var m = v / 10_000.0;
+                return Math.Abs(m) >= 1 ? $"{m:F0}만" : v.ToString("N0");
+            }, minLimit: null, maxLimit: null));
+
+        var dateFrom = data.First().Date.ToString("yyyy-MM-dd");
+        var dateTo   = data.Last().Date.ToString("yyyy-MM-dd");
+
+        DataTable dt;
         try
         {
-            var dt  = _db.Query(sql);
-            if (dt.Rows.Count == 0) return;
-
-            var fgnPts  = new List<DateTimePoint>();
-            var instPts = new List<DateTimePoint>();
-
-            foreach (System.Data.DataRow r in dt.Rows)
-            {
-                if (!DateTime.TryParse(r[0]?.ToString(), out var d)) continue;
-                if (!dateToIdx.TryGetValue(d.Date, out var idx))    continue;
-                long.TryParse(r[1]?.ToString(), out var inst);
-                long.TryParse(r[2]?.ToString(), out var fgn);
-                if (inst != 0) instPts.Add(new DateTimePoint(_epoch.AddDays(idx), inst));
-                if (fgn  != 0) fgnPts.Add(new DateTimePoint(_epoch.AddDays(idx), fgn));
-            }
-
-            if (fgnPts.Count > 0)
-                VolSeries.Add(new LineSeries<DateTimePoint>
-                {
-                    Values         = new ObservableCollection<DateTimePoint>(fgnPts),
-                    Stroke         = new SolidColorPaint(SKColor.Parse("#F38BA8")) { StrokeThickness = 1 },
-                    Fill           = null, GeometrySize = 0, GeometryFill = null, GeometryStroke = null,
-                    LineSmoothness = 0, Name = "외인순매수", ScalesYAt = 1,
-                });
-            if (instPts.Count > 0)
-                VolSeries.Add(new LineSeries<DateTimePoint>
-                {
-                    Values         = new ObservableCollection<DateTimePoint>(instPts),
-                    Stroke         = new SolidColorPaint(SKColor.Parse("#A6E3A1")) { StrokeThickness = 1 },
-                    Fill           = null, GeometrySize = 0, GeometryFill = null, GeometryStroke = null,
-                    LineSmoothness = 0, Name = "기관순매수", ScalesYAt = 1,
-                });
-
-            if (VolYAxes.Count < 2)
-                VolYAxes.Add(MakeYAxis(v =>
-                {
-                    var m = v / 10_000.0;
-                    return Math.Abs(m) >= 1 ? $"{m:F0}만" : v.ToString("N0");
-                }));
+            dt = _db.Query($"""
+                SELECT date, inst_net_buy, foreign_net_buy
+                FROM supply
+                WHERE ticker = '{_currentTicker}'
+                  AND date >= '{dateFrom}'
+                  AND date <= '{dateTo}'
+                ORDER BY date ASC
+                """);
         }
-        catch { /* supply 미준비 시 무시 */ }
+        catch { return; }
+
+        if (dt.Rows.Count == 0) return;
+
+        // date → renderData index 역매핑
+        var dateToIdx = data.Select((r, i) => (r.Date.Date, i))
+                            .ToDictionary(x => x.Date, x => x.i);
+
+        var fgnPts  = new List<DateTimePoint>();
+        var instPts = new List<DateTimePoint>();
+
+        foreach (DataRow r in dt.Rows)
+        {
+            // Query()가 실제 타입 반환 → DATE는 DateTime/DateOnly, BIGINT는 long
+            DateTime d;
+            if      (r[0] is DateTime dt0)  d = dt0;
+            else if (r[0] is DateOnly  do0) d = do0.ToDateTime(TimeOnly.MinValue);
+            else if (!DateTime.TryParse(r[0]?.ToString(), out d)) continue;
+
+            if (!dateToIdx.TryGetValue(d.Date, out var idx)) continue;
+
+            var xVal = _epoch.AddDays(idx);
+
+            long inst = r[1] is DBNull || r[1] is null ? 0 : Convert.ToInt64(r[1]);
+            long fgn  = r[2] is DBNull || r[2] is null ? 0 : Convert.ToInt64(r[2]);
+
+            if (inst != 0) instPts.Add(new DateTimePoint(xVal, inst));
+            if (fgn  != 0) fgnPts.Add(new DateTimePoint(xVal, fgn));
+        }
+
+        if (fgnPts.Count > 0)
+            VolSeries.Add(new LineSeries<DateTimePoint>
+            {
+                Name           = "외인순매수",
+                Values         = new ObservableCollection<DateTimePoint>(fgnPts),
+                Stroke         = new SolidColorPaint(SKColor.Parse("#F38BA8")) { StrokeThickness = 1 },
+                Fill           = null,
+                GeometrySize   = 0, GeometryFill = null, GeometryStroke = null,
+                LineSmoothness = 0,
+                ScalesYAt      = 1,
+            });
+
+        if (instPts.Count > 0)
+            VolSeries.Add(new LineSeries<DateTimePoint>
+            {
+                Name           = "기관순매수",
+                Values         = new ObservableCollection<DateTimePoint>(instPts),
+                Stroke         = new SolidColorPaint(SKColor.Parse("#A6E3A1")) { StrokeThickness = 1 },
+                Fill           = null,
+                GeometrySize   = 0, GeometryFill = null, GeometryStroke = null,
+                LineSmoothness = 0,
+                ScalesYAt      = 1,
+            });
     }
 
     // ══════════════════════════════════════════════════════════
@@ -589,7 +681,13 @@ public partial class ChartView : UserControl
     private void BtnMacd_Click(object sender, RoutedEventArgs e) { _showMacd = !_showMacd; ApplyPeriod(); }
     private void BtnRsi_Click(object sender, RoutedEventArgs e)  { _showRsi  = !_showRsi;  ApplyPeriod(); }
 
-    private static void HighlightToggle(Button btn, bool active) { }
+    private void HighlightPeriodBtn(Button active, IEnumerable<Button> all)
+    {
+        foreach (var b in all)
+            b.Foreground = System.Windows.Media.Brushes.Gray;
+        active.Foreground = new System.Windows.Media.SolidColorBrush(
+            (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#89B4FA"));
+    }
 
     // ══════════════════════════════════════════════════════════
     //  Info 패널
@@ -607,19 +705,19 @@ public partial class ChartView : UserControl
             if (dt.Rows.Count > 0)
             {
                 var r = dt.Rows[0];
-                long.TryParse(r[1]?.ToString(), out var instBuy);
-                long.TryParse(r[2]?.ToString(), out var fgnBuy);
-                long.TryParse(r[3]?.ToString(), out var instAmt);
-                long.TryParse(r[4]?.ToString(), out var fgnAmt);
-                TxtInstNet.Text    = FormatNet(instBuy);
-                TxtForeignNet.Text = FormatNet(fgnBuy);
-                TxtInstAmt.Text    = FormatAmt(instAmt);
-                TxtForeignAmt.Text = FormatAmt(fgnAmt);
+                long inst = r[1] is DBNull || r[1] is null ? 0 : Convert.ToInt64(r[1]);
+                long fgn  = r[2] is DBNull || r[2] is null ? 0 : Convert.ToInt64(r[2]);
+                long iAmt = r[3] is DBNull || r[3] is null ? 0 : Convert.ToInt64(r[3]);
+                long fAmt = r[4] is DBNull || r[4] is null ? 0 : Convert.ToInt64(r[4]);
+                TxtInstNet.Text    = FormatNet(inst);
+                TxtForeignNet.Text = FormatNet(fgn);
+                TxtInstAmt.Text    = FormatAmt(iAmt);
+                TxtForeignAmt.Text = FormatAmt(fAmt);
                 TxtSupplyDate.Text = $" ({r[0]})";
-                TxtInstNet.Foreground    = BrushForNet(instBuy);
-                TxtForeignNet.Foreground = BrushForNet(fgnBuy);
-                TxtInstAmt.Foreground    = BrushForNet(instAmt);
-                TxtForeignAmt.Foreground = BrushForNet(fgnAmt);
+                TxtInstNet.Foreground    = BrushForNet(inst);
+                TxtForeignNet.Foreground = BrushForNet(fgn);
+                TxtInstAmt.Foreground    = BrushForNet(iAmt);
+                TxtForeignAmt.Foreground = BrushForNet(fAmt);
             }
             else
             {
@@ -698,10 +796,7 @@ public partial class ChartView : UserControl
     {
         if (sender is not Button btn) return;
         _periodDays = int.Parse(btn.Tag?.ToString() ?? "365");
-        foreach (var b in new[] { Btn1M, Btn3M, Btn6M, Btn1Y, Btn2Y, BtnAll })
-            b.Foreground = System.Windows.Media.Brushes.Gray;
-        btn.Foreground = new System.Windows.Media.SolidColorBrush(
-            (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#89B4FA"));
+        HighlightPeriodBtn(btn, new[] { Btn1M, Btn3M, Btn6M, Btn1Y, Btn2Y, BtnAll });
         ApplyPeriod();
     }
 

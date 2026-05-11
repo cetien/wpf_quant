@@ -286,7 +286,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
         try
         {
             var activeFilter  = ShowOnlyActive ? "AND s.is_active = TRUE" : "";
-            var excludeFilter = _db.BuildStockExcludeFilter("s");
+            var excludeFilter = _db.BuildStockExcludeFilter("s", "c");
             var sql = $"""
                 WITH latest_f AS (
                     SELECT ticker, pbr, per, roe,
@@ -295,7 +295,8 @@ public partial class LeftSidePanelViewModel : ObservableObject
                 )
                 SELECT s.ticker, s.name, s.market, s.rating
                 FROM stocks s
-                JOIN latest_f f ON s.ticker = f.ticker AND f.rn = 1
+                JOIN latest_f f         ON s.ticker = f.ticker AND f.rn = 1
+                LEFT JOIN stock_cache c ON c.ticker  = s.ticker
                 WHERE {whereClause} {activeFilter} {excludeFilter}
                 ORDER BY s.ticker
                 """;
@@ -389,11 +390,12 @@ public partial class LeftSidePanelViewModel : ObservableObject
         try
         {
             var activeFilter  = ShowOnlyActive ? "AND s.is_active = TRUE" : "";
-            var excludeFilter = _db.BuildStockExcludeFilter("s");
+            var excludeFilter = _db.BuildStockExcludeFilter("s", "c");
             var sql = $"""
                 SELECT s.ticker, s.name, s.market, s.rating
                 FROM stocks s
                 JOIN stock_group_map sgm ON s.ticker = sgm.ticker
+                LEFT JOIN stock_cache c  ON c.ticker  = s.ticker
                 WHERE sgm.group_id = {groupId} {activeFilter} {excludeFilter}
                 ORDER BY s.ticker
                 """;
