@@ -1,4 +1,4 @@
--- ============================================================
+﻿-- ============================================================
 -- Quant DB Schema v1.0  (DuckDB)
 -- Migration: 001_init_schema
 -- ============================================================
@@ -7,7 +7,7 @@
 CREATE TABLE IF NOT EXISTS stocks (
     ticker          TEXT        NOT NULL,
     name            TEXT        NOT NULL,
-    market          TEXT        NOT NULL CHECK (market IN ('KP', 'KQ', 'NYSE')),
+    market          TEXT        NOT NULL,-- CHECK (market IN ('KP', 'KQ', 'NYSE')),
     security_type   TEXT        NOT NULL,   -- 'stock' | 'index' | 'etf'
     listed_date     DATE,
     rating          INTEGER     NOT NULL DEFAULT 5,
@@ -29,24 +29,24 @@ CREATE TABLE IF NOT EXISTS stocks (
 -- ── groups (sector + theme 통합) ────────────────────────────
 CREATE TABLE IF NOT EXISTS groups (
     group_id    INTEGER     PRIMARY KEY,
-    kind        TEXT        NOT NULL, -- CHECK (kind IN ('sector', 'theme', 'watch')),
-    name        TEXT        NOT NULL, -- UNIQUE,
+    kind        TEXT        NOT NULL,-- CHECK (kind IN ('sector', 'theme', 'watch')),
+    name        TEXT        NOT NULL,-- UNIQUE,
     description TEXT,
     rating      INTEGER     NOT NULL DEFAULT 5,
     is_active   BOOLEAN     NOT NULL DEFAULT TRUE,
     created_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
--- CREATE UNIQUE INDEX ux_groups_name ON groups(name);
 
 -- ── stock_group_map ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS stock_group_map (
-    ticker      TEXT        NOT NULL REFERENCES stocks(ticker),
-    group_id    INTEGER     NOT NULL REFERENCES groups(group_id),
+    ticker      TEXT        NOT NULL,-- REFERENCES stocks(ticker),
+    group_id    INTEGER     NOT NULL,-- REFERENCES groups(group_id),
     weight      DOUBLE      NOT NULL DEFAULT 1.0 CHECK (weight > 0),
     created_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (ticker, group_id)
 );
+
 
 CREATE INDEX IF NOT EXISTS idx_sgm_ticker ON stock_group_map(ticker);
 CREATE INDEX IF NOT EXISTS idx_sgm_group  ON stock_group_map(group_id);
@@ -55,13 +55,13 @@ CREATE INDEX IF NOT EXISTS idx_sgm_group  ON stock_group_map(group_id);
 -- Look-ahead bias 방지: announce_date 기준 join
 -- announce_date 소스: DART API (미확정 → 수동 입력 fallback)
 CREATE TABLE IF NOT EXISTS fundamentals (
-    ticker              TEXT    NOT NULL REFERENCES stocks(ticker),
+    ticker              TEXT    NOT NULL,-- REFERENCES stocks(ticker),
     report_date         DATE    NOT NULL,   -- 결산 기준일
     announce_date       DATE,               -- 공시 실제 날짜 (join 기준)
     fiscal_quarter      TEXT,               -- 예: '2024Q4'
     eps                 DOUBLE,
     per                 DOUBLE,             -- 음수 가능(적자), CHECK 제거
-    pbr                 DOUBLE  CHECK (pbr > 0),
+    pbr                 DOUBLE,--  CHECK (pbr > 0),
     roe                 DOUBLE,
     revenue             BIGINT,
     operating_income    BIGINT,
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS daily_prices (
 -- Phase 1 MVP: 수급 포함
 -- pykrx: 주 수량 기준 / KIS API: 금액 기준 → Python 워커 유지로 pykrx 사용
 CREATE TABLE IF NOT EXISTS supply (
-    ticker              TEXT    NOT NULL REFERENCES stocks(ticker),
+    ticker              TEXT    NOT NULL,-- REFERENCES stocks(ticker),
     date                DATE    NOT NULL,
     inst_net_buy        BIGINT,             -- 기관 순매수 (주)
     foreign_net_buy     BIGINT,             -- 외인 순매수 (주)
@@ -100,22 +100,37 @@ CREATE TABLE IF NOT EXISTS supply (
 );
 
 -- ── stock_cache ──────────────────────────────────────────────
--- DuckDB 채택 시 삭제 검토 (집계 성능 우수 → 캐시 불필요할 수 있음)
 -- 현재는 대시보드 고속 표시용 유지
--- CREATE TABLE IF NOT EXISTS stock_cache (
---     ticker      TEXT    NOT NULL REFERENCES stocks(ticker),
---     last_date   DATE    NOT NULL,
---     ret_1m      DOUBLE,                     -- 30일 수익률 (adj_close 기준)
---     ret_3m      DOUBLE,                     -- 90일 수익률
---     ret_6m      DOUBLE,                     -- 180일 수익률
---     rs          DOUBLE,                     -- KOSPI 대비 상대강도
---     beta_60d    DOUBLE,                     -- 60일 베타 (Phase 1 UI 요건)
---     per         DOUBLE,
---     pbr         DOUBLE,
---     roe         DOUBLE,
---     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
---     PRIMARY KEY (ticker)
--- );
+CREATE TABLE IF NOT EXISTS stock_cache (
+     ticker      TEXT    NOT NULL, -- REFERENCES stocks(ticker),
+     asof_date   DATE    NOT NULL,
+     current_price DOUBLE,                  -- 현재가
+     ret_1m      DOUBLE,                     -- 30일 수익률 (adj_close 기준)
+     ret_3m      DOUBLE,                     -- 90일 수익률
+     ret_6m      DOUBLE,                     -- 180일 수익률
+     ret_1y      DOUBLE,                     -- 1년 수익률
+     rs          DOUBLE,                     -- KOSPI 대비 상대강도
+     -- beta_60d    DOUBLE,                     -- 60일 베타 (Phase 1 UI 요건)
+     eps         DOUBLE,
+     per         DOUBLE,
+     pbr         DOUBLE,
+     roe         DOUBLE,
+    -- market_cap  DOUBLE, 
+    atr_14      DOUBLE, -- Average True Range, 14일 평균 변동폭
+    atr_percent DOUBLE,
+    high_52w    DOUBLE, 
+    low_52w     DOUBLE, 
+    volume_avg_20d  DOUBLE, 
+    distance_from_high  DOUBLE, 
+     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+     PRIMARY KEY (ticker)
+);
+-- rebuild: staleness check
+--      SELECT MAX(date) FROM daily_prices
+--      SELECT MAX(asof_date) FROM stock_cache
+--      if cache_date < daily_price_date: full_rebuild (CREATE OR REPLACE TABLE stock_cache AS ...)
+-- 참고: current_data <=== SELECT MAX(date) FROM daily_prices WHERE ticker=?
+
 
 -- ── watchlists ───────────────────────────────────────────────
 -- CREATE TABLE IF NOT EXISTS watchlists (
@@ -166,8 +181,8 @@ CREATE TABLE IF NOT EXISTS data_update_log (
 
 -- ── trading_calendar ─────────────────────────────────────────
 -- 영업일 계산 (N일 수익률, RS 산출 필수)
-CREATE TABLE IF NOT EXISTS trading_calendar (
-    date            DATE        NOT NULL,
-    is_trading_day  BOOLEAN     NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (date)
-);
+-- CREATE TABLE IF NOT EXISTS trading_calendar (
+--     date            DATE        NOT NULL,
+--     is_trading_day  BOOLEAN     NOT NULL DEFAULT TRUE,
+--     PRIMARY KEY (date)
+-- );

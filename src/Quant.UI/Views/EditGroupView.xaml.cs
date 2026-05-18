@@ -327,6 +327,7 @@ public partial class EditGroupView : UserControl
         int total    = members.Count;
         int done     = 0;
         int inserted = 0;
+        int successCount = 0;
         var errors   = new List<string>();
 
         var progress = new Progress<string>(msg =>
@@ -344,6 +345,7 @@ public partial class EditGroupView : UserControl
                 try
                 {
                     var (cnt, _) = await svc.DownloadAsync(ticker, progress);
+                    successCount++;
                     inserted += cnt;
                 }
                 catch (Exception ex)
@@ -356,6 +358,9 @@ public partial class EditGroupView : UserControl
                 if (done < total)
                     await Task.Delay(rng.Next(1500, 2501));
             }
+
+            if (successCount > 0)
+                _db.RebuildStockCache();
 
             LoadChartData(_currentGroupId);
             var summary = errors.Count == 0

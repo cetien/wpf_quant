@@ -6,6 +6,15 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Quant.Core", "src\Quant.Cor
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Quant.UI", "src\Quant.UI\Quant.UI.csproj", "{A1B2C3D4-0002-0002-0002-000000000002}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "database", "database", "{C8D5274F-AC00-46C7-1F8D-E88E81087A52}"
+	ProjectSection(SolutionItems) = preProject
+		database\migrations\001_init_schema.sql = database\migrations\001_init_schema.sql
+		database\migrations\002_views.sql = database\migrations\002_views.sql
+		database\migrations\003_options.sql = database\migrations\003_options.sql
+		database\migrations\004_fix_autoincrement.sql = database\migrations\004_fix_autoincrement.sql
+		database\migrations\005_drop_fk_stock_group_map.sql = database\migrations\005_drop_fk_stock_group_map.sql
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

@@ -40,15 +40,25 @@ public partial class ChartView : UserControl
     public ObservableCollection<Axis>    RsiXAxes  { get; } = [];
     public ObservableCollection<Axis>    RsiYAxes  { get; } = [];
 
-    // ── X축 스케일 통일의 핵심 ────────────────────────────────
-    // 모든 Series(Line/Column/Candle)의 X값 = _epoch.AddDays(i).Ticks
-    // UnitWidth = 1일 Ticks 고정 → 차트 간 스케일 동일 → 정렬 완벽
-    // SharedWith 불필요: 동일 스케일이면 각 차트가 자동으로 범위 맞춤
-    private static readonly DateTime _epoch     = new(2000, 1, 1);
-    private static readonly long     _unitTicks = TimeSpan.FromDays(1).Ticks;
+    // ── X축 스케일 통일 ────────────────────────────────────────
+    // 모든 Series X값 = 순수 정수 인덱스 (0, 1, 2, ...)
+    // UnitWidth = 1, Labeler: index → _renderData[i].Date
+    // DateTimePoint(DateTime) 대신 ObservablePoint(int, double) 사용
+    // → MACD/RSI 워밍업 오프셋과 무관하게 동일 index 기준으로 정렬 보장
 
     // Labeler 및 Supply 인덱스 역매핑용
     private List<OhlcvRow> _renderData = [];
+
+    // ── 툴팁용 캐시 ──────────────────────────────────────────
+    // RenderSupply 시점에 index → (inst, fgn) 매핑 저장
+    // MouseMove에서 O(1) 조회
+    private Dictionary<int, (long Inst, long Fgn)> _supplyCache = [];
+
+    // RenderMacd 결과 캐시: index → (macd, signal, hist)
+    private Dictionary<int, (double Macd, double Signal, double Hist)> _macdCache = [];
+
+    // RenderRsi 결과 캐시: index → rsi
+    private Dictionary<int, double> _rsiCache = [];
 
     private readonly DbManager _db;
     private List<OhlcvRow> _allData = [];
@@ -78,8 +88,27 @@ public partial class ChartView : UserControl
         Loaded += (_, _) =>
         {
             HighlightPeriodBtn(Btn1Y, new[] { Btn1M, Btn3M, Btn6M, Btn1Y, Btn2Y, BtnAll });
+            SyncDrawMargin();
             LoadChart();
         };
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  PlotArea 동기화 — Y축 라벨 너비 차이로 인한 좌우 어긋남 해소
+    //  DrawMargin(Margin): 모든 차트의 PlotArea 마진을 동일값으로 고정.
+    //  Right=52: Price Y축 라벨("75,000" 6자리+콤마, Consolas 9pt) 기준.
+    //  Left=0:   각 차트 좌측에 Y축 없음 → 별도 여백 불필요.
+    //  이 값으로 모든 서브차트의 PlotArea 좌·우 경계가 메인 차트와 일치.
+    // ══════════════════════════════════════════════════════════
+    private void SyncDrawMargin()
+    {
+        // Margin(left, top, right, bottom) — float
+        var margin = new LiveChartsCore.Measure.Margin(0f, 0f, 52f, 0f);
+
+        MainChart.DrawMargin  = margin;
+        VolChart.DrawMargin   = margin;
+        MacdChart.DrawMargin  = margin;
+        RsiChart.DrawMargin   = margin;
     }
 
     // ══════════════════════════════════════════════════════════
@@ -103,26 +132,35 @@ public partial class ChartView : UserControl
         MacdYAxes.Add(MakeYAxis(v => v.ToString("F2")));
 
         RsiXAxes.Add(MakeXAxis(showLabels: false));
-        RsiYAxes.Add(MakeYAxis(v => v.ToString("F0"), minLimit: 0, maxLimit: 100));
+        RsiYAxes.Add(new Axis
+        {
+            Labeler           = v => v.ToString("F0"),
+            LabelsPaint       = new SolidColorPaint(SKColor.Parse("#6C7086")),
+            SeparatorsPaint   = new SolidColorPaint(SKColor.Parse("#313244")),
+            TextSize          = 9,
+            Position          = LiveChartsCore.Measure.AxisPosition.End,
+            MinLimit          = 0,
+            MaxLimit          = 100,
+            // 0, 30, 50, 70, 100 위치에만 grid line + label 표시
+            CustomSeparators  = new double[] { 0, 30, 50, 70, 100 },
+        });
     }
 
-    // X값: _epoch.AddDays(i).Ticks  UnitWidth: 1일 Ticks
-    // Labeler: Ticks → index → _renderData[index].Date 문자열
+    // X값: 순수 정수 인덱스 (0, 1, 2, ...)
+    // Labeler: index → _renderData[index].Date 문자열
     private Axis MakeXAxis(bool showLabels = true) => new()
     {
         Labeler = v =>
         {
-            var ticks = (long)v;
-            if (ticks < _epoch.Ticks) return "";
-            var i = (int)Math.Round((ticks - _epoch.Ticks) / (double)_unitTicks);
+            var i = (int)Math.Round(v);
             if (i < 0 || i >= _renderData.Count) return "";
             var d = _renderData[i].Date;
             return d.Month == 1 && d.Day <= 7
                 ? d.ToString("yy/MM")
                 : d.ToString("MM/dd");
         },
-        UnitWidth       = _unitTicks,
-        MinStep         = _unitTicks * 20,   // 최소 20영업일(~1개월) 간격 — label 겹침 방지
+        UnitWidth       = 1,
+        MinStep         = 20,   // 최소 20영업일(~1개월) 간격 — label 겹침 방지
         LabelsPaint     = showLabels ? new SolidColorPaint(SKColor.Parse("#6C7086")) : null,
         SeparatorsPaint = new SolidColorPaint(SKColor.Parse("#313244")),
         TextSize        = 9,
@@ -144,8 +182,8 @@ public partial class ChartView : UserControl
         return ax;
     }
 
-    // i → X값(double) 헬퍼
-    private static double XT(int i) => (double)(_epoch.AddDays(i).Ticks);
+    // i → X값(double) 헬퍼: 순수 정수 인덱스
+    private static double XT(int i) => (double)i;
 
     // ══════════════════════════════════════════════════════════
     //  데이터 로드
@@ -336,10 +374,9 @@ public partial class ChartView : UserControl
         RenderRsi(data);
         RenderSupply(data);
 
-        // 구간 변경 시 모든 X축 범위를 _renderData에 맞춰 동기화
-        // 없으면 서브차트가 전체 데이터 기준으로 auto-fit해 범위 뺈어남
-        var xMin = (double)_epoch.AddDays(0).Ticks;
-        var xMax = (double)_epoch.AddDays(data.Count - 1).Ticks;
+        // X축 범위를 _renderData 인덱스 기준으로 동기화
+        var xMin = 0.0;
+        var xMax = (double)(data.Count - 1);
         foreach (var ax in new[] { XAxes, VolXAxes, MacdXAxes, RsiXAxes })
         {
             if (ax.Count == 0) continue;
@@ -368,10 +405,10 @@ public partial class ChartView : UserControl
 
     private void RenderLine(List<OhlcvRow> data)
     {
-        var pts = data.Select((d, i) => new DateTimePoint(_epoch.AddDays(i), d.AdjClose)).ToList();
-        Series.Add(new LineSeries<DateTimePoint>
+        var pts = data.Select((d, i) => new ObservablePoint(i, d.AdjClose)).ToList();
+        Series.Add(new LineSeries<ObservablePoint>
         {
-            Values         = new ObservableCollection<DateTimePoint>(pts),
+            Values         = new ObservableCollection<ObservablePoint>(pts),
             Fill           = new SolidColorPaint(SKColor.Parse("#89B4FA").WithAlpha(25)),
             Stroke         = new SolidColorPaint(SKColor.Parse("#89B4FA")) { StrokeThickness = 2 },
             GeometrySize   = 0, GeometryFill = null, GeometryStroke = null,
@@ -381,12 +418,13 @@ public partial class ChartView : UserControl
 
     private void RenderCandle(List<OhlcvRow> data)
     {
-        // FinancialPoint(DateTime, high, open, close, low)
-        // DateTime = _epoch.AddDays(i) → X스케일이 Line/Volume과 동일
+        // FinancialPoint의 DateTime.Ticks = i (인덱스)
+        // → X값이 ObservablePoint(i, ...) 와 동일한 스케일
+        // UnitWidth=1 이므로 정수 인덱스 기준으로 정렬됨
         var pts = data.Select((d, i) =>
         {
             var r = d.Close > 0 ? d.AdjClose / d.Close : 1.0;
-            return new FinancialPoint(_epoch.AddDays(i),
+            return new FinancialPoint(new DateTime(i),   // Ticks=i → X=i
                 d.High * r, d.Open * r, d.AdjClose, d.Low * r);
         }).ToList();
 
@@ -405,16 +443,16 @@ public partial class ChartView : UserControl
     {
         if (data.Count < period) return;
         var prices = data.Select(d => d.AdjClose).ToList();
-        var pts    = new List<DateTimePoint>();
+        var pts    = new List<ObservablePoint>();
         for (int i = period - 1; i < data.Count; i++)
         {
             var avg = prices.Skip(i - period + 1).Take(period).Average();
-            pts.Add(new DateTimePoint(_epoch.AddDays(i), avg));
+            pts.Add(new ObservablePoint(i, avg));
         }
         var color = MaColors[period];
-        Series.Add(new LineSeries<DateTimePoint>
+        Series.Add(new LineSeries<ObservablePoint>
         {
-            Values         = new ObservableCollection<DateTimePoint>(pts),
+            Values         = new ObservableCollection<ObservablePoint>(pts),
             Stroke         = new SolidColorPaint(color) { StrokeThickness = 1 },
             Fill           = null, GeometrySize = 0, GeometryFill = null, GeometryStroke = null,
             LineSmoothness = 0, Name = $"MA{period}",
@@ -429,10 +467,10 @@ public partial class ChartView : UserControl
         VolSeries.Clear();
         if (!_showVol) return;
 
-        var pts = data.Select((d, i) => new DateTimePoint(_epoch.AddDays(i), d.Volume)).ToList();
-        VolSeries.Add(new ColumnSeries<DateTimePoint>
+        var pts = data.Select((d, i) => new ObservablePoint(i, d.Volume)).ToList();
+        VolSeries.Add(new ColumnSeries<ObservablePoint>
         {
-            Values      = new ObservableCollection<DateTimePoint>(pts),
+            Values      = new ObservableCollection<ObservablePoint>(pts),
             Fill        = new SolidColorPaint(SKColor.Parse("#89B4FA").WithAlpha(120)),
             Stroke      = null, MaxBarWidth = 4, Name = "Volume",
         });
@@ -444,6 +482,7 @@ public partial class ChartView : UserControl
     private void RenderMacd(List<OhlcvRow> data)
     {
         MacdSeries.Clear();
+        _macdCache.Clear();
         if (!_showMacd || data.Count < 26) return;
 
         var prices = data.Select(d => d.AdjClose).ToList();
@@ -456,41 +495,45 @@ public partial class ChartView : UserControl
 
         var sigSlice = CalcEma(macdVals.Skip(25).ToList(), 9);
 
-        var macdLine   = new List<DateTimePoint>();
-        var signalLine = new List<DateTimePoint>();
-        var histogram  = new List<DateTimePoint>();
+        var macdLine   = new List<ObservablePoint>();
+        var signalLine = new List<ObservablePoint>();
+        var histogram  = new List<ObservablePoint>();
 
         for (int i = 25; i < data.Count; i++)
         {
-            var dt  = _epoch.AddDays(i);
             var mv  = macdVals[i];
             var si  = i - 25;
-            macdLine.Add(new DateTimePoint(dt, mv));
+            macdLine.Add(new ObservablePoint(i, mv));
             if (si >= 8)
             {
                 var sv = sigSlice[si];
-                signalLine.Add(new DateTimePoint(dt, sv));
-                histogram.Add(new DateTimePoint(dt, mv - sv));
+                signalLine.Add(new ObservablePoint(i, sv));
+                histogram.Add(new ObservablePoint(i, mv - sv));
+                _macdCache[i] = (mv, sv, mv - sv);
+            }
+            else
+            {
+                _macdCache[i] = (mv, double.NaN, double.NaN);
             }
         }
 
-        MacdSeries.Add(new LineSeries<DateTimePoint>
+        MacdSeries.Add(new LineSeries<ObservablePoint>
         {
-            Values         = new ObservableCollection<DateTimePoint>(macdLine),
+            Values         = new ObservableCollection<ObservablePoint>(macdLine),
             Stroke         = new SolidColorPaint(SKColor.Parse("#89B4FA")) { StrokeThickness = 1 },
             Fill           = null, GeometrySize = 0, GeometryFill = null, GeometryStroke = null,
             LineSmoothness = 0, Name = "MACD",
         });
-        MacdSeries.Add(new LineSeries<DateTimePoint>
+        MacdSeries.Add(new LineSeries<ObservablePoint>
         {
-            Values         = new ObservableCollection<DateTimePoint>(signalLine),
+            Values         = new ObservableCollection<ObservablePoint>(signalLine),
             Stroke         = new SolidColorPaint(SKColor.Parse("#F38BA8")) { StrokeThickness = 1 },
             Fill           = null, GeometrySize = 0, GeometryFill = null, GeometryStroke = null,
             LineSmoothness = 0, Name = "Signal",
         });
-        MacdSeries.Add(new ColumnSeries<DateTimePoint>
+        MacdSeries.Add(new ColumnSeries<ObservablePoint>
         {
-            Values      = new ObservableCollection<DateTimePoint>(histogram),
+            Values      = new ObservableCollection<ObservablePoint>(histogram),
             Fill        = new SolidColorPaint(SKColor.Parse("#A6E3A1").WithAlpha(160)),
             Stroke      = null, MaxBarWidth = 4, Name = "Histogram",
         });
@@ -502,10 +545,11 @@ public partial class ChartView : UserControl
     private void RenderRsi(List<OhlcvRow> data)
     {
         RsiSeries.Clear();
+        _rsiCache.Clear();
         if (!_showRsi || data.Count < 15) return;
 
         var prices = data.Select(d => d.AdjClose).ToList();
-        var pts    = new List<DateTimePoint>();
+        var pts    = new List<ObservablePoint>();
 
         double avgGain = 0, avgLoss = 0;
         for (int i = 1; i <= 14; i++)
@@ -521,12 +565,13 @@ public partial class ChartView : UserControl
             avgGain = (avgGain * 13 + (diff > 0 ? diff : 0)) / 14;
             avgLoss = (avgLoss * 13 + (diff < 0 ? -diff : 0)) / 14;
             var rsi = avgLoss == 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
-            pts.Add(new DateTimePoint(_epoch.AddDays(i), rsi));
+            pts.Add(new ObservablePoint(i, rsi));
+            _rsiCache[i] = rsi;
         }
 
-        RsiSeries.Add(new LineSeries<DateTimePoint>
+        RsiSeries.Add(new LineSeries<ObservablePoint>
         {
-            Values         = new ObservableCollection<DateTimePoint>(pts),
+            Values         = new ObservableCollection<ObservablePoint>(pts),
             Stroke         = new SolidColorPaint(SKColor.Parse("#CBA6F7")) { StrokeThickness = 1 },
             Fill           = null, GeometrySize = 0, GeometryFill = null, GeometryStroke = null,
             LineSmoothness = 0, Name = "RSI(14)",
@@ -548,6 +593,7 @@ public partial class ChartView : UserControl
             if (VolSeries[i].Name is "외인순매수" or "기관순매수")
                 VolSeries.RemoveAt(i);
 
+        _supplyCache.Clear();
         if (data.Count == 0) return;
 
         // 수급 Y축: VolYAxes[1] — 없을 때만 추가
@@ -581,12 +627,11 @@ public partial class ChartView : UserControl
         var dateToIdx = data.Select((r, i) => (r.Date.Date, i))
                             .ToDictionary(x => x.Date, x => x.i);
 
-        var fgnPts  = new List<DateTimePoint>();
-        var instPts = new List<DateTimePoint>();
+        var fgnPts  = new List<ObservablePoint>();
+        var instPts = new List<ObservablePoint>();
 
         foreach (DataRow r in dt.Rows)
         {
-            // Query()가 실제 타입 반환 → DATE는 DateTime/DateOnly, BIGINT는 long
             DateTime d;
             if      (r[0] is DateTime dt0)  d = dt0;
             else if (r[0] is DateOnly  do0) d = do0.ToDateTime(TimeOnly.MinValue);
@@ -594,20 +639,22 @@ public partial class ChartView : UserControl
 
             if (!dateToIdx.TryGetValue(d.Date, out var idx)) continue;
 
-            var xVal = _epoch.AddDays(idx);
-
             long inst = r[1] is DBNull || r[1] is null ? 0 : Convert.ToInt64(r[1]);
             long fgn  = r[2] is DBNull || r[2] is null ? 0 : Convert.ToInt64(r[2]);
 
-            if (inst != 0) instPts.Add(new DateTimePoint(xVal, inst));
-            if (fgn  != 0) fgnPts.Add(new DateTimePoint(xVal, fgn));
+            if (inst != 0) instPts.Add(new ObservablePoint(idx, inst));
+            if (fgn  != 0) fgnPts.Add(new ObservablePoint(idx, fgn));
+
+            // 툴팁 캐시: inst/fgn 중 하나라도 있으면 저장
+            if (inst != 0 || fgn != 0)
+                _supplyCache[idx] = (inst, fgn);
         }
 
         if (fgnPts.Count > 0)
-            VolSeries.Add(new LineSeries<DateTimePoint>
+            VolSeries.Add(new LineSeries<ObservablePoint>
             {
                 Name           = "외인순매수",
-                Values         = new ObservableCollection<DateTimePoint>(fgnPts),
+                Values         = new ObservableCollection<ObservablePoint>(fgnPts),
                 Stroke         = new SolidColorPaint(SKColor.Parse("#F38BA8")) { StrokeThickness = 1 },
                 Fill           = null,
                 GeometrySize   = 0, GeometryFill = null, GeometryStroke = null,
@@ -616,10 +663,10 @@ public partial class ChartView : UserControl
             });
 
         if (instPts.Count > 0)
-            VolSeries.Add(new LineSeries<DateTimePoint>
+            VolSeries.Add(new LineSeries<ObservablePoint>
             {
                 Name           = "기관순매수",
-                Values         = new ObservableCollection<DateTimePoint>(instPts),
+                Values         = new ObservableCollection<ObservablePoint>(instPts),
                 Stroke         = new SolidColorPaint(SKColor.Parse("#A6E3A1")) { StrokeThickness = 1 },
                 Fill           = null,
                 GeometrySize   = 0, GeometryFill = null, GeometryStroke = null,
@@ -803,6 +850,58 @@ public partial class ChartView : UserControl
     private void BtnExternalLink_Click(object sender, RoutedEventArgs e) =>
         Helpers.OpenExternalLink(TxtTickerCode.Text);
 
+    // ══════════════════════════════════════════════════════════
+    //  Crosshair — 차트 영역 전체(Row 3~6)에 가로/세로 교차선 표시
+    //  Canvas는 IsHitTestVisible=False → 차트 이벤트 통과.
+    //  ChartGrid 기준 Y좌표에서 헤더·툴바·수급패널 높이를 빼서
+    //  Canvas(Row 3 시작) 기준 상대 Y를 계산.
+    // ══════════════════════════════════════════════════════════
+    private void ChartGrid_MouseMove(object sender, MouseEventArgs e)
+    {
+        // ChartGrid 기준 마우스 위치
+        var pos = e.GetPosition(ChartGrid);
+
+        // Row 0~2 누적 높이 계산 (헤더44 + 툴바32 + 수급패널Auto)
+        // ActualHeight로 정확하게 읽음
+        double headerH = ChartGrid.RowDefinitions[0].ActualHeight
+                       + ChartGrid.RowDefinitions[1].ActualHeight
+                       + ChartGrid.RowDefinitions[2].ActualHeight;
+
+        // Row 3~6 차트 영역 높이
+        double chartAreaH = ChartGrid.RowDefinitions[3].ActualHeight
+                          + ChartGrid.RowDefinitions[4].ActualHeight
+                          + ChartGrid.RowDefinitions[5].ActualHeight
+                          + ChartGrid.RowDefinitions[6].ActualHeight;
+
+        double chartAreaW = ChartGrid.ActualWidth;
+
+        // 마우스가 차트 영역(Row 3~6) 안에 있는지 확인
+        if (pos.Y < headerH || pos.Y > headerH + chartAreaH)
+        {
+            CrosshairCanvas.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        CrosshairCanvas.Visibility = Visibility.Visible;
+
+        // Canvas는 Row3 시작 → Canvas 기준 Y = ChartGrid Y − headerH
+        double cy = pos.Y - headerH;
+        double cx = pos.X;
+
+        // 세로선: X 고정, Y는 Canvas 전체 높이
+        CrossV.X1 = cx; CrossV.Y1 = 0;
+        CrossV.X2 = cx; CrossV.Y2 = chartAreaH;
+
+        // 가로선: Y 고정, X는 Canvas 전체 너비
+        CrossH.X1 = 0;          CrossH.Y1 = cy;
+        CrossH.X2 = chartAreaW; CrossH.Y2 = cy;
+    }
+
+    private void ChartGrid_MouseLeave(object sender, MouseEventArgs e)
+    {
+        CrosshairCanvas.Visibility = Visibility.Collapsed;
+    }
+
     private async void BtnDownloadData_Click(object sender, RoutedEventArgs e)
     {
         var ticker = TxtTickerCode.Text.Trim().ToUpper();
@@ -813,10 +912,17 @@ public partial class ChartView : UserControl
             var svc      = new PriceDownloadService(_db);
             var progress = new Progress<string>(msg => StatusChanged?.Invoke(msg, "#89B4FA"));
             var (inserted, lastDate) = await svc.DownloadAsync(ticker, progress);
-            LoadChart();
-            var msg = inserted > 0
-                ? $"{ticker}: {inserted:N0}건 저장 완료 (최신 {lastDate})"
-                : $"{ticker}: 신규 데이터 없음 (최신 {lastDate})";
+            string msg;
+            if (inserted > 0)
+            {
+                _db.RebuildStockCache();
+                LoadChart();
+                msg = $"{ticker}: {inserted:N0}건 저장 완료 (최신 {lastDate})";
+            }
+            else
+            {
+                msg = $"{ticker}: 신규 데이터 없음 (최신 {lastDate})";
+            }
             StatusChanged?.Invoke(msg, "#A6E3A1");
         }
         catch (Exception ex) { StatusChanged?.Invoke($"다운로드 오류: {ex.Message}", "#F38BA8"); }

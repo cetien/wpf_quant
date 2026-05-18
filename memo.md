@@ -1,3 +1,7 @@
+working at C:\Users\tien7\source\repos\quant
+Quant.UI\Views\ChartView.xaml.cs:
+MACD,RSI,거래량 등 여러개의 chart가 그려지는데, 날자가 일치하지 않고 서로 어긋나 있음.
+
 
 "RS 상위 + 신고가 근처 + 거래량 증가"
 
