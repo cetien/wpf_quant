@@ -53,6 +53,9 @@ public partial class EditGroupView : UserControl
     // ── raw price data: ticker → (name, prices) ──────────────
     private Dictionary<string, (string name, List<(DateTime date, double close)> prices)> _rawData = [];
 
+    // ── 현재 차트에 그려진 종목 (Crosshair 툴팁 필터) ────────
+    private HashSet<string> _chartedTickers = [];
+
     public EditGroupView(DbManager db)
     {
         _db = db;
@@ -444,6 +447,7 @@ public partial class EditGroupView : UserControl
     private void ApplyPeriod()
     {
         ChartSeries.Clear();
+        _chartedTickers.Clear();
         if (_rawData.Count == 0) return;
 
         var checkedTickers = new HashSet<string>();
@@ -482,6 +486,7 @@ public partial class EditGroupView : UserControl
                 Fill = null, GeometrySize = 0, GeometryFill = null, GeometryStroke = null,
                 LineSmoothness = 0, Name = name,
             });
+            _chartedTickers.Add(ticker);
             lastValues.Add((name, points.Last().Value ?? 100.0));
         }
 
@@ -620,6 +625,143 @@ public partial class EditGroupView : UserControl
     }
 
     private void ChartSelected_Changed(object sender, RoutedEventArgs e) => ApplyPeriod();
+
+    // ═════════════════════════════════════════════════════════
+    //  Crosshair + Tooltip  (ChartView 방식 이식)
+    //
+    //  X축: DateTimePoint → DateTime.Ticks (long) 사용.
+    //  픽셀 → Ticks 변환:
+    //    plotW = ChartAreaGrid.ActualWidth - rightMargin(Y축 라벨 예약폭)
+    //    xMin/xMax = ChartXAxes[0].MinLimit / MaxLimit (Ticks 단위)
+    //    ticksAtCursor = xMin + (cx / plotW) * (xMax - xMin)
+    //  → ticksAtCursor 를 DateTime 으로 변환 후 _rawData에서 근접일 조회.
+    // ═════════════════════════════════════════════════════════
+    private void ChartAreaGrid_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        // ChartAreaGrid 기준 마우스 위치
+        var pos = e.GetPosition(ChartAreaGrid);
+
+        // Row 0 = 헤더(28px), Row 1 = 차트 본체
+        double headerH   = ChartAreaGrid.RowDefinitions[0].ActualHeight;
+        double chartH    = ChartAreaGrid.RowDefinitions[1].ActualHeight;
+        double chartW    = ChartAreaGrid.ActualWidth;
+
+        // 마우스가 차트 본체 안에 있는지 확인
+        if (pos.Y < headerH || pos.Y > headerH + chartH)
+        {
+            EgCrosshairCanvas.Visibility = Visibility.Collapsed;
+            EgTooltipPanel.Visibility    = Visibility.Collapsed;
+            return;
+        }
+
+        EgCrosshairCanvas.Visibility = Visibility.Visible;
+
+        // Canvas는 Row 1 기준 → Canvas Y = pos.Y - headerH
+        double cy = pos.Y - headerH;
+        double cx = pos.X;
+
+        // 세로선
+        EgCrossV.X1 = cx; EgCrossV.Y1 = 0;
+        EgCrossV.X2 = cx; EgCrossV.Y2 = chartH;
+        // 가로선
+        EgCrossH.X1 = 0;      EgCrossH.Y1 = cy;
+        EgCrossH.X2 = chartW; EgCrossH.Y2 = cy;
+
+        // ── Ticks → DateTime 변환 ──────────────────────────
+        if (ChartXAxes.Count == 0 || _rawData.Count == 0)
+        {
+            EgTooltipPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        // Y축 라벨 영역(우측) 예약폭 — ChartView SyncDrawMargin Right=52 에 맞춤
+        const double rightMargin = 52.0;
+        double plotW = chartW - rightMargin;
+        if (plotW <= 0) { EgTooltipPanel.Visibility = Visibility.Collapsed; return; }
+
+        var xAxis = ChartXAxes[0];
+        double xMin = xAxis.MinLimit ?? double.MinValue;
+        double xMax = xAxis.MaxLimit ?? double.MaxValue;
+
+        // MinLimit/MaxLimit 이 null 이면 전체 데이터 범위로 추정
+        if (xMin == double.MinValue || xMax == double.MaxValue)
+        {
+            var allDates = _rawData.Values
+                .SelectMany(v => v.prices)
+                .Select(p => p.date.Ticks)
+                .ToList();
+            if (allDates.Count == 0) { EgTooltipPanel.Visibility = Visibility.Collapsed; return; }
+            xMin = allDates.Min();
+            xMax = allDates.Max();
+        }
+
+        double xRange = xMax - xMin;
+        if (xRange <= 0) { EgTooltipPanel.Visibility = Visibility.Collapsed; return; }
+
+        double ticksAtCursor = xMin + (cx / plotW) * xRange;
+        var targetDate = new DateTime((long)Math.Round(ticksAtCursor)).Date;
+
+        // ── 각 종목의 해당 날짜(또는 직전 영업일) 값 조회 ──
+        // ── 각 종목 데이터 수집 ───────────────────────────────
+        var tooltipRows = new List<(string name, double rel, SKColor color)>();
+        int colorIdx = 0;
+        foreach (var (ticker, (name, prices)) in _rawData)
+        {
+            var color = Palette[colorIdx % Palette.Length];
+            colorIdx++;
+            if (!_chartedTickers.Contains(ticker) || prices.Count < 2) continue;
+
+            var match = prices
+                .Where(p => p.date.Date <= targetDate)
+                .OrderByDescending(p => p.date)
+                .FirstOrDefault();
+            if (match == default) continue;
+
+            var baseClose = prices.First().close;
+            double rel    = Math.Round(match.close / baseClose * 100.0, 2);
+            tooltipRows.Add((name, rel, color));
+        }
+
+        if (tooltipRows.Count == 0) { EgTooltipPanel.Visibility = Visibility.Collapsed; return; }
+
+        // ── 상승률 내림차순 정렬 ─────────────────────────────
+        tooltipRows.Sort((a, b) => b.rel.CompareTo(a.rel));
+
+        // ── tooltip 렌더 ─────────────────────────────────────
+        EgTtDate.Text = targetDate.ToString("yyyy-MM-dd (ddd)");
+        EgTtRows.Children.Clear();
+        foreach (var (name, rel, color) in tooltipRows)
+        {
+            double diff = rel - 100.0;
+            var wpfColor = System.Windows.Media.Color.FromRgb(color.Red, color.Green, color.Blue);
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            row.Children.Add(new TextBlock
+            {
+                Text       = "● ",
+                FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+                FontSize   = 10,
+                Foreground = new System.Windows.Media.SolidColorBrush(wpfColor),
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            row.Children.Add(new TextBlock
+            {
+                Text       = $"{name,-12}  {rel,7:F2}  ({diff:+0.00;-0.00}%)",
+                FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+                FontSize   = 10,
+                Foreground = new System.Windows.Media.SolidColorBrush(wpfColor),
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            EgTtRows.Children.Add(row);
+        }
+
+        EgTooltipPanel.Visibility = Visibility.Visible;
+    }
+
+    private void ChartAreaGrid_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        EgCrosshairCanvas.Visibility = Visibility.Collapsed;
+        EgTooltipPanel.Visibility    = Visibility.Collapsed;
+    }
 
     private void BtnNewGroup_Click(object sender, RoutedEventArgs e)
     {

@@ -3,59 +3,6 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="#1E1E2E">
     <UserControl.Resources>
-        <Style x:Key="QuantDataGrid" TargetType="DataGrid">
-            <Setter Property="Background"               Value="#181825"/>
-            <Setter Property="Foreground"               Value="#CDD6F4"/>
-            <Setter Property="BorderBrush"              Value="#45475A"/>
-            <Setter Property="BorderThickness"          Value="1"/>
-            <Setter Property="GridLinesVisibility"      Value="Horizontal"/>
-            <Setter Property="HorizontalGridLinesBrush" Value="#313244"/>
-            <Setter Property="RowBackground"            Value="#181825"/>
-            <Setter Property="AlternatingRowBackground" Value="#1E1E2E"/>
-            <Setter Property="ColumnHeaderHeight"       Value="32"/>
-            <Setter Property="RowHeight"                Value="26"/>
-            <Setter Property="FontSize"                 Value="12"/>
-            <Setter Property="FontFamily"               Value="Consolas"/>
-            <Setter Property="SelectionMode"            Value="Single"/>
-            <Setter Property="IsReadOnly"               Value="True"/>
-            <Setter Property="AutoGenerateColumns"      Value="True"/>
-            <Setter Property="CanUserSortColumns"       Value="True"/>
-            <Setter Property="CanUserResizeColumns"     Value="True"/>
-            <Setter Property="EnableRowVirtualization"  Value="True"/>
-            <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True"/>
-        </Style>
-        <Style TargetType="DataGridColumnHeader">
-            <Setter Property="Background"      Value="#252536"/>
-            <Setter Property="Foreground"      Value="#89B4FA"/>
-            <Setter Property="FontWeight"      Value="SemiBold"/>
-            <Setter Property="FontSize"        Value="11"/>
-            <Setter Property="Padding"         Value="8,0"/>
-            <Setter Property="BorderBrush"     Value="#45475A"/>
-            <Setter Property="BorderThickness" Value="0,0,1,1"/>
-        </Style>
-        <Style TargetType="DataGridRow">
-            <Setter Property="Background" Value="Transparent"/>
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#313244"/>
-                    <Setter Property="Foreground" Value="#CDD6F4"/>
-                </Trigger>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#2A2A3C"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-        <Style TargetType="DataGridCell">
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding"         Value="6,0"/>
-            <Setter Property="Foreground"      Value="#CDD6F4"/>
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="Transparent"/>
-                    <Setter Property="BorderBrush" Value="Transparent"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
     </UserControl.Resources>
 
     <Grid>

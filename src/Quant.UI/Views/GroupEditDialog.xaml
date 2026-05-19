@@ -24,16 +24,7 @@
             <Setter Property="Padding"         Value="6,4"/>
             <Setter Property="Margin"          Value="0,0,0,12"/>
         </Style>
-        <Style x:Key="Cmb" TargetType="ComboBox">
-            <Setter Property="Background"      Value="#252536"/>
-            <Setter Property="Foreground"      Value="#CDD6F4"/>
-            <Setter Property="BorderBrush"     Value="#45475A"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="FontFamily"      Value="Consolas"/>
-            <Setter Property="FontSize"        Value="12"/>
-            <Setter Property="Padding"         Value="6,4"/>
-            <Setter Property="Margin"          Value="0,0,0,12"/>
-        </Style>
+
     </Window.Resources>
     <Grid Margin="20">
         <Grid.RowDefinitions>
@@ -42,7 +33,7 @@
         </Grid.RowDefinitions>
         <StackPanel Grid.Row="0">
             <TextBlock Text="Kind" Style="{StaticResource Lbl}"/>
-            <ComboBox x:Name="CmbKind" Style="{StaticResource Cmb}" Background="#FF272798" Foreground="#FFC7C010">
+            <ComboBox x:Name="CmbKind" Background="#FF272798" Foreground="#FFC7C010">
                 <ComboBoxItem Content="watch"/>
                 <ComboBoxItem Content="theme"/>
                 <ComboBoxItem Content="sector"/>

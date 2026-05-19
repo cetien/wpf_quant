@@ -4,92 +4,6 @@
              Background="#1E1E2E">
 
     <UserControl.Resources>
-        <!-- DataGrid 스타일 -->
-        <Style x:Key="QuantDataGrid" TargetType="DataGrid">
-            <Setter Property="Background"               Value="#181825"/>
-            <Setter Property="Foreground"               Value="#CDD6F4"/>
-            <Setter Property="BorderBrush"              Value="#45475A"/>
-            <Setter Property="BorderThickness"          Value="1"/>
-            <Setter Property="GridLinesVisibility"      Value="Horizontal"/>
-            <Setter Property="HorizontalGridLinesBrush" Value="#313244"/>
-            <Setter Property="RowBackground"            Value="#181825"/>
-            <Setter Property="AlternatingRowBackground" Value="#1E1E2E"/>
-            <Setter Property="ColumnHeaderHeight"       Value="32"/>
-            <Setter Property="RowHeight"                Value="26"/>
-            <Setter Property="FontSize"                 Value="12"/>
-            <Setter Property="FontFamily"               Value="Consolas"/>
-            <Setter Property="SelectionMode"            Value="Single"/>
-            <Setter Property="IsReadOnly"               Value="True"/>
-            <Setter Property="AutoGenerateColumns"      Value="True"/>
-            <Setter Property="CanUserSortColumns"       Value="True"/>
-            <Setter Property="CanUserResizeColumns"     Value="True"/>
-            <Setter Property="EnableRowVirtualization"  Value="True"/>
-            <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True"/>
-        </Style>
-
-        <Style TargetType="DataGridColumnHeader">
-            <Setter Property="Background"      Value="#252536"/>
-            <Setter Property="Foreground"      Value="#89B4FA"/>
-            <Setter Property="FontWeight"      Value="SemiBold"/>
-            <Setter Property="FontSize"        Value="11"/>
-            <Setter Property="Padding"         Value="8,0"/>
-            <Setter Property="BorderBrush"     Value="#45475A"/>
-            <Setter Property="BorderThickness" Value="0,0,1,1"/>
-        </Style>
-
-        <Style TargetType="DataGridRow">
-            <Setter Property="Background" Value="Transparent"/>
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#313244"/>
-                    <Setter Property="Foreground" Value="#CDD6F4"/>
-                </Trigger>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#2A2A3C"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style TargetType="DataGridCell">
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding"         Value="6,0"/>
-            <Setter Property="Foreground"      Value="#CDD6F4"/>
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="Transparent"/>
-                    <Setter Property="BorderBrush" Value="Transparent"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="TableButton" TargetType="Button">
-            <Setter Property="Background"    Value="Transparent"/>
-            <Setter Property="Foreground"    Value="#CDD6F4"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="HorizontalContentAlignment" Value="Left"/>
-            <Setter Property="Padding"       Value="12,6"/>
-            <Setter Property="FontSize"      Value="12"/>
-            <Setter Property="Cursor"        Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bd" Background="{TemplateBinding Background}"
-                                CornerRadius="4" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#313244"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#45475A"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
 
         <Style x:Key="SqlBox" TargetType="TextBox">
             <Setter Property="Background"      Value="#252536"/>
@@ -101,6 +15,7 @@
             <Setter Property="FontSize"        Value="12"/>
             <Setter Property="Padding"         Value="8"/>
         </Style>
+
     </UserControl.Resources>
 
     <Grid>
@@ -116,6 +31,8 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="36"/>
                     <RowDefinition Height="*"/>
+                    <RowDefinition Height="26"/>
+                    <RowDefinition Height="26"/>
                     <RowDefinition Height="200"/>
                 </Grid.RowDefinitions>
                 <Border Grid.Row="0" Background="#252536" Padding="12,0">
@@ -126,7 +43,18 @@
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                     <StackPanel x:Name="TableList" Margin="4,4"/>
                 </ScrollViewer>
-                <TextBox x:Name="TxtSqlSample" Grid.Row="2" Style="{StaticResource SqlBox}" Text="SELECT * FROM stocks LIMIT 500"/>
+                <ComboBox x:Name="CmbCommandType" Grid.Row="2" Background="#313244" SelectionChanged="CmbCommandType_SelectionChanged">
+                    <ComboBoxItem Content="SELECT" IsSelected="True"/>
+                    <ComboBoxItem Content="UPDATE"/>
+                    <ComboBoxItem Content="INSERT"/>
+                    <ComboBoxItem Content="DELETE"/>
+                </ComboBox>
+                <TextBox x:Name="TxtWhere" Grid.Row="3" 
+                             Background="#313244" Foreground="#CDD6F4"
+                             BorderBrush="#45475A" BorderThickness="1"
+                             FontFamily="Consolas" FontSize="12" Padding="4,2"
+                             VerticalContentAlignment="Center" Text="ticker='000000'"/>
+                <TextBox x:Name="TxtSqlSample" Grid.Row="4" Style="{StaticResource SqlBox}" Text="SELECT * FROM stocks LIMIT 500"/>
             </Grid>
         </Border>
 
@@ -138,12 +66,32 @@
         <Grid Grid.Column="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="44"/>
+                <RowDefinition Height="44"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="22"/>
             </Grid.RowDefinitions>
 
-            <!-- SQL 바 -->
+            <!-- function button -->
             <Border Grid.Row="0" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1">
+                <Grid Margin="8,4">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="TxtCurrTicker" Text="ticker" Style="{StaticResource SectionLabel}"
+                               Foreground="#6C7086" Margin="0,0,16,0"/>
+                        <Button Content="✕ cache"    Style="{StaticResource ActionBtn}" Tag="stock_cache" Click="BtnFunction_Click" Foreground="#F38BA8"/>
+                        <Button Content="✕ price"   Style="{StaticResource ActionBtn}" Tag="daily_prices" Click="BtnFunction_Click" Foreground="#F38BA8"/>
+                        <Button Content="✕ supply"   Style="{StaticResource ActionBtn}" Tag="supply" Click="BtnFunction_Click" Foreground="#F38BA8"/>
+                        <Button Content="✕ fundamentals"   Style="{StaticResource ActionBtn}" Tag="fundamentals" Click="BtnFunction_Click" Foreground="#F38BA8"/>
+                        <Button Content="✕ group"   Style="{StaticResource ActionBtn}" Tag="stock_group_map" Click="BtnFunction_Click" Foreground="#F38BA8"/>
+                        <Button Content="✕ stocks"   Style="{StaticResource ActionBtn}" Tag="stocks" Click="BtnFunction_Click" Foreground="#F38BA8"/>
+                    </StackPanel>
+                    <TextBlock x:Name="TxtTickerInfo" HorizontalAlignment="Right"
+                           FontSize="10" FontFamily="Consolas"
+                           Foreground="#6C7086" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <!-- SQL 바 -->
+            <Border Grid.Row="1" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1">
                 <Grid Margin="8,4">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -151,7 +99,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="TxtSql" Grid.Column="0" Style="{StaticResource SqlBox}"
                              VerticalAlignment="Center" Height="32"
-                             Text="SELECT * FROM stocks LIMIT 500"
+                             Text="SELECT * FROM stocks WHERE 1 LIMIT 500"
                              KeyDown="TxtSql_KeyDown"/>
                     <Button Grid.Column="1" Content="▶ 실행" Margin="6,0,0,0"
                             Background="#89B4FA" Foreground="#1E1E2E"
@@ -162,12 +110,12 @@
             </Border>
 
             <!-- DataGrid -->
-            <DataGrid x:Name="MainGrid" Grid.Row="1"
+            <DataGrid x:Name="MainGrid" Grid.Row="2"
                       Style="{StaticResource QuantDataGrid}"
                       Margin="0"/>
 
             <!-- 행 카운트 -->
-            <Border Grid.Row="2" Background="#252536" Padding="10,0">
+            <Border Grid.Row="3" Background="#252536" Padding="10,0">
                 <TextBlock x:Name="TxtRowCount" Text=""
                            FontSize="10" FontFamily="Consolas"
                            Foreground="#6C7086" VerticalAlignment="Center"/>

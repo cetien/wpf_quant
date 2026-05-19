@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS stocks (
     ticker          TEXT        NOT NULL,
     name            TEXT        NOT NULL,
     market          TEXT        NOT NULL,-- CHECK (market IN ('KP', 'KQ', 'NYSE')),
-    security_type   TEXT        NOT NULL,   -- 'stock' | 'index' | 'etf'
+    security_type   TEXT        NOT NULL,   -- 'stock' | 'index' | 'ETF'
     listed_date     DATE,
     rating          INTEGER     NOT NULL DEFAULT 5,
     is_active       BOOLEAN     NOT NULL DEFAULT TRUE,

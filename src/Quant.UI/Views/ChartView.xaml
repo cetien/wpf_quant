@@ -9,66 +9,6 @@
 
     <UserControl.Resources>
 
-        <!-- ── 기간 버튼 ────────────────────────────────────── -->
-        <Style x:Key="PeriodBtn" TargetType="Button">
-            <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="#6C7086"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding"         Value="8,4"/>
-            <Setter Property="FontSize"        Value="11"/>
-            <Setter Property="FontFamily"      Value="Consolas"/>
-            <Setter Property="Cursor"          Value="Hand"/>
-            <Setter Property="Margin"          Value="2,0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bd" Background="{TemplateBinding Background}"
-                                CornerRadius="4" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#313244"/>
-                                <Setter Property="Foreground" Value="#CDD6F4"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- ── 토글 버튼 (선/봉, 로그, MA, 지표) ──────────── -->
-        <Style x:Key="ToggleBtn" TargetType="Button">
-            <Setter Property="Background"      Value="#252536"/>
-            <Setter Property="Foreground"      Value="#6C7086"/>
-            <Setter Property="BorderBrush"     Value="#313244"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding"         Value="7,3"/>
-            <Setter Property="FontSize"        Value="10"/>
-            <Setter Property="FontFamily"      Value="Consolas"/>
-            <Setter Property="Cursor"          Value="Hand"/>
-            <Setter Property="Margin"          Value="2,0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bd"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="3" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#313244"/>
-                                <Setter Property="Foreground" Value="#CDD6F4"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
         <!-- 지표 레이블 -->
         <Style x:Key="MetaLabel" TargetType="TextBlock">
             <Setter Property="FontFamily"        Value="Consolas"/>
@@ -95,58 +35,6 @@
             <Setter Property="Margin"            Value="6,3"/>
         </Style>
 
-        <!-- DataGrid -->
-        <Style x:Key="QuantDataGrid" TargetType="DataGrid">
-            <Setter Property="Background"               Value="#181825"/>
-            <Setter Property="Foreground"               Value="#CDD6F4"/>
-            <Setter Property="BorderBrush"              Value="#45475A"/>
-            <Setter Property="BorderThickness"          Value="1"/>
-            <Setter Property="GridLinesVisibility"      Value="Horizontal"/>
-            <Setter Property="HorizontalGridLinesBrush" Value="#313244"/>
-            <Setter Property="RowBackground"            Value="#181825"/>
-            <Setter Property="AlternatingRowBackground" Value="#1E1E2E"/>
-            <Setter Property="ColumnHeaderHeight"       Value="28"/>
-            <Setter Property="RowHeight"                Value="24"/>
-            <Setter Property="FontSize"                 Value="11"/>
-            <Setter Property="FontFamily"               Value="Consolas"/>
-            <Setter Property="SelectionMode"            Value="Single"/>
-            <Setter Property="IsReadOnly"               Value="True"/>
-            <Setter Property="AutoGenerateColumns"      Value="True"/>
-            <Setter Property="CanUserSortColumns"       Value="True"/>
-            <Setter Property="CanUserResizeColumns"     Value="True"/>
-        </Style>
-        <Style TargetType="DataGridColumnHeader">
-            <Setter Property="Background"      Value="#252536"/>
-            <Setter Property="Foreground"      Value="#89B4FA"/>
-            <Setter Property="FontWeight"      Value="SemiBold"/>
-            <Setter Property="FontSize"        Value="11"/>
-            <Setter Property="Padding"         Value="8,0"/>
-            <Setter Property="BorderBrush"     Value="#45475A"/>
-            <Setter Property="BorderThickness" Value="0,0,1,1"/>
-        </Style>
-        <Style TargetType="DataGridRow">
-            <Setter Property="Background" Value="Transparent"/>
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#313244"/>
-                    <Setter Property="Foreground" Value="#CDD6F4"/>
-                </Trigger>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#2A2A3C"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-        <Style TargetType="DataGridCell">
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding"         Value="6,0"/>
-            <Setter Property="Foreground"      Value="#CDD6F4"/>
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="Transparent"/>
-                    <Setter Property="BorderBrush" Value="Transparent"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
 
     </UserControl.Resources>
 
@@ -187,6 +75,11 @@
                             Foreground="#8BF9BA" Click="BtnDownloadData_Click" ToolTip="가격 데이터 다운로드"/>
                         <Button Content="🔗" Width="30" Height="26" Style="{StaticResource PeriodBtn}"
                             Foreground="#8BF9BA" Click="BtnExternalLink_Click" ToolTip="네이버 금융"/>
+                        <!-- 종목 제거 버튼 -->
+                        <Button x:Name="BtnDeleteStock" Content="✗" Width="30" Height="26"
+                            Style="{StaticResource PeriodBtn}"
+                            Foreground="#F38BA8"
+                            Click="BtnDeleteStock_Click" ToolTip="종목 영구제거 (SPAC 등)"/>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -344,33 +237,33 @@
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
 
                 <!-- 차트 타입 -->
-                <Button x:Name="BtnChartType" Content="선" Style="{StaticResource ToggleBtn}"
+                <Button x:Name="BtnChartType" Content="선" Style="{StaticResource ActionBtn}"
                         Click="BtnChartType_Click" ToolTip="선/봉 전환"/>
                 <!-- 로그 스케일 -->
-                    <!-- <Button x:Name="BtnLog" Content="Log" Style="{StaticResource ToggleBtn}" Click="BtnLog_Click" ToolTip="로그 스케일"/> -->
+                    <!-- <Button x:Name="BtnLog" Content="Log" Style="{StaticResource ActionBtn}" Click="BtnLog_Click" ToolTip="로그 스케일"/> -->
 
                 <Rectangle Fill="#313244" Width="1" Margin="6,4"/>
 
                 <!-- MA 토글 -->
                 <TextBlock Text="MA" FontFamily="Consolas" FontSize="10"
                            Foreground="#45475A" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                <Button Content="5"   Tag="5"   Style="{StaticResource ToggleBtn}" Click="BtnMa_Click"
+                <Button Content="5"   Tag="5"   Style="{StaticResource ActionBtn}" Click="BtnMa_Click"
                         Foreground="#F9E2AF" ToolTip="MA5 (노랑)"/>
-                <Button Content="20"  Tag="20"  Style="{StaticResource ToggleBtn}" Click="BtnMa_Click"
+                <Button Content="20"  Tag="20"  Style="{StaticResource ActionBtn}" Click="BtnMa_Click"
                         Foreground="#A6E3A1" ToolTip="MA20 (초록)"/>
-                <Button Content="60"  Tag="60"  Style="{StaticResource ToggleBtn}" Click="BtnMa_Click"
+                <Button Content="60"  Tag="60"  Style="{StaticResource ActionBtn}" Click="BtnMa_Click"
                         Foreground="#FAB387" ToolTip="MA60 (주황)"/>
-                <Button Content="120" Tag="120" Style="{StaticResource ToggleBtn}" Click="BtnMa_Click"
+                <Button Content="120" Tag="120" Style="{StaticResource ActionBtn}" Click="BtnMa_Click"
                         Foreground="#CBA6F7" ToolTip="MA120 (보라)"/>
 
                 <Rectangle Fill="#313244" Width="1" Margin="6,4"/>
 
                 <!-- 보조지표 -->
-                <Button x:Name="BtnVol"  Content="VOL"  Style="{StaticResource ToggleBtn}"
+                <Button x:Name="BtnVol"  Content="VOL"  Style="{StaticResource ActionBtn}"
                         Click="BtnVol_Click"  ToolTip="거래량"/>
-                <Button x:Name="BtnMacd" Content="MACD" Style="{StaticResource ToggleBtn}"
+                <Button x:Name="BtnMacd" Content="MACD" Style="{StaticResource ActionBtn}"
                         Click="BtnMacd_Click" ToolTip="MACD (12/26/9)"/>
-                <Button x:Name="BtnRsi"  Content="RSI"  Style="{StaticResource ToggleBtn}"
+                <Button x:Name="BtnRsi"  Content="RSI"  Style="{StaticResource ActionBtn}"
                         Click="BtnRsi_Click"  ToolTip="RSI (14)"/>
 
             </StackPanel>
@@ -518,5 +411,109 @@
         </Canvas>
 
     </Grid>
+
+    <!-- ══ 신규종목 등록 Popup ════════════════════════════════
+         종목이 stocks테이블에 없을 때 Load 후 표시.
+         실제 Popup은 Left Panel 없는 Right side(ChartGrid)와 격리될 수 있어
+         전체 Grid를 덮는 Adorner로 구현.
+    ═══════════════════════════════════════════════════════ -->
+    <Grid x:Name="RegisterOverlay"
+          Visibility="Collapsed"
+          Background="#AA000000">
+        <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="#252536" BorderBrush="#45475A" BorderThickness="1"
+                CornerRadius="6" Padding="24,20" MinWidth="360">
+            <StackPanel>
+                <!-- 제목 -->
+                <TextBlock Text="신규 종목 등록"
+                           FontFamily="Consolas" FontSize="13" FontWeight="Bold"
+                           Foreground="#CDD6F4" Margin="0,0,0,14"/>
+
+                <!-- ticker + 조회된 정보 -->
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="80"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Ticker" Style="{StaticResource MetaLabel}" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="TxtRegTicker" Grid.Column="1"
+                               FontFamily="Consolas" FontSize="12" FontWeight="Bold"
+                               Foreground="#89B4FA" VerticalAlignment="Center"/>
+                </Grid>
+
+                <!-- 종목명 -->
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="80"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="종목명" Style="{StaticResource MetaLabel}" VerticalAlignment="Center"/>
+                    <TextBox x:Name="TxtRegName" Grid.Column="1"
+                             Height="26" Padding="6,2"
+                             Background="#313244" Foreground="#CDD6F4"
+                             BorderBrush="#45475A" BorderThickness="1"
+                             FontFamily="Consolas" FontSize="11"
+                             VerticalContentAlignment="Center"
+                             ToolTip="Yahoo에서 자동 조회. 실패 시 직접 입력."/>
+                </Grid>
+
+                <!-- Market -->
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="80"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Market" Style="{StaticResource MetaLabel}" VerticalAlignment="Center"/>
+                    <ComboBox x:Name="CmbRegMarket" Grid.Column="1"
+                              Height="26"
+                              Background="#313244">
+                        <ComboBoxItem Content="KP" IsSelected="True"/>
+                        <ComboBoxItem Content="KQ"/>
+                        <ComboBoxItem Content="NYSE"/>
+                        <ComboBoxItem Content="NASDAQ"/>
+                        <ComboBoxItem Content="ETC"/>
+                    </ComboBox>
+                </Grid>
+
+                <!-- 유형 -->
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="80"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="유형" Style="{StaticResource MetaLabel}" VerticalAlignment="Center"/>
+                    <ComboBox x:Name="CmbRegType" Grid.Column="1"
+                              Height="26"
+                              Background="#313244">
+                        <ComboBoxItem Content="stock" IsSelected="True"/>
+                        <ComboBoxItem Content="ETF"/>
+                        <ComboBoxItem Content="index"/>
+                    </ComboBox>
+                </Grid>
+
+                <!-- Yahoo 조회 상태 메시지 -->
+                <TextBlock x:Name="TxtRegMsg"
+                           FontFamily="Consolas" FontSize="10"
+                           Foreground="#6C7086"
+                           Margin="0,4,0,12" TextWrapping="Wrap"
+                           Text="Yahoo에서 자동 조회 중..."/>
+
+                <!-- 버튼 행 -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="취소" Width="64" Height="28" Margin="0,0,8,0"
+                            Style="{StaticResource ActionBtn}"
+                            Click="BtnRegCancel_Click"/>
+                    <Button x:Name="BtnRegSave" Content="등록" Width="64" Height="28"
+                            Background="#89B4FA" Foreground="#1E1E2E"
+                            BorderThickness="0" FontWeight="Bold" FontSize="11"
+                            Cursor="Hand"
+                            Click="BtnRegSave_Click"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
     </Grid>
+
+</Grid>
+
 </UserControl>
+

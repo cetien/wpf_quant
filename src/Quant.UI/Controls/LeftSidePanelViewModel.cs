@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Quant.Core.Infrastructure;
 using Quant.Core.Services;
@@ -77,7 +77,13 @@ public class ScreenerRow
     /// 사용자 입력 문자열을 여기에 할당하는 것은 SQL 인젝션 경로이므로 금지.
     /// 편집 view 구현 시 반드시 파라미터 바인딩 또는 AST 빌더로 교체할 것.
     /// </summary>
-    public string SqlWhere    { get; set; } = "";
+    public string SqlWhere          { get; set; } = "";
+
+    /// <summary>
+    /// true → fundamentals 테이블 INNER JOIN (PBR/PER/ROE 필터 사용 스크리너)
+    /// false → LEFT JOIN (ETF 등 재무데이터 없는 종목 포함)
+    /// </summary>
+    public bool   NeedsFundamentals { get; set; } = true;
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -251,19 +257,27 @@ public partial class LeftSidePanelViewModel : ObservableObject
         // ⚠️ SqlWhere는 하드코딩 리터럴만. 사용자 입력 할당 금지.
         Screeners.Add(new ScreenerRow
         {
-            Id = 1, Name = "KOSPI · PBR < 1.5",
+            Id = 1,
+            Name = "ETF",
+            Description = "ETF",
+            SqlWhere = "s.security_type = 'ETF'",
+            NeedsFundamentals = false
+        });
+        Screeners.Add(new ScreenerRow
+        {
+            Id = 2, Name = "KOSPI · PBR < 1.5",
             Description = "코스피 저PBR",
             SqlWhere = "s.market = 'KP' AND f.pbr < 1.5 AND f.pbr > 0"
         });
         Screeners.Add(new ScreenerRow
         {
-            Id = 2, Name = "ROE > 15%",
+            Id = 3, Name = "ROE > 15%",
             Description = "고ROE 전체",
             SqlWhere = "f.roe > 15"
         });
         Screeners.Add(new ScreenerRow
         {
-            Id = 3, Name = "KOSDAQ · PER < 10",
+            Id = 4, Name = "KOSDAQ · PER < 10",
             Description = "코스닥 저PER",
             SqlWhere = "s.market = 'KQ' AND f.per > 0 AND f.per < 10"
         });
@@ -287,15 +301,19 @@ public partial class LeftSidePanelViewModel : ObservableObject
         {
             var activeFilter  = ShowOnlyActive ? "AND s.is_active = TRUE" : "";
             var excludeFilter = _db.BuildStockExcludeFilter("s", "c");
+            var needsF        = SelectedScreener?.NeedsFundamentals ?? true;
+            var fJoin         = needsF
+                ? "JOIN latest_f f ON s.ticker = f.ticker AND f.rn = 1"
+                : "LEFT JOIN latest_f f ON s.ticker = f.ticker AND f.rn = 1";
             var sql = $"""
                 WITH latest_f AS (
                     SELECT ticker, pbr, per, roe,
                            ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY report_date DESC) AS rn
                     FROM fundamentals
                 )
-                SELECT s.ticker, s.name, s.market, s.rating
+                SELECT s.ticker, s.name, s.market, s.rating, s.security_type
                 FROM stocks s
-                JOIN latest_f f         ON s.ticker = f.ticker AND f.rn = 1
+                {fJoin}
                 LEFT JOIN stock_cache c ON c.ticker  = s.ticker
                 WHERE {whereClause} {activeFilter} {excludeFilter}
                 ORDER BY s.ticker

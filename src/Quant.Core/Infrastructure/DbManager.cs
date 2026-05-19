@@ -12,6 +12,9 @@ using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Quant.Core.Infrastructure;
 
+//TODO: DeleteStockAllData(): "DELETE FROM stocks" -> DuckDB.NET.Data.DuckDBException: 'Constraint Error: Violates foreign key constraint because key "ticker: 0072Z0" is still referenced by a foreign key in a different table. If this is an unexpected constraint violation, please refer to our foreign key limitations in the documentation'
+
+
 public sealed class StockCache
 {
     public string Ticker { get; set; } = "";
@@ -106,6 +109,8 @@ public sealed class DbManager
     //  Singleton (DI 미사용 환경용)
     // ──────────────────────────────────────────────────────────
 
+    private readonly object _optionsLock = new();
+    private AppOptions? _optionsCache;
     private static DbManager? _instance;
 
     /// <summary>
@@ -941,12 +946,24 @@ final_select AS (
     // ──────────────────────────────────────────────────────────
 
     /// <summary>
+    /// 캐시된 옵션을 초기화하여 다음 호출 시 DB에서 새로 읽도록 한다.
+    /// </summary>
+    public void RefreshOptions()
+    {
+        lock (_optionsLock) { _optionsCache = null; }
+    }
+
+    /// <summary>
     /// options 테이블 전체를 읽어 AppOptions 객체로 반환.
     /// 테이블이 없거나 키가 없으면 기본값 사용.
     /// </summary>
     public AppOptions LoadOptions()
     {
-        var opts = new AppOptions();
+        lock (_optionsLock)
+        {
+            if (_optionsCache != null) return _optionsCache;
+
+            var opts = new AppOptions();
         try
         {
             var dt = Query("SELECT key, value FROM options");
@@ -973,7 +990,10 @@ final_select AS (
                 opts.ExcludeHalted = v8 != "false";
         }
         catch { /* options 테이블 미생성 시 기본값 반환 */ }
-        return opts;
+
+            _optionsCache = opts;
+            return opts;
+        }
     }
 
     /// <summary>
@@ -989,6 +1009,7 @@ final_select AS (
         UpsertOption("exclude_spac",           opts.ExcludeSpac ? "true" : "false");
         UpsertOption("exclude_pref_stock",     opts.ExcludePrefStock ? "true" : "false");
         UpsertOption("exclude_halted",           opts.ExcludeHalted ? "true" : "false");
+        lock (_optionsLock) { _optionsCache = opts; }
     }
 
     /// <summary>
@@ -1013,8 +1034,82 @@ final_select AS (
             : "";
     }
 
+    // ──────────────────────────────────────────────────────────
+    //  Stock 등록 / 삭제
+    // ──────────────────────────────────────────────────────────
+
+    /// <summary>stocks 테이블에 ticker가 존재하는지 확인.</summary>
+    public bool StockExists(string ticker)
+    {
+        using var conn = OpenNativeConnection();
+        using var cmd  = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM stocks WHERE ticker = $1";
+        cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
+        var result = cmd.ExecuteScalar();
+        return result is not null && result is not DBNull && Convert.ToInt64(result) > 0;
+    }
+
+    /// <summary>
+    /// stocks 테이블 upsert (전체 컬럼 지정 버전).
+    /// market: 'KP' | 'KQ' | 'NYSE' 등
+    /// securityType: 'stock' | 'ETF' | 'index'
+    /// </summary>
+    public void UpsertStock(string ticker, string name, string market,
+                            string securityType, string? sector, bool isEtf)
+    {
+        using var conn = OpenNativeConnection();
+        using var cmd  = conn.CreateCommand();
+        // sector 컬럼이 없으면 무시 (스키마에 따라 조정)
+        cmd.CommandText = @"
+            INSERT INTO stocks (ticker, name, market, security_type, is_active, updated_at)
+            VALUES ($1, $2, $3, $4, TRUE, now())
+            ON CONFLICT (ticker) DO UPDATE SET
+                name          = excluded.name,
+                market        = excluded.market,
+                security_type = excluded.security_type,
+                is_active     = TRUE,
+                updated_at    = now()";
+        cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
+        cmd.Parameters.Add(new DuckDBParameter { Value = name });
+        cmd.Parameters.Add(new DuckDBParameter { Value = market });
+        cmd.Parameters.Add(new DuckDBParameter { Value = securityType });
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// ticker 관련 모든 데이터 삭제.
+    /// 순서: stock_cache → supply → fundamentals → daily_prices → stock_group_map → stocks
+    /// </summary>
+    public void DeleteStockAllData(string ticker)
+    {
+        using var conn  = OpenNativeConnection();
+        using var trans = conn.BeginTransaction();
+        try
+        {
+            foreach (var sql in new[]
+            {
+                "DELETE FROM stock_cache      WHERE ticker = $1",
+                "DELETE FROM supply           WHERE ticker = $1",
+                "DELETE FROM fundamentals     WHERE ticker = $1",
+                "DELETE FROM daily_prices     WHERE ticker = $1",
+                "DELETE FROM stock_group_map  WHERE ticker = $1",
+                "DELETE FROM stocks           WHERE ticker = $1",
+            })
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = sql;
+                cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
+                cmd.ExecuteNonQuery();
+            }
+            trans.Commit();
+        }
+        catch { trans.Rollback(); throw; }
+    }
+
     private void UpsertOption(string key, string value)
     {
+        lock (_optionsLock) { _optionsCache = null; }
+
         using var conn = OpenConnection();
         using var cmd  = conn.CreateCommand();
         cmd.CommandText = @"

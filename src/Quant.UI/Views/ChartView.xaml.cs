@@ -20,6 +20,9 @@ namespace Quant.UI.Views;
 
 internal record OhlcvRow(DateTime Date, double Open, double High, double Low, double Close, double AdjClose, long Volume);
 
+// 신규종목 등록 팝업 상태
+internal record RegisterState(string Ticker, string? FetchedName, string? FetchedMarket, string? FetchedType);
+
 public partial class ChartView : UserControl
 {
     public event Action<string, string>? StatusChanged;
@@ -65,11 +68,14 @@ public partial class ChartView : UserControl
     private int    _periodDays    = 365;
     private string _currentTicker = "";
 
+    // 신규종목 등록 팝업 상태
+    private RegisterState? _pendingRegister;
+
     private bool _isCandlestick = false;
     private bool _showVol       = true;
     private bool _showMacd      = true;
     private bool _showRsi       = true;
-    private readonly HashSet<int> _activeMas = [20, 60];
+    private readonly HashSet<int> _activeMas = [20, 60, 120];
 
     private static readonly Dictionary<int, SKColor> MaColors = new()
     {
@@ -87,7 +93,11 @@ public partial class ChartView : UserControl
         InitAxes();
         Loaded += (_, _) =>
         {
-            HighlightPeriodBtn(Btn1Y, new[] { Btn1M, Btn3M, Btn6M, Btn1Y, Btn2Y, BtnAll });
+            Helpers.HighlightButton(Btn1Y, new[] { Btn1M, Btn3M, Btn6M, Btn1Y, Btn2Y, BtnAll });
+            Helpers.HighlightButton(null, new[] { BtnVol, BtnMacd, BtnRsi });
+            if (_showVol) Helpers.HighlightButton(BtnVol);
+            if (_showMacd) Helpers.HighlightButton(BtnMacd);
+            if (_showRsi) Helpers.HighlightButton(BtnRsi);
             SyncDrawMargin();
             LoadChart();
         };
@@ -309,9 +319,17 @@ public partial class ChartView : UserControl
     {
         var ticker = TxtTickerCode.Text.Trim().ToUpper();
         if (string.IsNullOrEmpty(ticker)) return;
+
+        DbManager.Instance.LoadOptions().LastTicker = ticker;
         _currentTicker = ticker;
         try
         {
+            // ── stocks 테이블에 없으면 신규등록 Popup 표시 ─────────────
+            if (!_db.StockExists(ticker))
+            {
+                OpenRegisterPopup(ticker);
+                return;
+            }
             RatingCtrl.Rating = _db.GetStockInfo(ticker).rating;
             LoadInfo_ReturnRatio(ticker);
             LoadInfoPanel(ticker);
@@ -728,13 +746,13 @@ public partial class ChartView : UserControl
     private void BtnMacd_Click(object sender, RoutedEventArgs e) { _showMacd = !_showMacd; ApplyPeriod(); }
     private void BtnRsi_Click(object sender, RoutedEventArgs e)  { _showRsi  = !_showRsi;  ApplyPeriod(); }
 
-    private void HighlightPeriodBtn(Button active, IEnumerable<Button> all)
-    {
-        foreach (var b in all)
-            b.Foreground = System.Windows.Media.Brushes.Gray;
-        active.Foreground = new System.Windows.Media.SolidColorBrush(
-            (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#89B4FA"));
-    }
+    //private void HighlightPeriodBtn(Button active, IEnumerable<Button> all)
+    //{
+    //    foreach (var b in all)
+    //        b.Foreground = System.Windows.Media.Brushes.Gray;
+    //    active.Foreground = (System.Windows.Media.Brush)(TryFindResource("AccentBlueBrush")
+    //        ?? System.Windows.Media.Brushes.LightBlue);
+    //}
 
     // ══════════════════════════════════════════════════════════
     //  Info 패널
@@ -843,7 +861,7 @@ public partial class ChartView : UserControl
     {
         if (sender is not Button btn) return;
         _periodDays = int.Parse(btn.Tag?.ToString() ?? "365");
-        HighlightPeriodBtn(btn, new[] { Btn1M, Btn3M, Btn6M, Btn1Y, Btn2Y, BtnAll });
+        Helpers.HighlightButton(btn, new[] { Btn1M, Btn3M, Btn6M, Btn1Y, Btn2Y, BtnAll });
         ApplyPeriod();
     }
 
@@ -862,7 +880,6 @@ public partial class ChartView : UserControl
         var pos = e.GetPosition(ChartGrid);
 
         // Row 0~2 누적 높이 계산 (헤더44 + 툴바32 + 수급패널Auto)
-        // ActualHeight로 정확하게 읽음
         double headerH = ChartGrid.RowDefinitions[0].ActualHeight
                        + ChartGrid.RowDefinitions[1].ActualHeight
                        + ChartGrid.RowDefinitions[2].ActualHeight;
@@ -879,6 +896,7 @@ public partial class ChartView : UserControl
         if (pos.Y < headerH || pos.Y > headerH + chartAreaH)
         {
             CrosshairCanvas.Visibility = Visibility.Collapsed;
+            TooltipPanel.Visibility    = Visibility.Collapsed;
             return;
         }
 
@@ -895,11 +913,101 @@ public partial class ChartView : UserControl
         // 가로선: Y 고정, X는 Canvas 전체 너비
         CrossH.X1 = 0;          CrossH.Y1 = cy;
         CrossH.X2 = chartAreaW; CrossH.Y2 = cy;
+
+        // ── 툴팁 데이터 인덱스 계산 ──────────────────────────────
+        // PlotArea: SyncDrawMargin 에서 Right=52px 고정.
+        // PlotArea 좌단 = 0, 우단 = chartAreaW - 52
+        const double rightMargin = 52.0;
+        double plotW = chartAreaW - rightMargin;  // PlotArea 실제 픽셀 너비
+
+        if (_renderData.Count == 0 || plotW <= 0)
+        {
+            TooltipPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        // XAxes[0].MinLimit / MaxLimit 으로 현재 뷰 범위 취득
+        double xMin = XAxes[0].MinLimit ?? 0;
+        double xMax = XAxes[0].MaxLimit ?? (_renderData.Count - 1);
+        double xRange = xMax - xMin;
+        if (xRange <= 0)
+        {
+            TooltipPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        // cx (Canvas X) → 데이터 인덱스
+        // PlotArea 픽셀 범위 [0, plotW] → 데이터 범위 [xMin, xMax]
+        double dataX = xMin + (cx / plotW) * xRange;
+        int idx = (int)Math.Round(dataX);
+        idx = Math.Max(0, Math.Min(_renderData.Count - 1, idx));
+
+        var row = _renderData[idx];
+
+        // ── 날짜 ──────────────────────────────────────────────
+        TtDate.Text = row.Date.ToString("yyyy-MM-dd (ddd)");
+
+        // ── 가격 ──────────────────────────────────────────────
+        var priceSb = new System.Text.StringBuilder();
+        priceSb.Append($"O {row.Open:N0}  H {row.High:N0}  L {row.Low:N0}  C {row.Close:N0}");
+        if (Math.Abs(row.AdjClose - row.Close) > 1)
+            priceSb.Append($"  Adj {row.AdjClose:N0}");
+        TtPrice.Text = priceSb.ToString();
+
+        // ── MA ────────────────────────────────────────────────
+        if (_activeMas.Count > 0)
+        {
+            var prices = _renderData.Select(d => d.AdjClose).ToList();
+            var maSb   = new System.Text.StringBuilder();
+            foreach (var period in _activeMas.OrderBy(p => p))
+            {
+                if (idx >= period - 1)
+                {
+                    var avg = prices.Skip(idx - period + 1).Take(period).Average();
+                    maSb.Append($"MA{period} {avg:N0}  ");
+                }
+            }
+            TtMa.Text = maSb.ToString().TrimEnd();
+        }
+        else
+        {
+            TtMa.Text = "";
+        }
+
+        // ── VOL + 수급 ────────────────────────────────────────
+        var volSb = new System.Text.StringBuilder();
+        volSb.Append($"VOL {row.Volume:N0}");
+        if (_supplyCache.TryGetValue(idx, out var supply))
+        {
+            static string Fmt(long v) => v > 0 ? $"+{v:N0}" : v.ToString("N0");
+            volSb.Append($"  기관 {Fmt(supply.Inst)}  외인 {Fmt(supply.Fgn)}");
+        }
+        TtVol.Text = volSb.ToString();
+
+        // ── MACD ──────────────────────────────────────────────
+        if (_showMacd && _macdCache.TryGetValue(idx, out var macd))
+        {
+            TtMacd.Text = double.IsNaN(macd.Signal)
+                ? $"MACD {macd.Macd:F3}"
+                : $"MACD {macd.Macd:F3}  Sig {macd.Signal:F3}  Hist {macd.Hist:F3}";
+        }
+        else
+        {
+            TtMacd.Text = "";
+        }
+
+        // ── RSI ───────────────────────────────────────────────
+        TtRsi.Text = (_showRsi && _rsiCache.TryGetValue(idx, out var rsi))
+            ? $"RSI {rsi:F1}"
+            : "";
+
+        TooltipPanel.Visibility = Visibility.Visible;
     }
 
     private void ChartGrid_MouseLeave(object sender, MouseEventArgs e)
     {
         CrosshairCanvas.Visibility = Visibility.Collapsed;
+        TooltipPanel.Visibility    = Visibility.Collapsed;
     }
 
     private async void BtnDownloadData_Click(object sender, RoutedEventArgs e)
@@ -947,5 +1055,176 @@ public partial class ChartView : UserControl
         var (ok, message) = Helpers.OpenWithChrome(filepath);
         TxtStatus.Text = message;
         StatusChanged?.Invoke(message, ok ? "#89B4FA" : "#F38BA8");
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  신규종목 등록 Popup
+    // ══════════════════════════════════════════════════════════
+
+    // Popup을 열고 Yahoo 조회를 비동기로 시작
+    private async void OpenRegisterPopup(string ticker)
+    {
+        TxtRegTicker.Text = ticker;
+        TxtRegName.Text   = "";
+        TxtRegMsg.Text    = "Yahoo 조회 중...";
+        TxtRegMsg.Foreground = new System.Windows.Media.SolidColorBrush(
+            (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#6C7086"));
+        BtnRegSave.IsEnabled  = false;
+        RegisterOverlay.Visibility = Visibility.Visible;
+
+        // Yahoo 메타 비동기 조회
+        var svc = new PriceDownloadService(_db);
+        try
+        {
+            var meta = await svc.FetchStockMetaAsync(ticker);
+            if (meta.HasValue)
+            {
+                var m = meta.Value;
+                _pendingRegister = new RegisterState(ticker, m.LongName, m.Market, m.QuoteType);
+
+                TxtRegName.Text = m.LongName ?? "";
+
+                // Market 콤보박스 선택
+                SelectComboByContent(CmbRegMarket, m.Market ?? "KP");
+
+                // QuoteType → 유형 콤보박스
+                var typeMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    { "ETF",   "ETF"   },
+                    { "INDEX", "index" },
+                    { "EQUITY","stock" },
+                };
+                var mapped = m.QuoteType is not null && typeMap.TryGetValue(m.QuoteType, out var t) ? t : "stock";
+                SelectComboByContent(CmbRegType, mapped);
+
+                TxtRegMsg.Text = $"✅ Yahoo 조회 성공 ({m.Market}, {m.QuoteType})\n" +
+                                 $"   종목명을 확인/수정 후 등록하세요.";
+                TxtRegMsg.Foreground = new System.Windows.Media.SolidColorBrush(
+                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#A6E3A1"));
+            }
+            else
+            {
+                _pendingRegister = new RegisterState(ticker, null, null, null);
+                TxtRegMsg.Text = "⚠️ Yahoo 조회 실패. 종목명/Market/유형을 직접 입력하세요.";
+                TxtRegMsg.Foreground = new System.Windows.Media.SolidColorBrush(
+                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#F9E2AF"));
+            }
+        }
+        catch (Exception ex)
+        {
+            _pendingRegister = new RegisterState(ticker, null, null, null);
+            TxtRegMsg.Text = $"❌ 오류: {ex.Message}";
+            TxtRegMsg.Foreground = new System.Windows.Media.SolidColorBrush(
+                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#F38BA8"));
+        }
+        BtnRegSave.IsEnabled = true;
+    }
+
+    private void BtnRegCancel_Click(object sender, RoutedEventArgs e)
+    {
+        RegisterOverlay.Visibility = Visibility.Collapsed;
+        _pendingRegister = null;
+    }
+
+    private async void BtnRegSave_Click(object sender, RoutedEventArgs e)
+    {
+        if (_pendingRegister is null) return;
+
+        var name   = TxtRegName.Text.Trim();
+        var market = (CmbRegMarket.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "KP";
+        var type   = (CmbRegType.SelectedItem   as ComboBoxItem)?.Content?.ToString() ?? "stock";
+
+        if (string.IsNullOrEmpty(name))
+        {
+            TxtRegMsg.Text = "⚠️ 종목명을 입력하세요.";
+            return;
+        }
+
+        BtnRegSave.IsEnabled = false;
+        try
+        {
+            _db.UpsertStock(_pendingRegister.Ticker, name, market, type, null, type == "ETF");
+            TxtStockName.Text = name;
+            StatusChanged?.Invoke($"{_pendingRegister.Ticker} 등록 완료", "#A6E3A1");
+
+            RegisterOverlay.Visibility = Visibility.Collapsed;
+            _pendingRegister = null;
+
+            // 등록 후 자동으로 주가 다운로드 시도
+            var ticker  = TxtTickerCode.Text.Trim().ToUpper();
+            var svc     = new PriceDownloadService(_db);
+            var progress = new Progress<string>(msg => StatusChanged?.Invoke(msg, "#89B4FA"));
+            var (inserted, lastDate) = await svc.DownloadAsync(ticker, progress);
+            if (inserted > 0) _db.RebuildStockCache();
+            LoadChart();
+        }
+        catch (Exception ex)
+        {
+            TxtRegMsg.Text = $"❌ DB 저장 실패: {ex.Message}";
+            TxtRegMsg.Foreground = new System.Windows.Media.SolidColorBrush(
+                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#F38BA8"));
+            BtnRegSave.IsEnabled = true;
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  종목 영구제거
+    // ══════════════════════════════════════════════════════════
+
+    private void BtnDeleteStock_Click(object sender, RoutedEventArgs e)
+    {
+        var ticker = TxtTickerCode.Text.Trim().ToUpper();
+        if (string.IsNullOrEmpty(ticker)) return;
+
+        var name = TxtStockName.Text;
+        var result = MessageBox.Show(
+            $"종목 [{ticker}] {name}의 모든 데이터를 영구제거합니다.\n\n" +
+            $"• stock_cache\n• supply\n• fundamentals\n• daily_prices\n• stock_group_map\n• stocks\n\n" +
+            $"이 작업은 되돌릴 수 없습니다. 진행하시겠습니까?",
+            "종목 영구제거",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+
+        if (result != MessageBoxResult.Yes) return;
+
+        try
+        {
+            _db.DeleteStockAllData(ticker);
+
+            // UI 초기화
+            _allData.Clear();
+            _renderData = [];
+            Series.Clear(); VolSeries.Clear(); MacdSeries.Clear(); RsiSeries.Clear();
+            TxtStockName.Text = "-";
+            TxtChartPriceInfo.Text = "";
+            TxtChartDataLoadingInfo.Text = "";
+            TxtInstNet.Text = TxtForeignNet.Text = TxtInstAmt.Text = TxtForeignAmt.Text = "-";
+            TxtPer.Text = TxtPbr.Text = TxtEps.Text = TxtBps.Text = "-";
+            TxtStockInfo.Text = TxtStockInfo2.Text = "-";
+            GridReport.ItemsSource = null;
+
+            StatusChanged?.Invoke($"{ticker} 제거 완료", "#F9E2AF");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"제거 실패: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusChanged?.Invoke($"{ticker} 제거 실패: {ex.Message}", "#F38BA8");
+        }
+    }
+
+    // 콤보박스 콘텐츠로 항목 선택
+    private static void SelectComboByContent(ComboBox cmb, string content)
+    {
+        foreach (ComboBoxItem item in cmb.Items)
+        {
+            if (item.Content?.ToString()?.Equals(content, StringComparison.OrdinalIgnoreCase) == true)
+            {
+                cmb.SelectedItem = item;
+                return;
+            }
+        }
+        // 없으면 first 항목 선택
+        if (cmb.Items.Count > 0) cmb.SelectedIndex = 0;
     }
 }

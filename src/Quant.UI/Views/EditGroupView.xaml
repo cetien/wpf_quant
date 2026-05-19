@@ -3,158 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ctrl="clr-namespace:Quant.UI.Controls"
              xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
-             xmlns:ui="clr-namespace:Quant.UI"
              Background="#1E1E2E">
-    <UserControl.Resources>
-
-        <!-- Converters -->
-        <ui:DbNullDoubleConverter x:Key="FmtF2"/>
-        <ui:DbNullDoubleConverter x:Key="FmtF1"/>
-        <ui:DbNullDoubleConverter x:Key="FmtN0"/>
-        <ui:DbNullDoubleConverter x:Key="FmtVol"/>
-
-        <!-- DataGrid -->
-        <Style x:Key="QuantDataGrid" TargetType="DataGrid">
-            <Setter Property="Background"               Value="#181825"/>
-            <Setter Property="Foreground"               Value="#CDD6F4"/>
-            <Setter Property="BorderBrush"              Value="#45475A"/>
-            <Setter Property="BorderThickness"          Value="1"/>
-            <Setter Property="GridLinesVisibility"      Value="Horizontal"/>
-            <Setter Property="HorizontalGridLinesBrush" Value="#313244"/>
-            <Setter Property="RowBackground"            Value="#181825"/>
-            <Setter Property="AlternatingRowBackground" Value="#1E1E2E"/>
-            <Setter Property="ColumnHeaderHeight"       Value="28"/>
-            <Setter Property="RowHeight"                Value="24"/>
-            <Setter Property="FontSize"                 Value="11"/>
-            <Setter Property="FontFamily"               Value="Consolas"/>
-            <Setter Property="SelectionMode"            Value="Single"/>
-            <Setter Property="IsReadOnly"               Value="True"/>
-            <Setter Property="AutoGenerateColumns"      Value="True"/>
-            <Setter Property="CanUserSortColumns"       Value="True"/>
-            <Setter Property="CanUserResizeColumns"     Value="True"/>
-        </Style>
-        <Style TargetType="DataGridColumnHeader">
-            <Setter Property="Background"      Value="#252536"/>
-            <Setter Property="Foreground"      Value="#89B4FA"/>
-            <Setter Property="FontWeight"      Value="SemiBold"/>
-            <Setter Property="FontSize"        Value="10"/>
-            <Setter Property="Padding"         Value="6,0"/>
-            <Setter Property="BorderBrush"     Value="#45475A"/>
-            <Setter Property="BorderThickness" Value="0,0,1,1"/>
-        </Style>
-        <Style TargetType="DataGridRow">
-            <Setter Property="Background" Value="Transparent"/>
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#313244"/>
-                    <Setter Property="Foreground" Value="#CDD6F4"/>
-                </Trigger>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#2A2A3C"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-        <Style TargetType="DataGridCell">
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding"         Value="4,0"/>
-            <Setter Property="Foreground"      Value="#CDD6F4"/>
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="Transparent"/>
-                    <Setter Property="BorderBrush" Value="Transparent"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- Action button -->
-        <Style x:Key="ActionBtn" TargetType="Button">
-            <Setter Property="Background"      Value="#313244"/>
-            <Setter Property="Foreground"      Value="#CDD6F4"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding"         Value="12,5"/>
-            <Setter Property="FontSize"        Value="11"/>
-            <Setter Property="FontFamily"      Value="Consolas"/>
-            <Setter Property="Cursor"          Value="Hand"/>
-            <Setter Property="Margin"          Value="0,0,6,0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bd" Background="{TemplateBinding Background}"
-                                CornerRadius="4" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#45475A"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#585b70"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="bd" Property="Background" Value="#1E1E2E"/>
-                                <Setter Property="Foreground" Value="#45475A"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Period button -->
-        <Style x:Key="PeriodBtn" TargetType="Button">
-            <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="#FF70F12B"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding"         Value="8,3"/>
-            <Setter Property="FontSize"        Value="10"/>
-            <Setter Property="FontFamily"      Value="Consolas"/>
-            <Setter Property="Cursor"          Value="Hand"/>
-            <Setter Property="Margin"          Value="1,0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bd" Background="{TemplateBinding Background}"
-                                CornerRadius="3" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#313244"/>
-                                <Setter Property="Foreground" Value="#CDD6F4"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Panel section header -->
-        <Style x:Key="SectionHeader" TargetType="Border">
-            <Setter Property="Background"       Value="#252536"/>
-            <Setter Property="BorderBrush"      Value="#45475A"/>
-            <Setter Property="BorderThickness"  Value="0,0,0,1"/>
-            <Setter Property="Padding"          Value="8,0"/>
-            <Setter Property="Height"           Value="28"/>
-        </Style>
-
-        <Style x:Key="SectionLabel" TargetType="TextBlock">
-            <Setter Property="FontSize"     Value="10"/>
-            <Setter Property="FontWeight"   Value="Bold"/>
-            <Setter Property="FontFamily"   Value="Consolas"/>
-            <Setter Property="Foreground"   Value="#6C7086"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-        <Style x:Key="GroupCheckBox" TargetType="CheckBox">
-            <Setter Property="Foreground"  Value="#FF70F12B"/>
-            <Setter Property="FontSize"    Value="11"/>
-            <Setter Property="FontFamily"  Value="Consolas"/>
-            <Setter Property="Margin"      Value="0,3,4,1"/>
-            <Setter Property="Cursor"      Value="Hand"/>
-        </Style>
-
-    </UserControl.Resources>
-
-    <!-- ═══════════════════════════════════════════════════════
+<!-- ═══════════════════════════════════════════════════════
          외부 레이아웃: 툴바 / 본문 / 상태바
     ═══════════════════════════════════════════════════════ -->
     <Grid>
@@ -207,9 +57,9 @@
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                             <TextBlock Text="#" x:Name="GroupGridCount" Style="{StaticResource SectionLabel}" Foreground="#FFEADC43"/>
                             <TextBlock Text="GROUPS" Style="{StaticResource SectionLabel}" Margin="6,0,6,0"/>
-                            <CheckBox x:Name="chkAllGroup" Content="All" Style="{StaticResource GroupCheckBox}" Click="GroupFilter_Click" Tag="All"/>
-                            <CheckBox x:Name="chkSectorGroup" Content="Sector" Style="{StaticResource GroupCheckBox}" Click="GroupFilter_Click" Tag="Sector"/>
-                            <CheckBox x:Name="chkThemeGroup" Content="Theme" Style="{StaticResource GroupCheckBox}" Click="GroupFilter_Click" Tag="Theme"/>
+                            <CheckBox x:Name="chkAllGroup" Content="All" Click="GroupFilter_Click" Tag="All"/>
+                            <CheckBox x:Name="chkSectorGroup" Content="Sector" Click="GroupFilter_Click" Tag="Sector"/>
+                            <CheckBox x:Name="chkThemeGroup" Content="Theme" Click="GroupFilter_Click" Tag="Theme"/>
                         </StackPanel>
                     </Border>
                     <DataGrid x:Name="GridGroup" Grid.Row="1"
@@ -248,7 +98,7 @@
                                     Click="BtnChart_Click" Tag="1"/>
                                 <Button x:Name="BtnChartClear"  Content="Clear"  Style="{StaticResource PeriodBtn}"
                                     Click="BtnChart_Click" Tag="0"/>
-                                <CheckBox x:Name="CheckboxAddTicker" Content="Add" VerticalAlignment="Center" Style="{StaticResource GroupCheckBox}" Margin="0,0,8,0"/>
+                                <CheckBox x:Name="CheckboxAddTicker" Content="Add" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <Button x:Name="BtnDownloadGroup" Content="🔄" Style="{StaticResource ActionBtn}"
                                         Padding="6,3" Margin="0,0,3,0" Click="BtnDownloadGroup_Click"
                                         ToolTip="그룹 전체 가격 데이터 다운로드"/>
@@ -352,7 +202,9 @@
                 </Border>
 
                 <!-- 우하: 차트 -->
-                <Grid Grid.Row="1">
+                <Grid x:Name="ChartAreaGrid" Grid.Row="1"
+                      MouseMove="ChartAreaGrid_MouseMove"
+                      MouseLeave="ChartAreaGrid_MouseLeave">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="28"/>
                         <RowDefinition Height="*"/>
@@ -367,7 +219,36 @@
                                         XAxes="{Binding ChartXAxes}"
                                         YAxes="{Binding ChartYAxes}"
                                         ZoomMode="X"
-                                        TooltipPosition="Top"/>
+                                        TooltipPosition="Hidden"/>
+
+                    <!-- ── Crosshair 오버레이 (Row 1 = 차트 영역) ── -->
+                    <Canvas x:Name="EgCrosshairCanvas"
+                            Grid.Row="1"
+                            IsHitTestVisible="False"
+                            Visibility="Collapsed">
+                        <Line x:Name="EgCrossV"
+                              Stroke="#4C566A" StrokeThickness="1"
+                              StrokeDashArray="4,3"
+                              X1="0" Y1="0" X2="0" Y2="0"/>
+                        <Line x:Name="EgCrossH"
+                              Stroke="#4C566A" StrokeThickness="1"
+                              StrokeDashArray="4,3"
+                              X1="0" Y1="0" X2="0" Y2="0"/>
+
+                        <Border x:Name="EgTooltipPanel"
+                                Canvas.Left="8" Canvas.Top="8"
+                                Background="#CC1E1E2E"
+                                BorderBrush="#45475A" BorderThickness="1"
+                                CornerRadius="4" Padding="8,6"
+                                Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock x:Name="EgTtDate"
+                                           FontFamily="Consolas" FontSize="10" FontWeight="Bold"
+                                           Foreground="#CDD6F4" Margin="0,0,0,4"/>
+                                <StackPanel x:Name="EgTtRows"/>
+                            </StackPanel>
+                        </Border>
+                    </Canvas>
                 </Grid>
 
             </Grid>
@@ -381,3 +262,5 @@
         </Border>
     </Grid>
 </UserControl>
+
+

@@ -1,4 +1,4 @@
-// Models/AppOptions.cs
+﻿// Models/AppOptions.cs
 namespace Quant.Core.Models;
 
 /// <summary>
@@ -25,4 +25,14 @@ public class AppOptions
 
     /// <summary>마지막으로 수집한 리포트 날짜. 이 날짜 이전 파일은 skip.</summary>
     public DateOnly? LastReportDate { get; set; } = null;
+
+
+    /////////// don't save to DB ///////////
+    /// <summary>마지막으로 조회한 종목 티커.</summary>
+    public string LastTicker { get; set; } = string.Empty;
+
+    /// <summary>마지막으로 조회한 종목 그룹.</summary>
+    public string LastGroup { get; set; } = string.Empty;
+
+
 }

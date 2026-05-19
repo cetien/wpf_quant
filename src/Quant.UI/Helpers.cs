@@ -2,7 +2,9 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Data;
 
 namespace Quant.UI;
@@ -77,5 +79,21 @@ public static class Helpers
         var url = $"https://finance.naver.com/item/coinfo.naver?code={ticker}";
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = url, UseShellExecute = true }); }
         catch {}
+    }
+
+    public static readonly Regex TickerRegex = new("^[A-Za-z0-9]{6}$", RegexOptions.Compiled);
+
+    public static void HighlightButton(Button btn)
+    {
+        btn.Foreground = (System.Windows.Media.Brush)(btn.TryFindResource("AccentBlueBrush")
+            ?? System.Windows.Media.Brushes.LightBlue);
+    }
+
+    public static void HighlightButton(Button? active, IEnumerable<Button> all)
+    {
+        foreach (var b in all)
+            b.Foreground = System.Windows.Media.Brushes.Gray;
+        if (active is null) return;
+        HighlightButton(active);
     }
 }

@@ -18,6 +18,9 @@ collector.py  ─  독립 실행형 데이터 수집기
 주기 실행 예시 (Windows Task Scheduler / cron):
     python collector.py >> logs/collector.log 2>&1
 
+Log 실시간 모니터링 (PowerShell):
+    cd C:/Users/tien7/source/repos/quant
+    Get-Content -Path "logs/collector.log" -Wait -Tail 10
 
 수집 흐름
 main()
@@ -53,7 +56,6 @@ python collector.py --from 2025-01-01 --tables supply --no-sync >> logs/collecto
 
 최초수행: python collector.py --from 2025-01-01 --tables fundamentals --no-sync >> logs/collector.log 2>&1
 증분실행: python collector.py --tables fundamentals --no-sync >> logs/collector.log 2>&1
-Get-Content -Path "logs/collector.log" -Wait -Tail 10
 
 --- download용 db-file 지정
 python collector.py --from 2026-01-01 --tables supply --no-sync --db-path C:/Users/tien7/AppData/Local/quant/quant_for_supply.duckdb >> logs/collector.log 2>&1

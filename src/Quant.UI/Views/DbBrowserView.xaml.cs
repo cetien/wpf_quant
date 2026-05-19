@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Text.RegularExpressions;
 
 namespace Quant.UI.Views;
 
@@ -35,8 +36,12 @@ public partial class DbBrowserView : UserControl
     {
         BuildTableButtons();
         CheckDbConnection();
-    }
 
+        var ticker = DbManager.Instance.LoadOptions().LastTicker;
+        TxtCurrTicker.Text = $"{_db.GetStockName(ticker)}:{ticker}";
+        TxtWhere.Text = !string.IsNullOrWhiteSpace(ticker) ? $"ticker = '{ticker}'" : "1";
+    }
+     
     private void BuildTableButtons()
     {
         TableList.Children.Clear();
@@ -45,7 +50,7 @@ public partial class DbBrowserView : UserControl
             var btn = new Button
             {
                 Content = tbl,
-                Style   = (Style)Resources["TableButton"],
+                //Style   = (Style)Resources["TableButton"],
                 Tag     = tbl
             };
             btn.Click += TableBtn_Click;
@@ -53,6 +58,7 @@ public partial class DbBrowserView : UserControl
         }
     }
 
+    private string? _currentTable; // 테이블 목록에서 클릭 시 저장되는 변수라고 가정
     private void TableBtn_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button btn) return;
@@ -63,34 +69,61 @@ public partial class DbBrowserView : UserControl
         }
         btn.Background  = MakeBrush("#313244");
         btn.Foreground  = MakeBrush("#89B4FA");
-        TxtSql.Text     = $"SELECT * FROM {btn.Tag} LIMIT 500";
+
+        _currentTable = btn.Tag?.ToString();
+        BuildSqlSample(_currentTable, "SELECT");
+        //TxtSql.Text     = $"SELECT * FROM {_currentTable} WHERE 1 LIMIT 500";
         RunQuery(TxtSql.Text);
 
         TxtSqlSample.Text = $@"
-SELECT c.category_name,COUNT(*)
-FROM {btn.Tag} p
-JOIN categories c ON p.category_id = c.id
+SELECT c.id,COUNT(*)
+FROM {_currentTable} p
+JOIN cat c ON p.id = c.id
 WHERE p.price >= 100
-GROUP BY c.category_name
+GROUP BY c.id
 HAVING COUNT(*) >= 5
 ORDER BY COUNT(*) DESC
 LIMIT 10;
 
-UPDATE {btn.Tag}
-SET name = 'Alice Kim', age  = 27
+UPDATE {_currentTable}
+SET name = 'Alice', age  = 27
 WHERE id = 1;
 
-INSERT INTO {btn.Tag} (id, name, age)
+INSERT INTO {_currentTable} (id, name, age)
 VALUES (2, 'Bob', 30),(3, 'Charlie', 28);
 
-DELETE FROM {btn.Tag} WHERE id = 1;
+DELETE FROM {_currentTable} WHERE id = 1;
 
 WHERE age BETWEEN 20 AND 30
 WHERE category IN ('A', 'B', 'C')
 WHERE name LIKE 'Kim%'
-WHERE deleted_at IS NULL
-        ";
+WHERE deleted_at IS NULL";
     }
+
+    // DbBrowserView.xaml.cs 내부에 추가할 코드 예시
+
+    private void CmbCommandType_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        BuildSqlSample(_currentTable,
+            (CmbCommandType.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "SELECT");
+    }
+    private void BuildSqlSample(string? table, string commandType)
+    {
+        if (TxtSql == null) return; // 초기 로드 시 null 참조 방지
+        if (string.IsNullOrWhiteSpace(table)) table = "[table]";
+
+        string where = TxtWhere?.Text ?? "1";
+
+        TxtSql.Text = commandType switch
+        {
+            "SELECT" => $"SELECT * FROM {table} WHERE {where} LIMIT 500",
+            "UPDATE" => $"UPDATE {table} SET col = val WHERE {where}",
+            "INSERT" => $"INSERT INTO {table} (col1, col2) VALUES (val1, val2)",
+            "DELETE" => $"DELETE FROM {table} WHERE {where}",
+            _ => TxtSql.Text
+        };
+    }
+
 
     internal void BtnRun_Click(object sender, RoutedEventArgs e) => RunQuery(TxtSql.Text);
 
@@ -154,4 +187,24 @@ WHERE deleted_at IS NULL
 
     private static SolidColorBrush MakeBrush(string hex) =>
         (SolidColorBrush)new BrushConverter().ConvertFrom(hex)!;
+
+    private void BtnFunction_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string table) return;
+
+        var ticker = DbManager.Instance.LoadOptions().LastTicker;
+        if (string.IsNullOrWhiteSpace(ticker) || !Helpers.TickerRegex.IsMatch(ticker)) return;
+
+        string sql = $"DELETE FROM {table}";
+        if (table != "stock_cache")
+            sql = $"{sql} WHERE ticker = '{ticker}'";
+
+        TxtSql.Text = sql; // 생성된 쿼리를 텍스트박스에 표시
+
+        // if (MessageBox.Show($"[{table}] 테이블에서 데이터를 삭제하시겠습니까?\n\n쿼리: {sql}", 
+        //     "데이터 삭제 확인", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+        // {
+        //     RunQuery(sql);
+        // }
+    }
 }

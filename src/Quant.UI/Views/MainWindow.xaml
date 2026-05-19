@@ -7,13 +7,6 @@
         Background="#1E1E2E">
 
     <Window.Resources>
-        <SolidColorBrush x:Key="BgBase"      Color="#1E1E2E"/>
-        <SolidColorBrush x:Key="BgPanel"     Color="#181825"/>
-        <SolidColorBrush x:Key="BgSurface"   Color="#313244"/>
-        <SolidColorBrush x:Key="AccentBlue"  Color="#89B4FA"/>
-        <SolidColorBrush x:Key="TextPrimary" Color="#CDD6F4"/>
-        <SolidColorBrush x:Key="TextMuted"   Color="#6C7086"/>
-        <SolidColorBrush x:Key="BorderColor" Color="#45475A"/>
 
         <Style x:Key="ToolBarButton" TargetType="Button">
             <Setter Property="Background"        Value="Transparent"/>
