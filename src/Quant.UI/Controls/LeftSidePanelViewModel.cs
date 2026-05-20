@@ -108,7 +108,6 @@ public partial class LeftSidePanelViewModel : ObservableObject
     public ObservableCollection<GlobalIndicatorItem> Indicators { get; } = [];
 
     // ── 옵션 ─────────────────────────────────────────────────
-    [ObservableProperty] private bool _showOnlyActive = false;
     [ObservableProperty] private bool _showSector     = true;
     [ObservableProperty] private bool _showTheme      = true;
 
@@ -161,6 +160,9 @@ public partial class LeftSidePanelViewModel : ObservableObject
     [ObservableProperty] private string _stockSectionLabel = "";
 
     // ── 상태 ─────────────────────────────────────────────────
+    [ObservableProperty] private string _groupListInfo = "Cnt";
+    [ObservableProperty] private string _stockListInfo = "Cnt";
+    [ObservableProperty] private string _selectedGroupInfo = "group";
     [ObservableProperty] private string _statusText = "준비";
     [ObservableProperty] private bool   _isBusy     = false;
 
@@ -281,6 +283,14 @@ public partial class LeftSidePanelViewModel : ObservableObject
             Description = "코스닥 저PER",
             SqlWhere = "s.market = 'KQ' AND f.per > 0 AND f.per < 10"
         });
+        Screeners.Add(new ScreenerRow
+        {
+            Id = 5,
+            Name = "KOSPI, KOSDAQ",
+            Description = "all korean",
+            SqlWhere = "s.market = 'KP' OR s.market = 'KQ'",
+            NeedsFundamentals = false
+        });
     }
 
     partial void OnSelectedScreenerChanged(ScreenerRow? value)
@@ -299,7 +309,6 @@ public partial class LeftSidePanelViewModel : ObservableObject
     {
         try
         {
-            var activeFilter  = ShowOnlyActive ? "AND s.is_active = TRUE" : "";
             var excludeFilter = _db.BuildStockExcludeFilter("s", "c");
             var needsF        = SelectedScreener?.NeedsFundamentals ?? true;
             var fJoin         = needsF
@@ -315,7 +324,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
                 FROM stocks s
                 {fJoin}
                 LEFT JOIN stock_cache c ON c.ticker  = s.ticker
-                WHERE {whereClause} {activeFilter} {excludeFilter}
+                WHERE {whereClause} {excludeFilter}
                 ORDER BY s.ticker
                 """;
 
@@ -325,10 +334,10 @@ public partial class LeftSidePanelViewModel : ObservableObject
             {
                 _allStocks.Add(new StockRow
                 {
-                    Ticker = SafeStr(row, "ticker"),
-                    Name   = SafeStr(row, "name"),
-                    Market = SafeStr(row, "market"),
-                    Rating = SafeInt(row, "rating"),
+                    Ticker = Helpers.SafeStr(row, "ticker"),
+                    Name   = Helpers.SafeStr(row, "name"),
+                    Market = Helpers.SafeStr(row, "market"),
+                    Rating = Helpers.SafeInt(row, "rating"),
                 });
             }
             ApplyStockFilter();
@@ -354,38 +363,37 @@ public partial class LeftSidePanelViewModel : ObservableObject
             ClearStocks();
 
             var kindFilter   = BuildKindFilter();
-            var activeFilter = ShowOnlyActive ? "AND g.is_active = TRUE" : "";
-
             var sql = $"""
                 SELECT g.group_id, g.kind, g.name, g.rating,
                        COUNT(DISTINCT sgm.ticker) AS stock_count
                 FROM groups g
                 LEFT JOIN stock_group_map sgm ON g.group_id = sgm.group_id
-                WHERE 1=1 {kindFilter} {activeFilter}
+                WHERE 1=1 {kindFilter} 
                 GROUP BY g.group_id, g.kind, g.name, g.rating
                 ORDER BY g.rating desc, g.kind, g.name
                 """;
                 //GROUP BY g.group_id, g.kind, g.name, g.rating
 
-        var dt = _db.Query(sql);
+            var dt = _db.Query(sql);
             foreach (DataRow row in dt.Rows)
             {
                 _allGroups.Add(new GroupRow
                 {
-                    GroupId    = SafeInt(row, "group_id"),
-                    //Kind       = SafeStr(row, "kind"),
-                    Name       = SafeStr(row, "name"),
-                    Rating     = SafeInt(row, "rating"),
-                    StockCount = SafeInt(row, "stock_count"),
+                    GroupId    = Helpers.SafeInt(row, "group_id"),
+                    //Kind       = Helpers.SafeStr(row, "kind"),
+                    Name       = Helpers.SafeStr(row, "name"),
+                    Rating     = Helpers.SafeInt(row, "rating"),
+                    StockCount = Helpers.SafeInt(row, "stock_count"),
                     Kind = row["kind"]?.ToString() switch
                     {
                         "watch" => "🔖",
                         "theme" => "♻️",
-                        _       => "-"
+                        _       => ""
                     }
                 });
             }
             foreach (var g in _allGroups) Groups.Add(g);
+            GroupListInfo = $"cnt {Groups.Count}";
             StatusText = $"Groups count: {Groups.Count}";
         }
         catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
@@ -394,10 +402,12 @@ public partial class LeftSidePanelViewModel : ObservableObject
 
     private string BuildKindFilter()
     {
-        if (ShowSector && ShowTheme) return "";
-        if (ShowSector)              return "AND g.kind = 'sector'";
-        if (ShowTheme)               return "AND g.kind = 'theme'";
-        return "AND 1=0";
+        string kindFilter = "";
+        if (!ShowSector)
+            kindFilter += "AND g.kind != 'sector' ";
+        if (!ShowTheme)
+            kindFilter += "AND g.kind != 'theme' ";
+        return kindFilter.Length > 0 ? kindFilter : "AND 1=1";
     }
 
     // ──────────────────────────────────────────────────────────
@@ -407,7 +417,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
     {
         ClearStocks();
         if (value is null) return;
-        StockSectionLabel = value.Name;
+        SelectedGroupInfo = value.Name;
         GroupSelected?.Invoke(value.GroupId, value.Name);
         LoadStocksForGroup(value.GroupId);
     }
@@ -416,14 +426,13 @@ public partial class LeftSidePanelViewModel : ObservableObject
     {
         try
         {
-            var activeFilter  = ShowOnlyActive ? "AND s.is_active = TRUE" : "";
             var excludeFilter = _db.BuildStockExcludeFilter("s", "c");
             var sql = $"""
                 SELECT s.ticker, s.name, s.market, s.rating
                 FROM stocks s
                 JOIN stock_group_map sgm ON s.ticker = sgm.ticker
                 LEFT JOIN stock_cache c  ON c.ticker  = s.ticker
-                WHERE sgm.group_id = {groupId} {activeFilter} {excludeFilter}
+                WHERE sgm.group_id = {groupId} {excludeFilter}
                 ORDER BY s.ticker
                 """;
 
@@ -433,14 +442,15 @@ public partial class LeftSidePanelViewModel : ObservableObject
             {
                 _allStocks.Add(new StockRow
                 {
-                    Ticker = SafeStr(row, "ticker"),
-                    Name   = SafeStr(row, "name"),
-                    Market = SafeStr(row, "market"),
-                    Rating = SafeInt(row, "rating"),
+                    Ticker = Helpers.SafeStr(row, "ticker"),
+                    Name   = Helpers.SafeStr(row, "name"),
+                    Market = Helpers.SafeStr(row, "market"),
+                    Rating = Helpers.SafeInt(row, "rating"),
                 });
             }
             ApplyStockFilter();
-            StatusText = $"{SelectedGroup?.Name}  {_allStocks.Count}종목";
+            StockListInfo = $"{_allStocks.Count}";
+            //StatusText = $"{SelectedGroup?.Name}  {_allStocks.Count}종목";
         }
         catch (Exception ex) { StatusText = $"오류: {ex.Message}"; }
     }
@@ -476,22 +486,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
         if (value is not null) StockSelected?.Invoke(value.Ticker, value.Name);
     }
 
-    partial void OnShowOnlyActiveChanged(bool value) => LoadGroups();
     partial void OnShowSectorChanged(bool value)     => LoadGroups();
     partial void OnShowThemeChanged(bool value)      => LoadGroups();
 
-    // ──────────────────────────────────────────────────────────
-    //  Helper
-    // ──────────────────────────────────────────────────────────
-    private static string SafeStr(DataRow r, string col)
-    {
-        try { return r.IsNull(col) ? "" : r[col]?.ToString() ?? ""; }
-        catch { return ""; }
-    }
-
-    private static int SafeInt(DataRow r, string col)
-    {
-        try { return r.IsNull(col) ? 0 : Convert.ToInt32(r[col]); }
-        catch { return 0; }
-    }
 }

@@ -59,6 +59,7 @@ public sealed class DbNullDoubleConverter : IValueConverter
 
 public static class Helpers
 {
+    //----------------------------------------------------
     public static (bool ok, string message) OpenWithChrome(string? filepath)
     {
         if (string.IsNullOrWhiteSpace(filepath)) return (false, "파일 경로 없음");
@@ -95,8 +96,21 @@ public static class Helpers
         catch {}
     }
 
+    //----------------------------------------------------
     public static readonly Regex TickerRegex = new("^[A-Za-z0-9]{6}$", RegexOptions.Compiled);
+    public static string SafeStr(DataRow r, string col)
+    {
+        try { return r.IsNull(col) ? "" : r[col]?.ToString() ?? ""; }
+        catch { return ""; }
+    }
 
+    public static int SafeInt(DataRow r, string col)
+    {
+        try { return r.IsNull(col) ? 0 : Convert.ToInt32(r[col]); }
+        catch { return 0; }
+    }
+
+    //----------------------------------------------------
     public static void Status(Action<string, string>? statusEvent, string message, string colorHex)
     {
         statusEvent?.Invoke(message, colorHex);
@@ -107,7 +121,7 @@ public static class Helpers
     public static void StatusWarning(Action<string, string>? statusEvent, string message) => Status(statusEvent, message, StatusColors.Warning);
     public static void StatusException(Action<string, string>? statusEvent, Exception ex, string message) => StatusError(statusEvent, $"{message}: {ex.Message}");
 
-
+    //----------------------------------------------------
     public static void HighlightButton(Button btn)
     {
         btn.Foreground = (System.Windows.Media.Brush)(btn.TryFindResource("AccentBlue")

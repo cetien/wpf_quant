@@ -15,7 +15,7 @@ public partial class MainWindow : Window
     private EditGroupView?     _editGroupView;
     private EditWatchlistView? _editWatchlistView;
     private PlaceholderView?   _dashboardView;
-    private PlaceholderView?   _searchView;
+    private SearchView?        _searchView;
 
     private Button[] _toolButtons = [];
     private bool     _sidePanelVisible = true;
@@ -103,7 +103,12 @@ public partial class MainWindow : Window
 
     private void ShowSearch()
     {
-        _searchView ??= new PlaceholderView("🔍", "Search");
+        if (_searchView is null)
+        {
+            _searchView = new SearchView(_db);
+            _searchView.StatusChanged  += SetStatus;
+            _searchView.StockSelected  += SidePanel_StockSelected;
+        }
         SwitchView(_searchView, BtnSearch, "Search");
     }
 
