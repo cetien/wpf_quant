@@ -1079,31 +1079,28 @@ final_select AS (
     /// <summary>
     /// ticker 관련 모든 데이터 삭제.
     /// 순서: stock_cache → supply → fundamentals → daily_prices → stock_group_map → stocks
+    /// DuckDB FK 체크는 각 DELETE 실행 시점에 즉시 검증됨.
+    /// Transaction 내에서는 이전 DELETE가 아직 visible하지 않아 FK 위반 발생→
+    /// auto-commit 모드로 각 구문을 독립 실행해야 정상 동작.
     /// </summary>
     public void DeleteStockAllData(string ticker)
     {
-        using var conn  = OpenNativeConnection();
-        using var trans = conn.BeginTransaction();
-        try
+        foreach (var sql in new[]
         {
-            foreach (var sql in new[]
-            {
-                "DELETE FROM stock_cache      WHERE ticker = $1",
-                "DELETE FROM supply           WHERE ticker = $1",
-                "DELETE FROM fundamentals     WHERE ticker = $1",
-                "DELETE FROM daily_prices     WHERE ticker = $1",
-                "DELETE FROM stock_group_map  WHERE ticker = $1",
-                "DELETE FROM stocks           WHERE ticker = $1",
-            })
-            {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = sql;
-                cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
-                cmd.ExecuteNonQuery();
-            }
-            trans.Commit();
+            "DELETE FROM stock_cache      WHERE ticker = $1",
+            "DELETE FROM supply           WHERE ticker = $1",
+            "DELETE FROM fundamentals     WHERE ticker = $1",
+            "DELETE FROM daily_prices     WHERE ticker = $1",
+            "DELETE FROM stock_group_map  WHERE ticker = $1",
+            "DELETE FROM stocks           WHERE ticker = $1",
+        })
+        {
+            using var conn = OpenNativeConnection();
+            using var cmd  = conn.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
+            cmd.ExecuteNonQuery();
         }
-        catch { trans.Rollback(); throw; }
     }
 
     private void UpsertOption(string key, string value)

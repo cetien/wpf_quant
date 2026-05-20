@@ -760,7 +760,75 @@ public partial class EditGroupView : UserControl
     private void ChartAreaGrid_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
     {
         EgCrosshairCanvas.Visibility = Visibility.Collapsed;
-        EgTooltipPanel.Visibility    = Visibility.Collapsed;
+        ShowEgTooltipAtLastDate();
+    }
+
+    // 마우스가 차트 밖일 때 최신 날짜(today 기준) 툴팁 고정 표시
+    private void ShowEgTooltipAtLastDate()
+    {
+        if (_rawData.Count == 0 || _chartedTickers.Count == 0)
+        {
+            EgTooltipPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        // 가장 최근 공통 날짜 = 차트된 종목들의 마지막 날짜 중 최솟값
+        var targetDate = _rawData
+            .Where(kv => _chartedTickers.Contains(kv.Key) && kv.Value.prices.Count > 0)
+            .Select(kv => kv.Value.prices.Last().date.Date)
+            .DefaultIfEmpty(DateTime.Today)
+            .Min();
+
+        var tooltipRows = new List<(string name, double rel, SKColor color)>();
+        int colorIdx = 0;
+        foreach (var (ticker, (name, prices)) in _rawData)
+        {
+            var color = Palette[colorIdx % Palette.Length];
+            colorIdx++;
+            if (!_chartedTickers.Contains(ticker) || prices.Count < 2) continue;
+
+            var match = prices
+                .Where(p => p.date.Date <= targetDate)
+                .OrderByDescending(p => p.date)
+                .FirstOrDefault();
+            if (match == default) continue;
+
+            var baseClose = prices.First().close;
+            double rel    = Math.Round(match.close / baseClose * 100.0, 2);
+            tooltipRows.Add((name, rel, color));
+        }
+
+        if (tooltipRows.Count == 0) { EgTooltipPanel.Visibility = Visibility.Collapsed; return; }
+
+        tooltipRows.Sort((a, b) => b.rel.CompareTo(a.rel));
+
+        EgTtDate.Text = targetDate.ToString("yyyy-MM-dd (ddd)");
+        EgTtRows.Children.Clear();
+        foreach (var (name, rel, color) in tooltipRows)
+        {
+            double diff = rel - 100.0;
+            var wpfColor = System.Windows.Media.Color.FromRgb(color.Red, color.Green, color.Blue);
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            row.Children.Add(new TextBlock
+            {
+                Text       = "● ",
+                FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+                FontSize   = 10,
+                Foreground = new System.Windows.Media.SolidColorBrush(wpfColor),
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            row.Children.Add(new TextBlock
+            {
+                Text       = $"{name,-12}  {rel,7:F2}  ({diff:+0.00;-0.00}%)",
+                FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+                FontSize   = 10,
+                Foreground = new System.Windows.Media.SolidColorBrush(wpfColor),
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            EgTtRows.Children.Add(row);
+        }
+
+        EgTooltipPanel.Visibility = Visibility.Visible;
     }
 
     private void BtnNewGroup_Click(object sender, RoutedEventArgs e)

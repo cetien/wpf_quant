@@ -1007,7 +1007,73 @@ public partial class ChartView : UserControl
     private void ChartGrid_MouseLeave(object sender, MouseEventArgs e)
     {
         CrosshairCanvas.Visibility = Visibility.Collapsed;
-        TooltipPanel.Visibility    = Visibility.Collapsed;
+        ShowTooltipAtLastIndex();
+    }
+
+    // 마우스가 차트 밖일 때 최신 인덱스(today) 기준 툴팁 고정 표시
+    private void ShowTooltipAtLastIndex()
+    {
+        if (_renderData.Count == 0)
+        {
+            TooltipPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        int idx = _renderData.Count - 1;
+        var row = _renderData[idx];
+
+        TtDate.Text = row.Date.ToString("yyyy-MM-dd (ddd)");
+
+        var priceSb = new System.Text.StringBuilder();
+        priceSb.Append($"O {row.Open:N0}  H {row.High:N0}  L {row.Low:N0}  C {row.Close:N0}");
+        if (Math.Abs(row.AdjClose - row.Close) > 1)
+            priceSb.Append($"  Adj {row.AdjClose:N0}");
+        TtPrice.Text = priceSb.ToString();
+
+        if (_activeMas.Count > 0)
+        {
+            var prices = _renderData.Select(d => d.AdjClose).ToList();
+            var maSb   = new System.Text.StringBuilder();
+            foreach (var period in _activeMas.OrderBy(p => p))
+            {
+                if (idx >= period - 1)
+                {
+                    var avg = prices.Skip(idx - period + 1).Take(period).Average();
+                    maSb.Append($"MA{period} {avg:N0}  ");
+                }
+            }
+            TtMa.Text = maSb.ToString().TrimEnd();
+        }
+        else
+        {
+            TtMa.Text = "";
+        }
+
+        var volSb = new System.Text.StringBuilder();
+        volSb.Append($"VOL {row.Volume:N0}");
+        if (_supplyCache.TryGetValue(idx, out var supply))
+        {
+            static string Fmt(long v) => v > 0 ? $"+{v:N0}" : v.ToString("N0");
+            volSb.Append($"  기관 {Fmt(supply.Inst)}  외인 {Fmt(supply.Fgn)}");
+        }
+        TtVol.Text = volSb.ToString();
+
+        if (_showMacd && _macdCache.TryGetValue(idx, out var macd))
+        {
+            TtMacd.Text = double.IsNaN(macd.Signal)
+                ? $"MACD {macd.Macd:F3}"
+                : $"MACD {macd.Macd:F3}  Sig {macd.Signal:F3}  Hist {macd.Hist:F3}";
+        }
+        else
+        {
+            TtMacd.Text = "";
+        }
+
+        TtRsi.Text = (_showRsi && _rsiCache.TryGetValue(idx, out var rsi))
+            ? $"RSI {rsi:F1}"
+            : "";
+
+        TooltipPanel.Visibility = Visibility.Visible;
     }
 
     private async void BtnDownloadData_Click(object sender, RoutedEventArgs e)

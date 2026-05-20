@@ -234,21 +234,25 @@
                               Stroke="#4C566A" StrokeThickness="1"
                               StrokeDashArray="4,3"
                               X1="0" Y1="0" X2="0" Y2="0"/>
-
-                        <Border x:Name="EgTooltipPanel"
-                                Canvas.Left="8" Canvas.Top="8"
-                                Background="#CC1E1E2E"
-                                BorderBrush="#45475A" BorderThickness="1"
-                                CornerRadius="4" Padding="8,6"
-                                Visibility="Collapsed">
-                            <StackPanel>
-                                <TextBlock x:Name="EgTtDate"
-                                           FontFamily="Consolas" FontSize="10" FontWeight="Bold"
-                                           Foreground="#CDD6F4" Margin="0,0,0,4"/>
-                                <StackPanel x:Name="EgTtRows"/>
-                            </StackPanel>
-                        </Border>
                     </Canvas>
+
+                    <!-- ── Tooltip 패널 (Canvas와 분리 — MouseLeave 시에도 유지 가능) ── -->
+                    <Border x:Name="EgTooltipPanel"
+                            Grid.Row="1"
+                            HorizontalAlignment="Left" VerticalAlignment="Top"
+                            Margin="8,8,0,0"
+                            Background="#CC1E1E2E"
+                            BorderBrush="#45475A" BorderThickness="1"
+                            CornerRadius="4" Padding="8,6"
+                            IsHitTestVisible="False"
+                            Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock x:Name="EgTtDate"
+                                       FontFamily="Consolas" FontSize="10" FontWeight="Bold"
+                                       Foreground="#CDD6F4" Margin="0,0,0,4"/>
+                            <StackPanel x:Name="EgTtRows"/>
+                        </StackPanel>
+                    </Border>
                 </Grid>
 
             </Grid>

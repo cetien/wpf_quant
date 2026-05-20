@@ -373,42 +373,45 @@
                   Stroke="#4C566A" StrokeThickness="1"
                   StrokeDashArray="4,3"
                   X1="0" Y1="0" X2="0" Y2="0"/>
-
-            <!-- ── 커스텀 툴팁 패널 (left-top 고정) ──────── -->
-            <Border x:Name="TooltipPanel"
-                    Canvas.Left="8" Canvas.Top="8"
-                    Background="#CC1E1E2E"
-                    BorderBrush="#45475A" BorderThickness="1"
-                    CornerRadius="4" Padding="8,6"
-                    Visibility="Collapsed">
-                <StackPanel>
-                    <!-- 날짜 -->
-                    <TextBlock x:Name="TtDate"
-                               FontFamily="Consolas" FontSize="10" FontWeight="Bold"
-                               Foreground="#CDD6F4" Margin="0,0,0,4"/>
-                    <!-- Price 섹션 -->
-                    <TextBlock x:Name="TtPrice"
-                               FontFamily="Consolas" FontSize="10"
-                               Foreground="#89B4FA"/>
-                    <!-- MA 섹션 -->
-                    <TextBlock x:Name="TtMa"
-                               FontFamily="Consolas" FontSize="10"
-                               Foreground="#6C7086" Margin="0,2,0,0"/>
-                    <!-- VOL / 수급 섹션 -->
-                    <TextBlock x:Name="TtVol"
-                               FontFamily="Consolas" FontSize="10"
-                               Foreground="#6C7086" Margin="0,4,0,0"/>
-                    <!-- MACD 섹션 -->
-                    <TextBlock x:Name="TtMacd"
-                               FontFamily="Consolas" FontSize="10"
-                               Foreground="#6C7086" Margin="0,2,0,0"/>
-                    <!-- RSI 섹션 -->
-                    <TextBlock x:Name="TtRsi"
-                               FontFamily="Consolas" FontSize="10"
-                               Foreground="#CBA6F7" Margin="0,2,0,0"/>
-                </StackPanel>
-            </Border>
         </Canvas>
+
+        <!-- ── 툴팁 패널 (Canvas와 분리 — MouseLeave 시에도 유지 가능) ── -->
+        <Border x:Name="TooltipPanel"
+                Grid.Row="3" Grid.RowSpan="4"
+                HorizontalAlignment="Left" VerticalAlignment="Top"
+                Margin="8,8,0,0"
+                Background="#CC1E1E2E"
+                BorderBrush="#45475A" BorderThickness="1"
+                CornerRadius="4" Padding="8,6"
+                IsHitTestVisible="False"
+                Visibility="Collapsed">
+            <StackPanel>
+                <!-- 날짜 -->
+                <TextBlock x:Name="TtDate"
+                           FontFamily="Consolas" FontSize="10" FontWeight="Bold"
+                           Foreground="#CDD6F4" Margin="0,0,0,4"/>
+                <!-- Price 섹션 -->
+                <TextBlock x:Name="TtPrice"
+                           FontFamily="Consolas" FontSize="10"
+                           Foreground="#89B4FA"/>
+                <!-- MA 섹션 -->
+                <TextBlock x:Name="TtMa"
+                           FontFamily="Consolas" FontSize="10"
+                           Foreground="#6C7086" Margin="0,2,0,0"/>
+                <!-- VOL / 수급 섹션 -->
+                <TextBlock x:Name="TtVol"
+                           FontFamily="Consolas" FontSize="10"
+                           Foreground="#6C7086" Margin="0,4,0,0"/>
+                <!-- MACD 섹션 -->
+                <TextBlock x:Name="TtMacd"
+                           FontFamily="Consolas" FontSize="10"
+                           Foreground="#6C7086" Margin="0,2,0,0"/>
+                <!-- RSI 섹션 -->
+                <TextBlock x:Name="TtRsi"
+                           FontFamily="Consolas" FontSize="10"
+                           Foreground="#CBA6F7" Margin="0,2,0,0"/>
+            </StackPanel>
+        </Border>
 
     </Grid>
 
