@@ -47,7 +47,7 @@ public partial class ReportView : UserControl
 
         if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
         {
-            SetStatus("report_pdf_folder 미설정 — Options에서 폴더를 지정하세요", "#F9E2AF");
+            Helpers.StatusWarning(StatusChanged, "report_pdf_folder 미설정 — Options에서 폴더를 지정하세요");
             return;
         }
 
@@ -91,7 +91,7 @@ public partial class ReportView : UserControl
             UpsertOptionRaw("last_report_date", maxDate.ToString("yyyy-MM-dd"));
 
         if (upserted > 0)
-            SetStatus($"수집 완료: {upserted}건 추가 (기준일 → {maxDate})", "#A6E3A1");
+            Helpers.StatusSuccess(StatusChanged, $"수집 완료: {upserted}건 추가 (기준일 → {maxDate})");
     }
 
     // ──────────────────────────────────────────────────────────
@@ -215,9 +215,9 @@ public partial class ReportView : UserControl
             //TODO: SliderFrom/SliderTo 에 min/max date 이용하여 범위 설정
 
             TxtRowCount.Text = $"{_allReports.Rows.Count:N0} rows";
-            SetStatus($"Total {_allReports.Rows.Count:N0}", "#A6E3A1");
+            Helpers.StatusSuccess(StatusChanged, $"Total {_allReports.Rows.Count:N0}");
         }
-        catch (Exception ex) { SetStatus($"오류: {ex.Message}", "#F38BA8"); }
+        catch (Exception ex) { Helpers.StatusException(StatusChanged, ex, "로드 오류"); }
     }
 
     // ──────────────────────────────────────────────────────────
@@ -265,10 +265,19 @@ public partial class ReportView : UserControl
 
 	private void ApplyReportFilter(string? key, string? value)
 	{
-		_allReports.DefaultView.RowFilter =
-			(key is null || value == "All" || value is null)
-				? ""
-				: $"{key} = '{value.Replace("'", "''")}'";
+		if (key is null || value == "All" || value is null)
+		{
+			_allReports.DefaultView.RowFilter = "";
+		}
+		else
+		{
+			string escapedValue = value.Replace("'", "''");
+			// DateOnly 컬럼과 String 비교 시 발생하는 EvaluateException 방지
+			_allReports.DefaultView.RowFilter = (key == "date") 
+				? $"Convert({key}, 'System.String') = '{escapedValue}'"
+				: $"{key} = '{escapedValue}'";
+		}
+
 		GridReport.ItemsSource = _allReports.DefaultView;
 		TxtRowCount.Text = $"{_allReports.DefaultView.Count:N0} rows";
 	}
@@ -293,7 +302,7 @@ public partial class ReportView : UserControl
         if (GridReport.SelectedItem is not DataRowView row) return;
         var filepath = row["filepath"]?.ToString();
         var (ok, message) = Helpers.OpenWithChrome(filepath);
-        SetStatus(message, ok ? "#89B4FA" : "#F38BA8");
+        Helpers.Status(StatusChanged, message, ok ? StatusColors.Info : StatusColors.Error);
     }
 
 	private void ButtonShowAll_Click(object sender, RoutedEventArgs e)
@@ -332,7 +341,7 @@ public partial class ReportView : UserControl
 		}
 		catch (Exception ex)
 		{
-			SetStatus($"DB 삭제 오류: {ex.Message}", "#F38BA8");
+			Helpers.StatusException(StatusChanged, ex, "DB 삭제 오류");
 			return;
 		}
 
@@ -340,7 +349,7 @@ public partial class ReportView : UserControl
 		if (!string.IsNullOrWhiteSpace(filepath) && File.Exists(filepath))
 		{
 			try   { File.Delete(filepath); }
-			catch (Exception ex) { SetStatus($"파일 삭제 오류: {ex.Message}", "#F9E2AF"); }
+			catch (Exception ex) { Helpers.StatusWarning(StatusChanged, $"파일 삭제 오류: {ex.Message}"); }
 		}
 
 		// ── 메모리 테이블에서 제거 후 그리드 갱신 ──
@@ -348,7 +357,7 @@ public partial class ReportView : UserControl
 		_allReports.AcceptChanges();
 		RefreshCompanyGrid();
 		TxtRowCount.Text = $"{_allReports.DefaultView.Count:N0} rows";
-		SetStatus($"삭제 완료: {Path.GetFileName(filepath)}", "#A6E3A1");
+		Helpers.StatusSuccess(StatusChanged, $"삭제 완료: {Path.GetFileName(filepath)}");
 	}
 
     // ══════════════════════════════════════════════════════════

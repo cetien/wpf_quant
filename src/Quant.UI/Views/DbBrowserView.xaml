@@ -4,18 +4,6 @@
              Background="#1E1E2E">
 
     <UserControl.Resources>
-
-        <Style x:Key="SqlBox" TargetType="TextBox">
-            <Setter Property="Background"      Value="#252536"/>
-            <Setter Property="Foreground"      Value="#CDD6F4"/>
-            <Setter Property="CaretBrush"      Value="#89B4FA"/>
-            <Setter Property="BorderBrush"     Value="#45475A"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="FontFamily"      Value="Consolas"/>
-            <Setter Property="FontSize"        Value="12"/>
-            <Setter Property="Padding"         Value="8"/>
-        </Style>
-
     </UserControl.Resources>
 
     <Grid>
@@ -31,8 +19,8 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="36"/>
                     <RowDefinition Height="*"/>
-                    <RowDefinition Height="26"/>
-                    <RowDefinition Height="26"/>
+                    <RowDefinition Height="32"/>
+                    <RowDefinition Height="32"/>
                     <RowDefinition Height="200"/>
                 </Grid.RowDefinitions>
                 <Border Grid.Row="0" Background="#252536" Padding="12,0">
@@ -49,12 +37,8 @@
                     <ComboBoxItem Content="INSERT"/>
                     <ComboBoxItem Content="DELETE"/>
                 </ComboBox>
-                <TextBox x:Name="TxtWhere" Grid.Row="3" 
-                             Background="#313244" Foreground="#CDD6F4"
-                             BorderBrush="#45475A" BorderThickness="1"
-                             FontFamily="Consolas" FontSize="12" Padding="4,2"
-                             VerticalContentAlignment="Center" Text="ticker='000000'"/>
-                <TextBox x:Name="TxtSqlSample" Grid.Row="4" Style="{StaticResource SqlBox}" Text="SELECT * FROM stocks LIMIT 500"/>
+                <TextBox x:Name="TxtWhere" Grid.Row="3" Text="ticker='000000'"/>
+                <TextBox x:Name="TxtSqlSample" Grid.Row="4" Text="SELECT * FROM stocks LIMIT 500"/>
             </Grid>
         </Border>
 
@@ -75,7 +59,7 @@
             <Border Grid.Row="0" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1">
                 <Grid Margin="8,4">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock x:Name="TxtCurrTicker" Text="ticker" Style="{StaticResource SectionLabel}"
+                        <TextBlock x:Name="TxtCurrTicker" Text="ticker"
                                Foreground="#6C7086" Margin="0,0,16,0"/>
                         <Button Content="✕ cache"    Style="{StaticResource ActionBtn}" Tag="stock_cache" Click="BtnFunction_Click" Foreground="#F38BA8"/>
                         <Button Content="✕ price"   Style="{StaticResource ActionBtn}" Tag="daily_prices" Click="BtnFunction_Click" Foreground="#F38BA8"/>
@@ -92,19 +76,17 @@
 
             <!-- SQL 바 -->
             <Border Grid.Row="1" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1">
-                <Grid Margin="8,4">
+                <Grid Margin="8,4" VerticalAlignment="Center">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="70"/>
                     </Grid.ColumnDefinitions>
-                    <TextBox x:Name="TxtSql" Grid.Column="0" Style="{StaticResource SqlBox}"
-                             VerticalAlignment="Center" Height="32"
+                    <TextBox x:Name="TxtSql" Grid.Column="0"
                              Text="SELECT * FROM stocks WHERE 1 LIMIT 500"
                              KeyDown="TxtSql_KeyDown"/>
                     <Button Grid.Column="1" Content="▶ 실행" Margin="6,0,0,0"
-                            Background="#89B4FA" Foreground="#1E1E2E"
-                            FontWeight="Bold" FontSize="11" Height="32"
-                            BorderThickness="0" Cursor="Hand"
+                            Background="#FF3A9448" Foreground="White"
+                            FontWeight="Bold" Style="{StaticResource ActionBtn}"
                             Click="BtnRun_Click"/>
                 </Grid>
             </Border>

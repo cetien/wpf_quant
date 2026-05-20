@@ -1,4 +1,4 @@
-<Window x:Class="Quant.UI.Views.GroupEditDialog"
+﻿<Window x:Class="Quant.UI.Views.GroupEditDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ctrl="clr-namespace:Quant.UI.Controls"
@@ -7,24 +7,6 @@
         ResizeMode="NoResize"
         Background="#1E1E2E" Foreground="#CDD6F4">
     <Window.Resources>
-        <Style x:Key="Lbl" TargetType="TextBlock">
-            <Setter Property="Foreground"  Value="#6C7086"/>
-            <Setter Property="FontSize"    Value="11"/>
-            <Setter Property="FontFamily"  Value="Consolas"/>
-            <Setter Property="Margin"      Value="0,0,0,4"/>
-        </Style>
-        <Style x:Key="Inp" TargetType="TextBox">
-            <Setter Property="Background"      Value="#252536"/>
-            <Setter Property="Foreground"      Value="#CDD6F4"/>
-            <Setter Property="CaretBrush"      Value="#89B4FA"/>
-            <Setter Property="BorderBrush"     Value="#45475A"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="FontFamily"      Value="Consolas"/>
-            <Setter Property="FontSize"        Value="12"/>
-            <Setter Property="Padding"         Value="6,4"/>
-            <Setter Property="Margin"          Value="0,0,0,12"/>
-        </Style>
-
     </Window.Resources>
     <Grid Margin="20">
         <Grid.RowDefinitions>
@@ -32,17 +14,17 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <StackPanel Grid.Row="0">
-            <TextBlock Text="Kind" Style="{StaticResource Lbl}"/>
+            <TextBlock Text="Kind"/>
             <ComboBox x:Name="CmbKind" Background="#FF272798" Foreground="#FFC7C010">
                 <ComboBoxItem Content="watch"/>
                 <ComboBoxItem Content="theme"/>
                 <ComboBoxItem Content="sector"/>
             </ComboBox>
-            <TextBlock Text="Name" Style="{StaticResource Lbl}"/>
-            <TextBox x:Name="TxtName" Style="{StaticResource Inp}"/>
-            <TextBlock Text="Description" Style="{StaticResource Lbl}"/>
-            <TextBox x:Name="TxtDesc" Style="{StaticResource Inp}"/>
-            <TextBlock Text="Rating (0–10)" Style="{StaticResource Lbl}"/>
+            <TextBlock Text="Name"/>
+            <TextBox x:Name="TxtName"/>
+            <TextBlock Text="Description"/>
+            <TextBox x:Name="TxtDesc"/>
+            <TextBlock Text="Rating (0–10)"/>
             <ctrl:RatingControl x:Name="RatingCtrl" Rating="5" Margin="0,0,0,12" Height="22"/>
         </StackPanel>
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">

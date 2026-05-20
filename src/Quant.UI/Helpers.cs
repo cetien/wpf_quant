@@ -9,6 +9,20 @@ using System.Windows.Data;
 
 namespace Quant.UI;
 
+public static class StatusColors
+{
+    public const string Success = "#A6E3A1"; // 초록
+    public const string Info    = "#89B4FA"; // 파랑
+    public const string Warning = "#F9E2AF"; // 노랑
+    public const string Error   = "#F38BA8"; // 빨강
+    public const string Muted   = "#6C7086"; // 회색
+}
+
+/// <summary>
+/// 지표(Metric) 표시 등 Label-Value 쌍이 필요한 UI 요소를 위한 공용 모델
+/// </summary>
+public record LabelValue(string Label, string Value, string Color = "#CDD6F4");
+
 /// <summary>
 /// DataTable(DBNull 포함) / double? 바인딩용 범용 포맷 Converter.
 /// ConverterParameter 로 포맷 문자열 지정 (기본 "F2").
@@ -83,9 +97,20 @@ public static class Helpers
 
     public static readonly Regex TickerRegex = new("^[A-Za-z0-9]{6}$", RegexOptions.Compiled);
 
+    public static void Status(Action<string, string>? statusEvent, string message, string colorHex)
+    {
+        statusEvent?.Invoke(message, colorHex);
+    }
+    public static void StatusSuccess(Action<string, string>? statusEvent, string message) => Status(statusEvent, message, StatusColors.Success);
+    public static void StatusInfo(Action<string, string>? statusEvent, string message) => Status(statusEvent, message, StatusColors.Info);
+    public static void StatusError(Action<string, string>? statusEvent, string message) => Status(statusEvent, message, StatusColors.Error);
+    public static void StatusWarning(Action<string, string>? statusEvent, string message) => Status(statusEvent, message, StatusColors.Warning);
+    public static void StatusException(Action<string, string>? statusEvent, Exception ex, string message) => StatusError(statusEvent, $"{message}: {ex.Message}");
+
+
     public static void HighlightButton(Button btn)
     {
-        btn.Foreground = (System.Windows.Media.Brush)(btn.TryFindResource("AccentBlueBrush")
+        btn.Foreground = (System.Windows.Media.Brush)(btn.TryFindResource("AccentBlue")
             ?? System.Windows.Media.Brushes.LightBlue);
     }
 
@@ -97,3 +122,4 @@ public static class Helpers
         HighlightButton(active);
     }
 }
+

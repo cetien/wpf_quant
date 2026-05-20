@@ -8,108 +8,13 @@
     <UserControl.Resources>
 
         <!-- ── 공통 DataGrid 스타일 ─────────────────────────── -->
-        <Style x:Key="SideGrid" TargetType="DataGrid">
-            <Setter Property="Background"               Value="#181825"/>
-            <Setter Property="Foreground"               Value="#CDD6F4"/>
+        <Style x:Key="SideGrid" TargetType="DataGrid" BasedOn="{StaticResource QuantDataGrid}">
+            <Setter Property="Background"               Value="{StaticResource BgPanel}"/>
+            <Setter Property="Foreground"               Value="{StaticResource TextPrimary}"/>
             <Setter Property="BorderThickness"          Value="0"/>
-            <Setter Property="GridLinesVisibility"      Value="Horizontal"/>
-            <Setter Property="HorizontalGridLinesBrush" Value="#252536"/>
             <Setter Property="RowBackground"            Value="Transparent"/>
-            <Setter Property="AlternatingRowBackground" Value="#1A1A2E"/>
-            <Setter Property="ColumnHeaderHeight"       Value="24"/>
-            <Setter Property="RowHeight"                Value="24"/>
-            <Setter Property="FontSize"                 Value="11"/>
-            <Setter Property="FontFamily"               Value="Consolas"/>
-            <Setter Property="SelectionMode"            Value="Single"/>
-            <Setter Property="IsReadOnly"               Value="True"/>
-            <Setter Property="AutoGenerateColumns"      Value="False"/>
-            <Setter Property="CanUserSortColumns"       Value="True"/>
-            <Setter Property="CanUserResizeColumns"     Value="True"/>
+            <Setter Property="AlternatingRowBackground" Value="{StaticResource BgBase}"/>
             <Setter Property="HeadersVisibility"        Value="Column"/>
-            <Setter Property="ScrollViewer.VerticalScrollBarVisibility"   Value="Auto"/>
-            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
-            <Setter Property="SelectionUnit"            Value="FullRow"/>
-        </Style>
-
-        <Style TargetType="DataGridColumnHeader">
-            <Setter Property="Background"      Value="#1E1E2E"/>
-            <Setter Property="Foreground"      Value="#585B70"/>
-            <Setter Property="FontSize"        Value="10"/>
-            <Setter Property="FontWeight"      Value="SemiBold"/>
-            <Setter Property="Padding"         Value="6,0"/>
-            <Setter Property="BorderBrush"     Value="#313244"/>
-            <Setter Property="BorderThickness" Value="0,0,0,1"/>
-            <Setter Property="Height"          Value="22"/>
-        </Style>
-
-        <Style TargetType="DataGridRow">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Cursor"     Value="Hand"/>
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#313244"/>
-                </Trigger>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#252536"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style TargetType="DataGridCell">
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding"         Value="4,0"/>
-            <Setter Property="Foreground"      Value="#CDD6F4"/>
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="Transparent"/>
-                    <Setter Property="BorderBrush" Value="Transparent"/>
-                    <Setter Property="Foreground" Value="#CDD6F4"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- ── 섹션 헤더 스타일 ───────────────────────────────── -->
-        <Style x:Key="SectionHeader" TargetType="TextBlock">
-            <Setter Property="FontSize"     Value="9"/>
-            <Setter Property="FontWeight"   Value="Bold"/>
-            <Setter Property="Foreground"   Value="#45475A"/>
-            <Setter Property="FontFamily"   Value="Consolas"/>
-            <Setter Property="Margin"       Value="8,6,0,3"/>
-        </Style>
-
-        <!-- ── 옵션 체크박스 스타일 ─────────────────────────────── -->
-        <Style x:Key="SideCheckBox" TargetType="CheckBox">
-            <Setter Property="Foreground"  Value="#6C7086"/>
-            <Setter Property="FontSize"    Value="10"/>
-            <Setter Property="FontFamily"  Value="Consolas"/>
-            <Setter Property="Margin"      Value="2,1"/>
-            <Setter Property="Cursor"      Value="Hand"/>
-        </Style>
-
-        <!-- ── 소형 아이콘 버튼 ──────────────────────────────────── -->
-        <Style x:Key="IconBtn" TargetType="Button">
-            <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="Foreground"      Value="#45475A"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FontSize"        Value="11"/>
-            <Setter Property="Cursor"          Value="Hand"/>
-            <Setter Property="Padding"         Value="4,2"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bd" Background="{TemplateBinding Background}"
-                                CornerRadius="3" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#313244"/>
-                                <Setter Property="Foreground" Value="#89B4FA"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
         </Style>
 
     </UserControl.Resources>
@@ -160,7 +65,7 @@
                 <!-- ════════════════════════════════════════════
                      1. Global Indicators
                      ════════════════════════════════════════════ -->
-                <TextBlock Text="GLOBAL INDICATORS" Style="{StaticResource SectionHeader}"/>
+                <TextBlock Text="GLOBAL INDICATORS" Style="{StaticResource BoldText}"/>
 
                 <Border Background="#1E1E2E" Margin="6,0,6,4"
                         CornerRadius="4" Padding="4,4">
@@ -235,21 +140,18 @@
                 <!-- ════════════════════════════════════════════
                      2. Options
                      ════════════════════════════════════════════ -->
-                <TextBlock Text="OPTIONS" Style="{StaticResource SectionHeader}"/>
+                <TextBlock Text="OPTIONS" Style="{StaticResource BoldText}"/>
 
                 <Border Background="#1E1E2E" Margin="6,0,6,4"
                         CornerRadius="4" Padding="6,4">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                             <CheckBox Content="Sector"
-                                      Style="{StaticResource SideCheckBox}"
                                       IsChecked="{Binding ShowSector}"
                                       Margin="0,0,8,0"/>
                             <CheckBox Content="Theme"
-                                      Style="{StaticResource SideCheckBox}"
                                       IsChecked="{Binding ShowTheme}"/>
-                            <CheckBox Content="Active only"
-                                  Style="{StaticResource SideCheckBox}"
+                                <CheckBox Content="Active only"
                                   IsChecked="{Binding ShowOnlyActive}"/>
                         </StackPanel>
                     </StackPanel>
@@ -344,15 +246,16 @@
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <DataGrid x:Name="GroupGrid"
-                              Style="{StaticResource SideGrid}"
+                    <DataGrid x:Name="GroupGrid" AutoGenerateColumns="False"
+                              Style="{StaticResource QuantDataGrid}"
                               ItemsSource="{Binding Groups}"
                               SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"
                               Height="180">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Kind"  Binding="{Binding Kind}"       Width="44"/>
+                            <DataGridTextColumn Header="-"  Binding="{Binding Kind}"       Width="30"/>
                             <DataGridTextColumn Header="Name"  Binding="{Binding Name}"       Width="*"/>
-                            <DataGridTextColumn Header="#"     Binding="{Binding StockCount}" Width="28">
+                            <DataGridTextColumn Header="★"  Binding="{Binding Rating}"       Width="30"/>
+                            <DataGridTextColumn Header="#"     Binding="{Binding StockCount}" Width="30">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Foreground"          Value="#89B4FA"/>
@@ -378,8 +281,8 @@
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <DataGrid x:Name="ScreenerGrid"
-                              Style="{StaticResource SideGrid}"
+                    <DataGrid x:Name="ScreenerGrid" AutoGenerateColumns="False"
+                              Style="{StaticResource QuantDataGrid}"
                               ItemsSource="{Binding Screeners}"
                               SelectedItem="{Binding SelectedScreener, Mode=TwoWay}"
                               Height="180">
@@ -400,7 +303,7 @@
                      5. Stocks Grid
                      ════════════════════════════════════════════ -->
                 <DockPanel Margin="0,6,0,0">
-                    <TextBlock Text="STOCKS" Style="{StaticResource SectionHeader}"
+                    <TextBlock Text="STOCKS" Style="{StaticResource BoldText}"
                                DockPanel.Dock="Left"/>
                     <TextBlock Text="{Binding StockSectionLabel}"
                                FontSize="9" FontFamily="Consolas"
@@ -450,7 +353,7 @@
                 </Border>
 
                 <Border Margin="6,0,6,6" BorderBrush="#313244" BorderThickness="1" CornerRadius="3">
-                    <DataGrid x:Name="StockGrid"
+                    <DataGrid x:Name="StockGrid" AutoGenerateColumns="False"
                               ItemsSource="{Binding Stocks}"
                               SelectedItem="{Binding SelectedStock, Mode=TwoWay}"
                               Height="200">
@@ -466,7 +369,7 @@
                             </DataGridTextColumn>
                         </DataGrid.Columns>
                         <DataGrid.Style>
-                            <Style TargetType="DataGrid" BasedOn="{StaticResource SideGrid}">
+                            <Style TargetType="DataGrid" BasedOn="{StaticResource QuantDataGrid}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding HasSelection}" Value="False">
                                         <Setter Property="Opacity" Value="0.4"/>

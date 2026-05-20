@@ -8,34 +8,6 @@
              Background="#1E1E2E">
 
     <UserControl.Resources>
-
-        <!-- 지표 레이블 -->
-        <Style x:Key="MetaLabel" TargetType="TextBlock">
-            <Setter Property="FontFamily"        Value="Consolas"/>
-            <Setter Property="FontSize"          Value="10"/>
-            <Setter Property="Foreground"        Value="#6C7086"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-        <!-- 지표 값 -->
-        <Style x:Key="MetaValue" TargetType="TextBlock">
-            <Setter Property="FontFamily"        Value="Consolas"/>
-            <Setter Property="FontSize"          Value="11"/>
-            <Setter Property="FontWeight"        Value="SemiBold"/>
-            <Setter Property="Foreground"        Value="#CDD6F4"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Margin"            Value="4,0,16,0"/>
-        </Style>
-
-        <!-- 서브차트 레이블 -->
-        <Style x:Key="SubLabel" TargetType="TextBlock">
-            <Setter Property="FontFamily"        Value="Consolas"/>
-            <Setter Property="FontSize"          Value="9"/>
-            <Setter Property="Foreground"        Value="#45475A"/>
-            <Setter Property="VerticalAlignment" Value="Top"/>
-            <Setter Property="Margin"            Value="6,3"/>
-        </Style>
-
-
     </UserControl.Resources>
 
     <!-- ── 전체 레이아웃 Grid ──────────────────────────────── -->
@@ -71,14 +43,14 @@
                             Background="#89B4FA" Foreground="#1E1E2E"
                             BorderThickness="0" FontWeight="Bold" FontSize="11"
                             Cursor="Hand" Click="BtnLoad_Click"/>
-                        <Button Content="🔄" Width="30" Height="26" Style="{StaticResource PeriodBtn}"
+                        <Button Content="🔄" Width="30" Height="26" Style="{StaticResource IconBtn}"
                             Foreground="#8BF9BA" Click="BtnDownloadData_Click" ToolTip="가격 데이터 다운로드"/>
-                        <Button Content="🔗" Width="30" Height="26" Style="{StaticResource PeriodBtn}"
+                        <Button Content="🔗" Width="30" Height="26" Style="{StaticResource IconBtn}"
                             Foreground="#8BF9BA" Click="BtnExternalLink_Click" ToolTip="네이버 금융"/>
                         <!-- 종목 제거 버튼 -->
                         <Button x:Name="BtnDeleteStock" Content="✗" Width="30" Height="26"
-                            Style="{StaticResource PeriodBtn}"
-                            Foreground="#F38BA8"
+                            Style="{StaticResource IconBtn}"
+                            Foreground="#F38BA8" 
                             Click="BtnDeleteStock_Click" ToolTip="종목 영구제거 (SPAC 등)"/>
                     </StackPanel>
                 </Grid>
@@ -91,76 +63,60 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
-                        <TextBlock Text="Fundamentals" Style="{StaticResource MetaLabel}" FontSize="9" FontWeight="Bold" Foreground="#45475A" Margin="4,0,0,0"/>
+                        <TextBlock Text="Fundamentals" FontSize="9" FontWeight="Bold" Foreground="#45475A" Margin="4,0,0,0"/>
                     </StackPanel>
-                    <WrapPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
-                        <TextBlock Text="PER" Style="{StaticResource MetaLabel}"/>
-                        <TextBlock x:Name="TxtPer" Style="{StaticResource MetaValue}" Text="-" Foreground="#F0F15E"/>
-                        <TextBlock Text="PBR" Style="{StaticResource MetaLabel}"/>
-                        <TextBlock x:Name="TxtPbr" Style="{StaticResource MetaValue}" Text="-" Foreground="#F0F15E"/>
-                        <TextBlock Text="EPS" Style="{StaticResource MetaLabel}"/>
-                        <TextBlock x:Name="TxtEps" Style="{StaticResource MetaValue}" Text="-" Foreground="#F0F15E"/>
-                        <TextBlock Text="ROE" Style="{StaticResource MetaLabel}"/>
-                        <TextBlock x:Name="TxtBps" Style="{StaticResource MetaValue}" Text="-" Foreground="#F0F15E"/>
-                        <TextBlock x:Name="TxtFundDate" Style="{StaticResource MetaLabel}" Foreground="#45475A" FontSize="9"/>
-                    </WrapPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                        <ItemsControl ItemsSource="{Binding FundamentalMetrics}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,10,0">
+                                        <TextBlock Text="{Binding Label}" Style="{StaticResource NormalText}" Margin="0,0,4,0"/>
+                                        <TextBlock Text="{Binding Value}" Style="{StaticResource BoldText}" Foreground="{Binding Color}"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock x:Name="TxtFundDate" Foreground="#45475A" FontSize="9" VerticalAlignment="Center"/>
+                    </StackPanel>
                 </Grid>
             </Border>
             <!-- ══ Row 2: Rating ═══════════════════════ -->
             <Border Grid.Row="2" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1" Padding="10,6">
                 <Grid VerticalAlignment="Center" Margin="8,0">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="120"/>     <!-- TxtStockInfo_ReturnRatio -->
+                        <ColumnDefinition Width="*"/>       <!-- InfoPanel -->
                         <ColumnDefinition Width="200"/>     <!-- CartesianChart -->
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Top">
-                        <ctrl:RatingControl x:Name="RatingCtrl" Height="18" Margin="12,0,0,0"
+                    <Border Grid.Column="0">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <WrapPanel x:Name="Panel_StockInfo" Margin="2"/>
+                        </ScrollViewer>
+                    </Border>
+                    <Border Grid.Column="1" Margin="8,0,0,0">
+                        <StackPanel>
+                            <ctrl:RatingControl x:Name="RatingCtrl" Height="20" Margin="12,0,0,0"
                                             VerticalAlignment="Top"
                                             RatingChanged="RatingCtrl_RatingChanged" Foreground="#FFD200"/>
-                        <TextBox x:Name="TxtStockInfo"
-                                Text="-"
-                                IsReadOnly="True"
-                                AcceptsReturn="True"
-                                TextWrapping="Wrap"
-                                VerticalScrollBarVisibility="Auto"
-                                HorizontalScrollBarVisibility="Disabled"
-                                MinHeight="44"
-                                Padding="4"
-                                FontFamily="Consolas"
-                                FontSize="11"
-                                Foreground="#FFF9F9C4"
-                                Background="Transparent"
-                                BorderThickness="0"/>
-                    </StackPanel>
-
-                    <Border Grid.Column="1" Margin="8,0,0,0">
-                        <TextBox x:Name="TxtStockInfo_ReturnRatio"
-                                Text="%"
-                                IsReadOnly="True"
-                                TextWrapping="Wrap"
-                                VerticalScrollBarVisibility="Auto"
-                                HorizontalScrollBarVisibility="Disabled"
-                                Padding="4"
-                                FontFamily="Consolas"
-                                FontSize="11"
-                                Foreground="#FFF9F9C4"
-                                Background="Transparent"/>
-                    </Border>
-                    <Border Grid.Column="2" Height="160" Margin="8,0,0,0"
-                            Background="#1A1B29" BorderBrush="#313244" BorderThickness="1" CornerRadius="4">
-                        <lvc:CartesianChart x:Name="MiniChart_ReturnRatio"
-                                            DrawMarginFrame="{x:Null}"
-                                            Background="#1E1E2E"
-                                            ZoomMode="None" 
-                                            TooltipPosition="Hidden"/>
+                            <Border Background="#1A1B29" BorderBrush="#313244" BorderThickness="1" CornerRadius="4">
+                                <lvc:CartesianChart x:Name="MiniChart_ReturnRatio"
+                                                    DrawMarginFrame="{x:Null}"
+                                                    Background="#1E1E2E"
+                                                    ZoomMode="None" Height="200" 
+                                                    TooltipPosition="Hidden" RenderTransformOrigin="0.5,0.5"/>
+                            </Border>
+                        </StackPanel>
                     </Border>
                 </Grid>
             </Border>
             <!-- ══ Row 3: info ═══════════════════════ -->
             <Border Grid.Row="3" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1" Padding="10,6">
-                <TextBox x:Name="TxtStockInfo2"
+                <TextBox x:Name="TxtStockInfo"
                          Text="-"
                          IsReadOnly="True"
                          AcceptsReturn="True"
@@ -216,12 +172,12 @@
             <Grid Margin="10,0">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <!-- 기간 버튼 -->
-                    <Button x:Name="Btn1M"  Content="1M"  Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="30"/>
-                    <Button x:Name="Btn3M"  Content="3M"  Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="90"/>
-                    <Button x:Name="Btn6M"  Content="6M"  Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="180"/>
-                    <Button x:Name="Btn1Y"  Content="1Y"  Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="365"/>
-                    <Button x:Name="Btn2Y"  Content="2Y"  Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="730"/>
-                    <Button x:Name="BtnAll" Content="ALL" Style="{StaticResource PeriodBtn}" Click="BtnPeriod_Click" Tag="0"/>
+                    <Button x:Name="Btn1M"  Content="1M" Click="BtnPeriod_Click" Tag="30"/>
+                    <Button x:Name="Btn3M"  Content="3M" Click="BtnPeriod_Click" Tag="90"/>
+                    <Button x:Name="Btn6M"  Content="6M" Click="BtnPeriod_Click" Tag="180"/>
+                    <Button x:Name="Btn1Y"  Content="1Y"  Click="BtnPeriod_Click" Tag="365"/>
+                    <Button x:Name="Btn2Y"  Content="2Y"  Click="BtnPeriod_Click" Tag="730"/>
+                    <Button x:Name="BtnAll" Content="ALL" Click="BtnPeriod_Click" Tag="0"/>
                 </StackPanel>
                 <StackPanel Orientation="Vertical" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="8,0,0,0">
                         <TextBlock x:Name="TxtChartPriceInfo" FontSize="10" FontFamily="Consolas" Text="price"
@@ -278,20 +234,27 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
-                    <TextBlock Text="SUPPLY" Style="{StaticResource MetaLabel}" FontSize="9" FontWeight="Bold" Foreground="#45475A"/>
+                    <TextBlock Text="SUPPLY" FontSize="9" FontWeight="Bold" Foreground="#45475A"/>
                 </StackPanel>
 
-                <WrapPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="기관(주)"         Style="{StaticResource MetaLabel}"/>
-                    <TextBlock x:Name="TxtInstNet"    Style="{StaticResource MetaValue}" Text="-"/>
-                    <TextBlock Text="외인(주)"         Style="{StaticResource MetaLabel}"/>
-                    <TextBlock x:Name="TxtForeignNet" Style="{StaticResource MetaValue}" Text="-"/>
-                    <TextBlock Text="기관(억)"         Style="{StaticResource MetaLabel}"/>
-                    <TextBlock x:Name="TxtInstAmt"    Style="{StaticResource MetaValue}" Text="-"/>
-                    <TextBlock Text="외인(억)"         Style="{StaticResource MetaLabel}"/>
-                    <TextBlock x:Name="TxtForeignAmt" Style="{StaticResource MetaValue}" Text="-" Foreground="#F0F15E"/>
-                    <TextBlock x:Name="TxtSupplyDate" Style="{StaticResource MetaLabel}" Foreground="#45475A" FontSize="9"/>
-                </WrapPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                    <ItemsControl ItemsSource="{Binding SupplyMetrics}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,10,0">
+                                    <TextBlock Text="{Binding Label}" Style="{StaticResource NormalText}" Margin="0,0,4,0"/>
+                                    <TextBlock Text="{Binding Value}" Style="{StaticResource BoldText}" Foreground="{Binding Color}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock x:Name="TxtSupplyDate" Foreground="#45475A" FontSize="9" VerticalAlignment="Center"/>
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -307,7 +270,7 @@
 
         <!-- ══ Row 4: 거래량 서브차트 (높이=0 → 토글로 제어) -->
         <Grid Grid.Row="4" Background="#1A1A2E">
-            <TextBlock Text="VOL" Style="{StaticResource SubLabel}"/>
+            <TextBlock Text="VOL" Style="{StaticResource SmallText}"/>
             <lvc:CartesianChart x:Name="VolChart"
                                 Margin="0,16,0,0"
                                 Background="Transparent"
@@ -321,7 +284,7 @@
 
         <!-- ══ Row 5: MACD 서브차트 ════════════════════════ -->
         <Grid Grid.Row="5" Background="#1A1A2E">
-            <TextBlock Text="MACD(12,26,9)" Style="{StaticResource SubLabel}"/>
+            <TextBlock Text="MACD(12,26,9)" Style="{StaticResource SmallText}"/>
             <lvc:CartesianChart x:Name="MacdChart"
                                 Margin="0,16,0,0"
                                 Background="Transparent"
@@ -335,7 +298,7 @@
 
         <!-- ══ Row 6: RSI 서브차트 ═════════════════════════ -->
         <Grid Grid.Row="6" Background="#1A1A2E">
-            <TextBlock Text="RSI(14)" Style="{StaticResource SubLabel}"/>
+            <TextBlock Text="RSI(14)" Style="{StaticResource SmallText}"/>
             <lvc:CartesianChart x:Name="RsiChart"
                                 Margin="0,16,0,0"
                                 Background="Transparent"
@@ -438,7 +401,7 @@
                         <ColumnDefinition Width="80"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Ticker" Style="{StaticResource MetaLabel}" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="0" Text="Ticker" VerticalAlignment="Center"/>
                     <TextBlock x:Name="TxtRegTicker" Grid.Column="1"
                                FontFamily="Consolas" FontSize="12" FontWeight="Bold"
                                Foreground="#89B4FA" VerticalAlignment="Center"/>
@@ -450,7 +413,7 @@
                         <ColumnDefinition Width="80"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="종목명" Style="{StaticResource MetaLabel}" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="0" Text="종목명" VerticalAlignment="Center"/>
                     <TextBox x:Name="TxtRegName" Grid.Column="1"
                              Height="26" Padding="6,2"
                              Background="#313244" Foreground="#CDD6F4"
@@ -466,7 +429,7 @@
                         <ColumnDefinition Width="80"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Market" Style="{StaticResource MetaLabel}" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="0" Text="Market" VerticalAlignment="Center"/>
                     <ComboBox x:Name="CmbRegMarket" Grid.Column="1"
                               Height="26"
                               Background="#313244">
@@ -484,7 +447,7 @@
                         <ColumnDefinition Width="80"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="유형" Style="{StaticResource MetaLabel}" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="0" Text="유형" VerticalAlignment="Center"/>
                     <ComboBox x:Name="CmbRegType" Grid.Column="1"
                               Height="26"
                               Background="#313244">
@@ -519,4 +482,3 @@
 </Grid>
 
 </UserControl>
-

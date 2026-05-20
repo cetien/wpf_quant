@@ -4,9 +4,9 @@
         <!-- ComboBox Style -->
         <!-- <Style x:Key="Cmb" TargetType="ComboBox"> -->
         <Style TargetType="ComboBox">
-            <Setter Property="Background"      Value="#252536"/>
-            <Setter Property="Foreground"      Value="#CDD6F4"/>
-            <Setter Property="BorderBrush"     Value="#45475A"/>
+            <Setter Property="Background"      Value="{StaticResource BgTextBox}"/>
+            <Setter Property="Foreground"      Value="{StaticResource TextPrimary}"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource BorderColor}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="FontFamily"      Value="Consolas"/>
             <Setter Property="FontSize"        Value="11"/>
@@ -20,7 +20,7 @@
                             <Popup x:Name="PART_Popup" AllowsTransparency="True" Grid.ColumnSpan="2" Placement="Bottom" Margin="1" 
                                    IsOpen="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" 
                                    Focusable="False" PopupAnimation="Slide">
-                                <Border x:Name="DropDownBorder" Background="#1E1E2E" BorderBrush="#45475A" BorderThickness="1" 
+                                <Border x:Name="DropDownBorder" Background="{StaticResource BgBase}" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" 
                                         MinWidth="{Binding ActualWidth, ElementName=MainGrid}" MaxHeight="{TemplateBinding MaxDropDownHeight}">
                                     <ScrollViewer x:Name="DropDownScrollViewer">
                                         <ItemsPresenter x:Name="ItemsPresenter" KeyboardNavigation.DirectionalNavigation="Contained" />
@@ -45,7 +45,7 @@
                                                     </Border>
                                                     <ControlTemplate.Triggers>
                                                         <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="bd" Property="Background" Value="#313244"/>
+                                                            <Setter TargetName="bd" Property="Background" Value="{StaticResource BgSurface}"/>
                                                         </Trigger>
                                                     </ControlTemplate.Triggers>
                                                 </ControlTemplate>
@@ -65,16 +65,16 @@
             </Setter>
         </Style>
         <Style TargetType="ComboBoxItem">
-            <Setter Property="Background"      Value="#252536"/>
-            <Setter Property="Foreground"      Value="#CDD6F4"/>
+            <Setter Property="Background"      Value="{StaticResource BgTextBox}"/>
+            <Setter Property="Foreground"      Value="{StaticResource TextPrimary}"/>
             <Setter Property="Padding"         Value="6,4"/>
             <Style.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
-                    <Setter Property="Background" Value="#313244"/>
+                    <Setter Property="Background" Value="{StaticResource BgSurface}"/>
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#89B4FA"/>
-                    <Setter Property="Foreground" Value="#1E1E2E"/>
+                    <Setter Property="Background" Value="{StaticResource BgTextBox}"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>

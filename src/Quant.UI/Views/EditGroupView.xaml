@@ -18,7 +18,7 @@
         <Border Grid.Row="0" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1">
             <Grid Margin="10,0">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="🏷 GROUP EDITOR" Style="{StaticResource SectionLabel}"
+                    <TextBlock Text="🏷 GROUP EDITOR" Style="{StaticResource BoldText}"
                                Foreground="#6C7086" Margin="0,0,16,0"/>
                     <Button Content="＋ New"    Style="{StaticResource ActionBtn}" Click="BtnNewGroup_Click"/>
                     <Button Content="✎ Edit"   Style="{StaticResource ActionBtn}" Click="BtnEditGroup_Click"/>
@@ -53,10 +53,10 @@
                         <RowDefinition Height="28"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <Border Grid.Row="0" Style="{StaticResource SectionHeader}" Cursor="">
+                    <Border Grid.Row="0" Style="{StaticResource SectionHeaderBorder}" Cursor="">
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                            <TextBlock Text="#" x:Name="GroupGridCount" Style="{StaticResource SectionLabel}" Foreground="#FFEADC43"/>
-                            <TextBlock Text="GROUPS" Style="{StaticResource SectionLabel}" Margin="6,0,6,0"/>
+                            <TextBlock Text="#" x:Name="GroupGridCount" Style="{StaticResource BoldText}" Foreground="#FFEADC43"/>
+                            <TextBlock Text="GROUPS" Style="{StaticResource BoldText}" Margin="6,0,6,0"/>
                             <CheckBox x:Name="chkAllGroup" Content="All" Click="GroupFilter_Click" Tag="All"/>
                             <CheckBox x:Name="chkSectorGroup" Content="Sector" Click="GroupFilter_Click" Tag="Sector"/>
                             <CheckBox x:Name="chkThemeGroup" Content="Theme" Click="GroupFilter_Click" Tag="Theme"/>
@@ -86,31 +86,30 @@
                         <RowDefinition Height="28"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <Border Grid.Row="0" Style="{StaticResource SectionHeader}">
+                    <Border Grid.Row="0" Style="{StaticResource SectionHeaderBorder}">
                         <Grid>
                             <TextBlock x:Name="TxtCurrGroupNameAtGrid" Text="Group"
-                                       Style="{StaticResource SectionLabel}"/>
+                                       Style="{StaticResource BoldText}"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                                         VerticalAlignment="Center">
                                 <ctrl:RatingControl x:Name="GroupRatingCtrl" Rating="5" Margin="0,2,10,3" Height="22"
                                                     RatingChanged="GroupRatingCtrl_RatingChanged"/>
-                                <Button x:Name="BtnChartAll"  Content="All"  Style="{StaticResource PeriodBtn}"
-                                    Click="BtnChart_Click" Tag="1"/>
-                                <Button x:Name="BtnChartClear"  Content="Clear"  Style="{StaticResource PeriodBtn}"
+                                <Button x:Name="BtnChartAll"  Content="All"
+                                    Click="BtnChart_Click" Tag="1" Background="#00333333" Foreground="#FFF5ED1A"/>
+                                <Button x:Name="BtnChartClear"  Content="Clear" 
                                     Click="BtnChart_Click" Tag="0"/>
                                 <CheckBox x:Name="CheckboxAddTicker" Content="Add" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <Button x:Name="BtnDownloadGroup" Content="🔄" Style="{StaticResource ActionBtn}"
                                         Padding="6,3" Margin="0,0,3,0" Click="BtnDownloadGroup_Click"
                                         ToolTip="그룹 전체 가격 데이터 다운로드"/>
                                 <Button x:Name="BtnRemoveTicker" Content="✕" Style="{StaticResource ActionBtn}"
-                                        Padding="6,3" Margin="0" Foreground="#F38BA8"
+                                        Padding="6,3" Margin="0" Foreground="{StaticResource TextError}"
                                         Click="BtnRemoveTicker_Click"/>
                             </StackPanel>
                         </Grid>
                     </Border>
                     <DataGrid x:Name="GridTicker" Grid.Row="1"
                               Style="{StaticResource QuantDataGrid}"
-                              IsReadOnly="True"
                               AutoGenerateColumns="False"
                               SelectionChanged="GridTicker_SelectionChanged"
                               MouseDoubleClick="GridTicker_MouseDoubleClick">
@@ -141,6 +140,7 @@
                             <DataGridTextColumn Header="distance_from_high"     Binding="{Binding distance_from_high, Converter={StaticResource FmtF1}, ConverterParameter=F1}"   Width="60"/>
                             <DataGridTextColumn Header="volume_avg_20d"     Binding="{Binding volume_avg_20d, Converter={StaticResource FmtVol}, ConverterParameter=vol}"   Width="60"/>
 
+                            <!--
                             <DataGridTemplateColumn Header="" Width="36" CanUserSort="False" CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -154,6 +154,7 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
+                            -->
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>
@@ -180,19 +181,19 @@
                         </StackPanel>
                         <!-- 기간 버튼 -->
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Period:" Style="{StaticResource SectionLabel}"
+                            <TextBlock Text="Period:" Style="{StaticResource BoldText}"
                                        Margin="0,0,8,0"/>
-                            <Button x:Name="Btn1M"  Content="1M"  Style="{StaticResource PeriodBtn}"
+                            <Button x:Name="Btn1M"  Content="1M" 
                                     Click="BtnPeriod_Click" Tag="30"/>
-                            <Button x:Name="Btn3M"  Content="3M"  Style="{StaticResource PeriodBtn}"
+                            <Button x:Name="Btn3M"  Content="3M" 
                                     Click="BtnPeriod_Click" Tag="90"/>
-                            <Button x:Name="Btn6M"  Content="6M"  Style="{StaticResource PeriodBtn}"
+                            <Button x:Name="Btn6M"  Content="6M" 
                                     Click="BtnPeriod_Click" Tag="180"/>
-                            <Button x:Name="Btn1Y"  Content="1Y"  Style="{StaticResource PeriodBtn}"
+                            <Button x:Name="Btn1Y"  Content="1Y"    
                                     Click="BtnPeriod_Click" Tag="365"/>
-                            <Button x:Name="Btn2Y"  Content="2Y"  Style="{StaticResource PeriodBtn}"
+                            <Button x:Name="Btn2Y"  Content="2Y"  
                                     Click="BtnPeriod_Click" Tag="730"/>
-                            <Button x:Name="BtnAll" Content="ALL" Style="{StaticResource PeriodBtn}"
+                            <Button x:Name="BtnAll" Content="ALL" 
                                     Click="BtnPeriod_Click" Tag="0"/>
                             <TextBlock x:Name="TxtChartInfo" FontSize="10" FontFamily="Consolas"
                                        Foreground="#6C7086" VerticalAlignment="Center" Margin="12,0,0,0"/>
@@ -209,9 +210,9 @@
                         <RowDefinition Height="28"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <Border Grid.Row="0" Style="{StaticResource SectionHeader}">
+                    <Border Grid.Row="0" Style="{StaticResource SectionHeaderBorder}">
                         <TextBlock Text="📈 RELATIVE PERFORMANCE  (Base 100)"
-                                   Style="{StaticResource SectionLabel}"/>
+                                   Style="{StaticResource BoldText}"/>
                     </Border>
                     <lvc:CartesianChart x:Name="Chart" Grid.Row="1"
                                         Background="#1E1E2E"

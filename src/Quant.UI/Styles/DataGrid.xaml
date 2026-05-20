@@ -19,22 +19,21 @@
     <Style x:Key="ReturnTextStyle" TargetType="TextBlock">
         <Style.Triggers>
             <DataTrigger Binding="{Binding}" Value="0">
-                <Setter Property="Foreground" Value="Gray"/>
+                <Setter Property="Foreground" Value="{StaticResource TextMuted}"/>
             </DataTrigger>
         </Style.Triggers>
     </Style>
- 
 
         <!-- DataGrid -->
         <Style x:Key="QuantDataGrid" TargetType="DataGrid">
-            <Setter Property="Background"               Value="#181825"/>
-            <Setter Property="Foreground"               Value="#CDD6F4"/>
-            <Setter Property="BorderBrush"              Value="#45475A"/>
+            <Setter Property="Background"               Value="{StaticResource BgBase}"/>
+            <Setter Property="Foreground"               Value="{StaticResource TextPrimary}"/>
+            <Setter Property="BorderBrush"              Value="{StaticResource BorderColor}"/>
             <Setter Property="BorderThickness"          Value="1"/>
             <Setter Property="GridLinesVisibility"      Value="Horizontal"/>
-            <Setter Property="HorizontalGridLinesBrush" Value="#313244"/>
-            <Setter Property="RowBackground"            Value="#181825"/>
-            <Setter Property="AlternatingRowBackground" Value="#1E1E2E"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource GridLineColor}"/>
+            <Setter Property="RowBackground"            Value="{StaticResource BgBase}"/>
+            <Setter Property="AlternatingRowBackground" Value="{StaticResource BgSurface}"/>
             <Setter Property="ColumnHeaderHeight"       Value="28"/>
             <Setter Property="RowHeight"                Value="24"/>
             <Setter Property="FontSize"                 Value="11"/>
@@ -46,30 +45,30 @@
             <Setter Property="CanUserResizeColumns"     Value="True"/>
         </Style>
         <Style TargetType="DataGridColumnHeader">
-            <Setter Property="Background"      Value="#252536"/>
-            <Setter Property="Foreground"      Value="#89B4FA"/>
+            <Setter Property="Background"      Value="{StaticResource BgTextBox}"/>
+            <Setter Property="Foreground"      Value="{StaticResource TextPrimary}"/>
             <Setter Property="FontWeight"      Value="SemiBold"/>
             <Setter Property="FontSize"        Value="10"/>
             <Setter Property="Padding"         Value="6,0"/>
-            <Setter Property="BorderBrush"     Value="#45475A"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource BorderColor}"/>
             <Setter Property="BorderThickness" Value="0,0,1,1"/>
         </Style>
         <Style TargetType="DataGridRow">
             <Setter Property="Background" Value="Transparent"/>
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#313244"/>
-                    <Setter Property="Foreground" Value="#CDD6F4"/>
+                    <Setter Property="Background" Value="{StaticResource BgSurface}"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
                 </Trigger>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#2A2A3C"/>
+                    <Setter Property="Background" Value="{StaticResource BgSurface}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
         <Style TargetType="DataGridCell">
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding"         Value="4,0"/>
-            <Setter Property="Foreground"      Value="#CDD6F4"/>
+            <Setter Property="Foreground"      Value="{StaticResource TextPrimary}"/>
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
                     <Setter Property="Background" Value="Transparent"/>

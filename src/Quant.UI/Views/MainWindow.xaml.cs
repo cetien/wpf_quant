@@ -35,15 +35,15 @@ public partial class MainWindow : Window
         ShowDashboard();
 
         // stock_cache 갱신을 백그라운드에서 실행 — UI 블로킹 방지
-        SetStatus("stock_cache 확인 중...", "#6C7086");
+        SetStatus("stock_cache 확인 중...", StatusColors.Muted);
         try
         {
             await Task.Run(() => _db.EnsureStockCache());
-            SetStatus("준비 완료", "#A6E3A1");
+            SetStatus("준비 완료", StatusColors.Success);
         }
         catch (Exception ex)
         {
-            SetStatus($"stock_cache 오류: {ex.Message}", "#F38BA8");
+            SetStatus($"stock_cache 오류: {ex.Message}", StatusColors.Error);
         }
     }
 

@@ -122,9 +122,9 @@ public partial class EditGroupView : UserControl
             GridGroup.ItemsSource = _groupTable.DefaultView;
             GroupGridCount.Text = $"{_groupTable.Rows.Count:N0}";
             TxtRowCount.Text = $"{_groupTable.Rows.Count:N0} groups";
-            StatusChanged?.Invoke($"그룹 {_groupTable.Rows.Count}건", "#A6E3A1");
+            Helpers.StatusSuccess(StatusChanged, $"그룹 {_groupTable.Rows.Count}건");
         }
-        catch (Exception ex) { StatusChanged?.Invoke($"오류: {ex.Message}", "#F38BA8"); }
+        catch (Exception ex) { Helpers.StatusException(StatusChanged, ex, "오류"); }
     }
 
     private string BuildGroupKindFilter()
@@ -273,33 +273,8 @@ public partial class EditGroupView : UserControl
                 LoadTickers(_currentGroupId);
                 TxtStatus.Text = $"AddTicker: _currentGroupId={_currentGroupId}, ticker={ticker}, name={name}";
             }
-            catch (Exception ex) { StatusChanged?.Invoke($"오류: {ex.Message}", "#F38BA8"); }
+            catch (Exception ex) { Helpers.StatusException(StatusChanged, ex, "오류"); }
         }
-    }
-
-    private void BtnRemoveTicker_Click(object sender, RoutedEventArgs e)
-    {
-        if (_currentGroupId < 0) { TxtStatus.Text = "그룹을 먼저 선택하세요."; return; }
-        if (GridTicker.SelectedItem is not DataRowView row) { TxtStatus.Text = "티커를 선택하세요."; return; }
-        var ticker = row["ticker"]?.ToString() ?? "";
-        if (string.IsNullOrEmpty(ticker)) return;
-        if (MessageBox.Show($"[{ticker}]을 그룹에서 제거하시겠습니까?",
-                "제거 확인", MessageBoxButton.YesNo, MessageBoxImage.Warning)
-            != MessageBoxResult.Yes) return;
-        try
-        {
-            using var conn = _db.OpenNativeConnection();
-            using var cmd  = conn.CreateCommand();
-            cmd.CommandText = "DELETE FROM stock_group_map WHERE group_id = $1 AND ticker = $2";
-            cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = _currentGroupId });
-            cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = ticker });
-            cmd.ExecuteNonQuery();
-            LoadTickers(_currentGroupId);
-            LoadChartData(_currentGroupId);
-            TxtStatus.Text = $"제거됨: {ticker}";
-            StatusChanged?.Invoke($"제거됨: {ticker}", "#F38BA8");
-        }
-        catch (Exception ex) { TxtStatus.Text = $"제거 오류: {ex.Message}"; }
     }
 
     // ═════════════════════════════════════════════════════════
@@ -336,7 +311,7 @@ public partial class EditGroupView : UserControl
         var progress = new Progress<string>(msg =>
         {
             TxtStatus.Text = msg;
-            StatusChanged?.Invoke(msg, "#89B4FA");
+            Helpers.StatusInfo(StatusChanged, msg);
         });
 
         try
@@ -356,7 +331,7 @@ public partial class EditGroupView : UserControl
                     errors.Add(ticker);
                     var msg = $"{prefix}: 오류 — {ex.Message}";
                     TxtStatus.Text = msg;
-                    StatusChanged?.Invoke(msg, "#F38BA8");
+                    Helpers.StatusException(StatusChanged, ex, prefix);
                 }
                 if (done < total)
                     await Task.Delay(rng.Next(1500, 2501));
@@ -370,7 +345,10 @@ public partial class EditGroupView : UserControl
                 ? $"다운로드 완료 — {total}개 종목, {inserted:N0}건 저장"
                 : $"완료 — {total}개 중 {errors.Count}개 오류: {string.Join(", ", errors)}";
             TxtStatus.Text = summary;
-            StatusChanged?.Invoke(summary, errors.Count == 0 ? "#A6E3A1" : "#F9E2AF");
+            if (errors.Count == 0)
+                Helpers.StatusSuccess(StatusChanged, summary);
+            else
+                Helpers.StatusWarning(StatusChanged, summary);
         }
         finally
         {
@@ -429,12 +407,12 @@ public partial class EditGroupView : UserControl
 
             ApplyPeriod();
             TxtStatus.Text = $"[{TxtGroupNameAtChart.Text}] {_rawData.Count}개 종목";
-            StatusChanged?.Invoke(TxtStatus.Text, "#A6E3A1");
+            Helpers.StatusSuccess(StatusChanged, TxtStatus.Text);
         }
         catch (Exception ex)
         {
             TxtStatus.Text = $"차트 오류: {ex.Message}";
-            StatusChanged?.Invoke(TxtStatus.Text, "#F38BA8");
+            Helpers.StatusException(StatusChanged, ex, "차트 오류");
         }
     }
 
@@ -571,10 +549,10 @@ public partial class EditGroupView : UserControl
             foreach (DataRow row in view.Table.Rows) row["chart_selected"] = checkAll;
     }
 
-    private void BtnDeleteTicker_Click(object sender, RoutedEventArgs e)
+    private void BtnRemoveTicker_Click(object sender, RoutedEventArgs e)
     {
-        if (_currentGroupId < 0) return;
-        if (sender is not Button btn || btn.Tag is not DataRowView row) return;
+        if (_currentGroupId < 0) { TxtStatus.Text = "그룹을 먼저 선택하세요."; return; }
+        if (GridTicker.SelectedItem is not DataRowView row) { TxtStatus.Text = "티커를 선택하세요."; return; }
         var ticker = row["ticker"]?.ToString() ?? "";
         if (string.IsNullOrEmpty(ticker)) return;
         if (MessageBox.Show($"[{ticker}]을 그룹에서 제거하시겠습니까?",
@@ -583,20 +561,49 @@ public partial class EditGroupView : UserControl
         try
         {
             using var conn = _db.OpenNativeConnection();
-            using var cmd  = conn.CreateCommand();
+            using var cmd = conn.CreateCommand();
             cmd.CommandText = "DELETE FROM stock_group_map WHERE group_id = $1 AND ticker = $2";
             cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = _currentGroupId });
             cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = ticker });
             cmd.ExecuteNonQuery();
-            _rawData.Remove(ticker);
+                
+                _rawData.Remove(ticker);
             LoadTickers(_currentGroupId);
-            ApplyPeriod();
-            UpdateGroupCount();
+                ApplyPeriod();
+                UpdateGroupCount();
+                
             TxtStatus.Text = $"제거됨: {ticker}";
-            StatusChanged?.Invoke($"제거됨: {ticker}", "#F38BA8");
+            Helpers.StatusInfo(StatusChanged, $"제거됨: {ticker}");
         }
         catch (Exception ex) { TxtStatus.Text = $"제거 오류: {ex.Message}"; }
     }
+
+    //private void BtnDeleteTicker_Click(object sender, RoutedEventArgs e)
+    //{
+    //    if (_currentGroupId < 0) return;
+    //    if (sender is not Button btn || btn.Tag is not DataRowView row) return;
+    //    var ticker = row["ticker"]?.ToString() ?? "";
+    //    if (string.IsNullOrEmpty(ticker)) return;
+    //    if (MessageBox.Show($"[{ticker}]을 그룹에서 제거하시겠습니까?",
+    //            "제거 확인", MessageBoxButton.YesNo, MessageBoxImage.Warning)
+    //        != MessageBoxResult.Yes) return;
+    //    try
+    //    {
+    //        using var conn = _db.OpenNativeConnection();
+    //        using var cmd  = conn.CreateCommand();
+    //        cmd.CommandText = "DELETE FROM stock_group_map WHERE group_id = $1 AND ticker = $2";
+    //        cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = _currentGroupId });
+    //        cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = ticker });
+    //        cmd.ExecuteNonQuery();
+    //        _rawData.Remove(ticker);
+    //        LoadTickers(_currentGroupId);
+    //        ApplyPeriod();
+    //        UpdateGroupCount();
+    //        TxtStatus.Text = $"제거됨: {ticker}";
+    //        StatusChanged?.Invoke($"제거됨: {ticker}", "#F38BA8");
+    //    }
+    //    catch (Exception ex) { TxtStatus.Text = $"제거 오류: {ex.Message}"; }
+    //}
 
     private void GroupRatingCtrl_RatingChanged(int rating)
     {
@@ -606,9 +613,9 @@ public partial class EditGroupView : UserControl
             _db.SetGroupRating(rating, _currentGroupId);
             if (_groupTable != null && GridGroup.SelectedItem is DataRowView row)
                 row.Row["rating"] = rating;
-            StatusChanged?.Invoke($"[{TxtGroupNameAtChart.Text}] rating 저장: {rating}", "#A6E3A1");
+            Helpers.StatusSuccess(StatusChanged, $"[{TxtGroupNameAtChart.Text}] rating 저장: {rating}");
         }
-        catch (Exception ex) { StatusChanged?.Invoke($"rating 저장 오류: {ex.Message}", "#F38BA8"); }
+        catch (Exception ex) { Helpers.StatusException(StatusChanged, ex, "rating 저장 오류"); }
     }
 
     private void UpdateGroupCount()
@@ -855,13 +862,13 @@ public partial class EditGroupView : UserControl
         try
         {
             _db.Execute($"DELETE FROM groups WHERE group_id = {id}");
-            StatusChanged?.Invoke($"삭제됨: {name}", "#F38BA8");
+            Helpers.StatusError(StatusChanged, $"삭제됨: {name}");
             _currentGroupId = -1;
             TxtCurrGroupNameAtGrid.Text = ""; TxtCurrGroupNameAtGrid.Text = ""; TxtChartInfo.Text = "";
             GridTicker.ItemsSource = null;
             ChartSeries.Clear(); _rawData.Clear();
             LoadGroups();
         }
-        catch (Exception ex) { StatusChanged?.Invoke($"삭제 오류: {ex.Message}", "#F38BA8"); }
+        catch (Exception ex) { Helpers.StatusException(StatusChanged, ex, "삭제 오류"); }
     }
 }

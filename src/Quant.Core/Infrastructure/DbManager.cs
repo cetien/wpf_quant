@@ -18,6 +18,21 @@ namespace Quant.Core.Infrastructure;
 public sealed class StockCache
 {
     public string Ticker { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Market { get; set; } = "";
+    public string SecurityType { get; set; } = "";
+    public int Rating { get; set; }
+
+    // security_type   TEXT        NOT NULL,   -- 'stock' | 'index' | 'ETF'
+    public bool IsETF => SecurityType == "ETF";
+    public bool IsStock => SecurityType == "stock";
+    public bool IsIndex => SecurityType == "index";
+
+    // market          TEXT        NOT NULL,-- CHECK (market IN ('KP', 'KQ', 'NYSE')),
+    public bool IsKOSPI => Market == "KP";
+    public bool IsKOSDAQ => Market == "KQ";
+    public bool IsNYSE => Market == "NYSE";
+
     public DateOnly AsofDate { get; set; }
 
     public double CurrentPrice { get; set; }
@@ -785,7 +800,11 @@ final_select AS (
     {
         using var conn = OpenConnection();
         using var cmd  = conn.CreateCommand();
-        cmd.CommandText = "SELECT * FROM stock_cache WHERE ticker = $1";
+        cmd.CommandText = @"
+            SELECT c.*, s.name, s.rating, s.market, s.security_type
+            FROM stock_cache c
+            JOIN stocks s ON c.ticker = s.ticker
+            WHERE c.ticker = $1";
         cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
         using var reader = cmd.ExecuteReader();
         if (!reader.Read()) return null;
@@ -795,6 +814,10 @@ final_select AS (
         return new StockCache
         {
             Ticker           = reader["ticker"]?.ToString() ?? "",
+            Name             = reader["name"]?.ToString() ?? "",
+            SecurityType     = reader["security_type"]?.ToString() ?? "",
+            Market           = reader["market"]?.ToString() ?? "",
+            Rating           = (int)Safe(reader["rating"]),
             AsofDate         = DateOnly.TryParse(reader["asof_date"]?.ToString(), out var d) ? d : default,
             CurrentPrice     = Safe(reader["current_price"]),
             Ret1M            = Safe(reader["ret_1m"]),

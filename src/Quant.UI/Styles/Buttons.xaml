@@ -2,54 +2,44 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <Style TargetType="Button">
-        <Setter Property="Foreground"      Value="#CDD6F4"/>
-        <Setter Property="Background"      Value="#252536"/>
+        <Setter Property="Foreground"      Value="{StaticResource TextPrimary}"/>
+        <Setter Property="Background"      Value="#333333"/>
         <Setter Property="BorderBrush"     Value="Transparent"/>
         <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="FontFamily"      Value="Consolas"/>
+        <Setter Property="Padding"         Value="8,4"/>
         <Setter Property="FontSize"        Value="11"/>
+        <Setter Property="FontFamily"      Value="Consolas"/>
         <Setter Property="Cursor"          Value="Hand"/>
         <Setter Property="Margin"          Value="2,0"/>
-        <Setter Property="Padding"         Value="8,4"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="bd"
-                            Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="4"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                CornerRadius="4" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="#313244"/>
+                            <Setter TargetName="bd" Property="Background" Value="#555555"/>
                             <Setter Property="Foreground" Value="#CDD6F4"/>
                         </Trigger>
-                        <!-- -->
-                        <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="#585b70"/>
-                        </Trigger>
-                        <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="bd" Property="Background" Value="#1E1E2E"/>
-                            <Setter Property="Foreground" Value="#45475A"/>
-                        </Trigger>
-                        <!-- -->
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
     </Style>
 
-    <Style x:Key="PeriodBtn" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-        <Setter Property="BorderBrush"     Value="Transparent"/>
-        <Setter Property="BorderThickness" Value="0"/>
+    <!-- ── 소형 아이콘 버튼 ──────────────────────────────────── -->
+    <Style x:Key="IconBtn" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Background"      Value="#333333"/>
+        <Setter Property="Foreground"      Value="{StaticResource BorderColor}"/>
+        <Setter Property="Padding"         Value="2,2"/>
     </Style>
 
     <!-- ── command, action, chart(선/봉, 로그, MA, 지표) ──────────── -->
     <Style x:Key="ActionBtn" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-        <Setter Property="BorderBrush"     Value="#313244"/>
+        <Setter Property="BorderBrush"     Value="{StaticResource BgSurface}"/>
         <Setter Property="BorderThickness" Value="1"/>
     </Style>
 

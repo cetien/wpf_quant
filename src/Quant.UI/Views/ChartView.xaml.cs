@@ -7,6 +7,7 @@ using LiveChartsCore.SkiaSharpView.Painting;
 
 using Quant.Core.Infrastructure;
 using Quant.Core.Services;
+using Quant.UI; // Helpers 및 LabelValue 사용을 위해 추가
 
 using SkiaSharp;
 
@@ -15,6 +16,7 @@ using System.Data;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 
 namespace Quant.UI.Views;
 
@@ -48,6 +50,9 @@ public partial class ChartView : UserControl
     // UnitWidth = 1, Labeler: index → _renderData[i].Date
     // DateTimePoint(DateTime) 대신 ObservablePoint(int, double) 사용
     // → MACD/RSI 워밍업 오프셋과 무관하게 동일 index 기준으로 정렬 보장
+
+    public ObservableCollection<LabelValue> FundamentalMetrics { get; } = [];
+    public ObservableCollection<LabelValue> SupplyMetrics      { get; } = [];
 
     // Labeler 및 Supply 인덱스 역매핑용
     private List<OhlcvRow> _renderData = [];
@@ -200,33 +205,74 @@ public partial class ChartView : UserControl
     // ══════════════════════════════════════════════════════════
     private void LoadInfo_ReturnRatio(string ticker)
     {
-        var cache = _db.GetStockCache(ticker);
-        var kospi = _db.GetStockCache("IDX_KOSPI");
+        var infoPanel = new InfoPanelBuilder(Panel_StockInfo);
+        infoPanel.Clear();
 
+        var cache = _db.GetStockCache(ticker);
         if (cache is null)
         {
-            TxtStockInfo_ReturnRatio.Text = "no data";
+            //TxtStockInfo_ReturnRatio.Text = "no data";
+            infoPanel.Text("no data");
             TxtStockInfo.Text             = "no data";
             MiniChart_ReturnRatio.Series  = Array.Empty<ISeries>();
             return;
         }
 
-        static string Signed(double v) => v >= 0 ? $"+{v:F1}%" : $"{v:F1}%";
 
-        TxtStockInfo_ReturnRatio.Text =
-            $"today: {cache.CurrentPrice:N0}\n\n" +
-            $"1m: {Signed(cache.Ret1M)}\n" +
-            $"3m: {Signed(cache.Ret3M)}\n" +
-            $"6m: {Signed(cache.Ret6M)}\n" +
-            $"1y: {Signed(cache.Ret1Y)}\n\n" +
-            $"RS:  {Signed(cache.Rs)}";
+        infoPanel.AddCard(card =>
+        {
+            card.Header3(cache.Name)
+                .Text($"{cache.Ticker} {cache.Market}.{cache.SecurityType}")
+                .Metric("Per", cache.Per.ToString("#,##0.0"), 40, Brushes.White)
+                .Metric("Pbr", cache.Pbr.ToString("#,##0.0"), 40, Brushes.White)
+                .Metric("Eps", cache.Eps.ToString("#,##0"), 40, Brushes.White)
+                .Metric("Roe", cache.Roe.ToString("#,##0.0"), 40, Brushes.White);
+        });
+//Per: 40.65
+//Pbr: 4.199999809265137
+//Roe: 0
+//Eps: 6605
+//Atr14: 18607.14285714286
+//AtrPercent: 6.75
+//High52W: 299500
+//Low52W: 53700
+//VolumeAvg20D: 29859078.7
+//DistanceFromHigh: -8.01
+
+        infoPanel.AddCard(card =>
+        {
+            card.Metric("price", cache.CurrentPrice.ToString("#,##0"), 40, Brushes.White)
+                .MetricColoredDigit("high", cache.DistanceFromHigh)
+                .Text(cache.Low52W.ToString("#,##0") + " ~ " + cache.High52W.ToString("#,##0"), InfoPanelBuilder.InfoTone.Muted)
+                .Separator()
+                .MetricColoredDigit("1M", cache.Ret1M)
+                .MetricColoredDigit("3M", cache.Ret3M)
+                .MetricColoredDigit("6M", cache.Ret6M)
+                .MetricColoredDigit("1Y", cache.Ret1Y)
+                .MetricColoredDigit("RS", cache.Rs)
+                .MetricColoredDigit("RS", cache.Rs)
+                .Metric("Atr14", cache.Atr14.ToString("#,##0"), 40, Brushes.White)
+                .MetricColoredDigit("Atr%", cache.AtrPercent)
+                .Metric("Vol", (cache.VolumeAvg20D/1000).ToString("#,##0T"), 40, Brushes.White);
+        });
+        //static string Signed(double v) => v.ToString("+0.0;-0.0;0") + "%";
+
+        //ReturnMetrics.Add(new("1M", cache.Ret1M.ToString("+0.0;-0.0;0") + "%", cache.Ret1M >= 0 ? StatusColors.Info : StatusColors.Error));
+        //infoPanel.Header3(cache.Name);
+        //infoPanel.Text($"{cache.Ticker} {cache.Market}.{cache.SecurityType}");
+        //infoPanel.MetricColoredDigit("price", cache.CurrentPrice, 40, "#,##0", null);
+        //infoPanel.MetricColoredDigit("1M", cache.Ret1M);
+        //infoPanel.MetricColoredDigit("3M", cache.Ret3M);
+        //infoPanel.MetricColoredDigit("6M", cache.Ret6M);
+        //infoPanel.MetricColoredDigit("1Y", cache.Ret1Y);
+        //infoPanel.MetricColoredDigit("RS", cache.Rs);
 
         var props = cache.GetType().GetProperties(
             System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
         var sb = new System.Text.StringBuilder();
         foreach (var p in props)
             sb.AppendLine($"{p.Name}: {p.GetValue(cache)}");
-        TxtStockInfo2.Text = sb.ToString().TrimEnd();
+        TxtStockInfo.Text = sb.ToString().TrimEnd();
 
         // ── MiniChart: Line ─────────────────────────────────
         // X: 0=1M, 1=3M, 2=6M, 3=1Y  (ObservablePoint)
@@ -256,6 +302,7 @@ public partial class ChartView : UserControl
             },
         };
 
+        var kospi = _db.GetStockCache("IDX_KOSPI");
         if (kospi is not null)
         {
             var kospiPts = ToPoints(kospi.Ret1M, kospi.Ret3M, kospi.Ret6M, kospi.Ret1Y);
@@ -359,19 +406,18 @@ public partial class ChartView : UserControl
             if (_allData.Count == 0)
             {
                 TxtChartDataLoadingInfo.Text = "no data";
-                StatusChanged?.Invoke($"no data: {ticker}", "#F9E2AF");
+                Helpers.StatusWarning(StatusChanged, $"no data: {ticker}");
                 return;
             }
 
             ApplyPeriod();
             TxtChartDataLoadingInfo.Text =
                 $"{_allData.Count:N0}day. {_allData.First().Date:yyyy-MM-dd} ~ {_allData.Last().Date:yyyy-MM-dd}";
-            StatusChanged?.Invoke(
+            Helpers.StatusSuccess(StatusChanged, 
                 $"{ticker}  {_allData.Count:N0}일  " +
-                $"{_allData.First().Date:yyyy-MM-dd} ~ {_allData.Last().Date:yyyy-MM-dd}",
-                "#A6E3A1");
+                $"{_allData.First().Date:yyyy-MM-dd} ~ {_allData.Last().Date:yyyy-MM-dd}");
         }
-        catch (Exception ex) { StatusChanged?.Invoke($"오류: {ex.Message}", "#F38BA8"); }
+        catch (Exception ex) { Helpers.StatusException(StatusChanged, ex, "오류"); }
     }
 
     // ══════════════════════════════════════════════════════════
@@ -767,6 +813,8 @@ public partial class ChartView : UserControl
                 ORDER BY date DESC LIMIT 1
                 """;
             var dt = _db.Query(sql);
+
+            SupplyMetrics.Clear();
             if (dt.Rows.Count > 0)
             {
                 var r = dt.Rows[0];
@@ -774,23 +822,25 @@ public partial class ChartView : UserControl
                 long fgn  = r[2] is DBNull || r[2] is null ? 0 : Convert.ToInt64(r[2]);
                 long iAmt = r[3] is DBNull || r[3] is null ? 0 : Convert.ToInt64(r[3]);
                 long fAmt = r[4] is DBNull || r[4] is null ? 0 : Convert.ToInt64(r[4]);
-                TxtInstNet.Text    = FormatNet(inst);
-                TxtForeignNet.Text = FormatNet(fgn);
-                TxtInstAmt.Text    = FormatAmt(iAmt);
-                TxtForeignAmt.Text = FormatAmt(fAmt);
+
+                SupplyMetrics.Add(new("기관(주)", FormatNet(inst), ColorForNet(inst)));
+                SupplyMetrics.Add(new("외인(주)", FormatNet(fgn),  ColorForNet(fgn)));
+                SupplyMetrics.Add(new("기관(억)", FormatAmt(iAmt), ColorForNet(iAmt)));
+                SupplyMetrics.Add(new("외인(억)", FormatAmt(fAmt), ColorForNet(fAmt)));
+
                 TxtSupplyDate.Text = $" ({r[0]})";
-                TxtInstNet.Foreground    = BrushForNet(inst);
-                TxtForeignNet.Foreground = BrushForNet(fgn);
-                TxtInstAmt.Foreground    = BrushForNet(iAmt);
-                TxtForeignAmt.Foreground = BrushForNet(fAmt);
             }
             else
             {
-                TxtInstNet.Text = TxtForeignNet.Text = TxtInstAmt.Text = TxtForeignAmt.Text = "N/A";
+                LoadSupplyNA();
                 TxtSupplyDate.Text = "";
             }
         }
-        catch { TxtInstNet.Text = TxtForeignNet.Text = "ERR"; }
+        catch (Exception ex)
+        {
+            LoadSupplyNA("ERR", StatusColors.Error);
+            Helpers.StatusException(StatusChanged, ex, "수급 데이터 로드 오류");
+        }
 
         try
         {
@@ -807,15 +857,26 @@ public partial class ChartView : UserControl
                 double.TryParse(r[2]?.ToString(), out var pbr);
                 double.TryParse(r[3]?.ToString(), out var eps);
                 double.TryParse(r[4]?.ToString(), out var roe);
-                TxtPer.Text = per == 0 ? "-" : per.ToString("F1");
-                TxtPbr.Text = pbr == 0 ? "-" : pbr.ToString("F2");
-                TxtEps.Text = eps == 0 ? "-" : eps.ToString("N0");
-                TxtBps.Text = roe == 0 ? "-" : roe.ToString("F1") + "%";
+
+                FundamentalMetrics.Clear();
+                FundamentalMetrics.Add(new("PER", per == 0 ? "-" : per.ToString("F1"), "#F0F15E"));
+                FundamentalMetrics.Add(new("PBR", pbr == 0 ? "-" : pbr.ToString("F2"), "#F0F15E"));
+                FundamentalMetrics.Add(new("EPS", eps == 0 ? "-" : eps.ToString("N0"), "#F0F15E"));
+                FundamentalMetrics.Add(new("ROE", roe == 0 ? "-" : roe.ToString("F1") + "%", "#F0F15E"));
+
                 TxtFundDate.Text = $" ({r[0]})";
             }
-            else { TxtPer.Text = TxtPbr.Text = TxtEps.Text = TxtBps.Text = "N/A"; TxtFundDate.Text = ""; }
+            else
+            {
+                LoadFundamentalNA();
+                TxtFundDate.Text = "";
+            }
         }
-        catch { TxtPer.Text = TxtPbr.Text = "ERR"; }
+        catch (Exception ex)
+        {
+            LoadFundamentalNA("ERR", StatusColors.Error);
+            Helpers.StatusException(StatusChanged, ex, "재무 데이터 로드 오류");
+        }
 
         try
         {
@@ -829,6 +890,26 @@ public partial class ChartView : UserControl
         catch { GridReport.ItemsSource = null; }
     }
 
+    private string ColorForNet(long v) => v >= 0 ? StatusColors.Info : StatusColors.Error;
+
+    private void LoadSupplyNA(string val = "N/A", string color = "#CDD6F4")
+    {
+        SupplyMetrics.Clear();
+        SupplyMetrics.Add(new("기관(주)", val, color));
+        SupplyMetrics.Add(new("외인(주)", val, color));
+        SupplyMetrics.Add(new("기관(억)", val, color));
+        SupplyMetrics.Add(new("외인(억)", val, color));
+    }
+
+    private void LoadFundamentalNA(string val = "N/A", string color = "#F0F15E")
+    {
+        FundamentalMetrics.Clear();
+        FundamentalMetrics.Add(new("PER", val, color));
+        FundamentalMetrics.Add(new("PBR", val, color));
+        FundamentalMetrics.Add(new("EPS", val, color));
+        FundamentalMetrics.Add(new("ROE", val, color));
+    }
+
     private static string FormatNet(long v) => v == 0 ? "0" : v > 0 ? $"+{v:N0}" : $"{v:N0}";
     private static string FormatAmt(long v)
     {
@@ -837,12 +918,6 @@ public partial class ChartView : UserControl
         var m = v / 10_000.0;
         return m > 0 ? $"+{m:F0}만" : $"{m:F0}만";
     }
-    private static System.Windows.Media.Brush BrushForNet(long v) =>
-        v >= 0
-            ? new System.Windows.Media.SolidColorBrush(
-                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#89B4FA"))
-            : new System.Windows.Media.SolidColorBrush(
-                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#F38BA8"));
 
     // ══════════════════════════════════════════════════════════
     //  외부 호출
@@ -1084,7 +1159,7 @@ public partial class ChartView : UserControl
         try
         {
             var svc      = new PriceDownloadService(_db);
-            var progress = new Progress<string>(msg => StatusChanged?.Invoke(msg, "#89B4FA"));
+            var progress = new Progress<string>(msg => Helpers.StatusInfo(StatusChanged, msg));
             var (inserted, lastDate) = await svc.DownloadAsync(ticker, progress);
             string msg;
             if (inserted > 0)
@@ -1097,9 +1172,9 @@ public partial class ChartView : UserControl
             {
                 msg = $"{ticker}: 신규 데이터 없음 (최신 {lastDate})";
             }
-            StatusChanged?.Invoke(msg, "#A6E3A1");
+            Helpers.StatusSuccess(StatusChanged, msg);
         }
-        catch (Exception ex) { StatusChanged?.Invoke($"다운로드 오류: {ex.Message}", "#F38BA8"); }
+        catch (Exception ex) { Helpers.StatusException(StatusChanged, ex, "다운로드 오류"); }
         finally { if (sender is Button btn2) btn2.IsEnabled = true; }
     }
 
@@ -1109,9 +1184,9 @@ public partial class ChartView : UserControl
         try
         {
             _db.SetStockRating(rating, _currentTicker);
-            StatusChanged?.Invoke($"{_currentTicker} rating 저장: {rating}", "#A6E3A1");
+            Helpers.StatusSuccess(StatusChanged, $"{_currentTicker} rating 저장: {rating}");
         }
-        catch (Exception ex) { StatusChanged?.Invoke($"rating 저장 오류: {ex.Message}", "#F38BA8"); }
+        catch (Exception ex) { Helpers.StatusException(StatusChanged, ex, "rating 저장 오류"); }
     }
 
     private void GridReportClick(object sender, SelectionChangedEventArgs e)
@@ -1120,7 +1195,10 @@ public partial class ChartView : UserControl
         var filepath = row["filepath"]?.ToString();
         var (ok, message) = Helpers.OpenWithChrome(filepath);
         TxtStatus.Text = message;
-        StatusChanged?.Invoke(message, ok ? "#89B4FA" : "#F38BA8");
+        if (ok)
+            Helpers.StatusInfo(StatusChanged, message);
+        else
+            Helpers.StatusError(StatusChanged, message);
     }
 
     // ══════════════════════════════════════════════════════════
@@ -1211,7 +1289,7 @@ public partial class ChartView : UserControl
         {
             _db.UpsertStock(_pendingRegister.Ticker, name, market, type, null, type == "ETF");
             TxtStockName.Text = name;
-            StatusChanged?.Invoke($"{_pendingRegister.Ticker} 등록 완료", "#A6E3A1");
+            Helpers.StatusSuccess(StatusChanged, $"{_pendingRegister.Ticker} 등록 완료");
 
             RegisterOverlay.Visibility = Visibility.Collapsed;
             _pendingRegister = null;
@@ -1219,7 +1297,7 @@ public partial class ChartView : UserControl
             // 등록 후 자동으로 주가 다운로드 시도
             var ticker  = TxtTickerCode.Text.Trim().ToUpper();
             var svc     = new PriceDownloadService(_db);
-            var progress = new Progress<string>(msg => StatusChanged?.Invoke(msg, "#89B4FA"));
+            var progress = new Progress<string>(msg => Helpers.StatusInfo(StatusChanged, msg));
             var (inserted, lastDate) = await svc.DownloadAsync(ticker, progress);
             if (inserted > 0) _db.RebuildStockCache();
             LoadChart();
@@ -1265,17 +1343,17 @@ public partial class ChartView : UserControl
             TxtStockName.Text = "-";
             TxtChartPriceInfo.Text = "";
             TxtChartDataLoadingInfo.Text = "";
-            TxtInstNet.Text = TxtForeignNet.Text = TxtInstAmt.Text = TxtForeignAmt.Text = "-";
-            TxtPer.Text = TxtPbr.Text = TxtEps.Text = TxtBps.Text = "-";
-            TxtStockInfo.Text = TxtStockInfo2.Text = "-";
+            SupplyMetrics.Clear();
+            FundamentalMetrics.Clear();
+            TxtStockInfo.Text = "-";
             GridReport.ItemsSource = null;
 
-            StatusChanged?.Invoke($"{ticker} 제거 완료", "#F9E2AF");
+            Helpers.StatusWarning(StatusChanged, $"{ticker} 제거 완료");
         }
         catch (Exception ex)
         {
             MessageBox.Show($"제거 실패: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
-            StatusChanged?.Invoke($"{ticker} 제거 실패: {ex.Message}", "#F38BA8");
+            Helpers.StatusException(StatusChanged, ex, $"{ticker} 제거 실패");
         }
     }
 

@@ -7,23 +7,6 @@
         Background="#1E1E2E" Foreground="#CDD6F4">
 
     <Window.Resources>
-        <Style x:Key="Lbl" TargetType="TextBlock">
-            <Setter Property="Foreground"  Value="#6C7086"/>
-            <Setter Property="FontSize"    Value="10"/>
-            <Setter Property="FontFamily"  Value="Consolas"/>
-            <Setter Property="Margin"      Value="0,0,0,4"/>
-        </Style>
-        <Style x:Key="Inp" TargetType="TextBox">
-            <Setter Property="Background"      Value="#252536"/>
-            <Setter Property="Foreground"      Value="#CDD6F4"/>
-            <Setter Property="CaretBrush"      Value="#89B4FA"/>
-            <Setter Property="BorderBrush"     Value="#45475A"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="FontFamily"      Value="Consolas"/>
-            <Setter Property="FontSize"        Value="12"/>
-            <Setter Property="Padding"         Value="6,4"/>
-            <Setter Property="IsReadOnly"      Value="True"/>
-        </Style>
     </Window.Resources>
 
     <Grid Margin="24">
@@ -59,17 +42,16 @@
         </StackPanel>
         <!-- ── Report PDF Folder ── -->
         <StackPanel Grid.Row="2">
-            <TextBlock Text="Report PDF folder" Style="{StaticResource Lbl}"/>
+            <TextBlock Text="Report PDF folder"/>
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="8"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBox  Grid.Column="0" x:Name="TxtPdfFolder" Style="{StaticResource Inp}"
+                <TextBox  Grid.Column="0" x:Name="TxtPdfFolder"
                           ToolTip="PDF 리포트를 감시할 폴더"/>
                 <Button   Grid.Column="2" x:Name="BtnBrowse" Content="Browse…"
-                          Style="{StaticResource Btn}"
                           Click="BtnBrowse_Click"/>
             </Grid>
         </StackPanel>
@@ -81,8 +63,8 @@
                     <ColumnDefinition Width="8"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="DB: " Style="{StaticResource Lbl}"/>
-                <TextBox Grid.Column="2"  x:Name="DB_Folder" Style="{StaticResource Inp}" IsReadOnly="True"/>
+                <TextBlock Grid.Column="0" Text="DB: "/>
+                <TextBox Grid.Column="2"  x:Name="DB_Folder" IsReadOnly="True"/>
             </Grid>
         </StackPanel>
 

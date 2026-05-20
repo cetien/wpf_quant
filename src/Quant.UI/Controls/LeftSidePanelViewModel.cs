@@ -108,7 +108,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
     public ObservableCollection<GlobalIndicatorItem> Indicators { get; } = [];
 
     // ── 옵션 ─────────────────────────────────────────────────
-    [ObservableProperty] private bool _showOnlyActive = true;
+    [ObservableProperty] private bool _showOnlyActive = false;
     [ObservableProperty] private bool _showSector     = true;
     [ObservableProperty] private bool _showTheme      = true;
 
@@ -340,6 +340,8 @@ public partial class LeftSidePanelViewModel : ObservableObject
     // ──────────────────────────────────────────────────────────
     //  Groups 로드
     // ──────────────────────────────────────────────────────────
+    //public string KindCode => Kind switch { ... };
+
     [RelayCommand]
     public void LoadGroups()
     {
@@ -361,25 +363,32 @@ public partial class LeftSidePanelViewModel : ObservableObject
                 LEFT JOIN stock_group_map sgm ON g.group_id = sgm.group_id
                 WHERE 1=1 {kindFilter} {activeFilter}
                 GROUP BY g.group_id, g.kind, g.name, g.rating
-                ORDER BY g.kind, g.name
+                ORDER BY g.rating desc, g.kind, g.name
                 """;
+                //GROUP BY g.group_id, g.kind, g.name, g.rating
 
-            var dt = _db.Query(sql);
+        var dt = _db.Query(sql);
             foreach (DataRow row in dt.Rows)
             {
                 _allGroups.Add(new GroupRow
                 {
                     GroupId    = SafeInt(row, "group_id"),
-                    Kind       = SafeStr(row, "kind"),
+                    //Kind       = SafeStr(row, "kind"),
                     Name       = SafeStr(row, "name"),
                     Rating     = SafeInt(row, "rating"),
                     StockCount = SafeInt(row, "stock_count"),
+                    Kind = row["kind"]?.ToString() switch
+                    {
+                        "watch" => "🔖",
+                        "theme" => "♻️",
+                        _       => "-"
+                    }
                 });
             }
             foreach (var g in _allGroups) Groups.Add(g);
-            StatusText = $"그룹 {Groups.Count}건";
+            StatusText = $"Groups count: {Groups.Count}";
         }
-        catch (Exception ex) { StatusText = $"오류: {ex.Message}"; }
+        catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
         finally { IsBusy = false; }
     }
 

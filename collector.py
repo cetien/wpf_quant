@@ -15,6 +15,19 @@ collector.py  ─  독립 실행형 데이터 수집기
     --db-path 옵션으로 DuckDB 파일 경로 지정 가능 (예: --db-path ./my_quant.duckdb).
         C:/Users/tien7/AppData/Local/quant/quant.duckdb 기본값 대신 다른 위치에 저장하려는 경우 사용.
 
+    # 수집 대상 확인 (API 호출 없음)
+    python collector.py --check
+
+    # supply만 확인
+    python collector.py --check --tables supply
+
+    # 특정 종목 확인
+    python collector.py --check --tickers 005930 000660
+
+    # 실제 수집 (비개장일이면 prices/supply 자동 skip)
+    python collector.py --no-sync
+
+
 주기 실행 예시 (Windows Task Scheduler / cron):
     python collector.py >> logs/collector.log 2>&1
 
@@ -62,7 +75,26 @@ python collector.py --from 2026-01-01 --tables supply --no-sync --db-path C:/Use
 
 
 
-TODO: 전체종목 순회시 매우 오랜 시간 소요 -> 증분 방식을 get_market_fundamental(date) 형태로 변경 필요?
+TODO: supply 전체종목 순회 자체의 병목은 KRX API 구조상 근본적 해결 어려움.
+      증분 실행 최적화는 아래 세 가지로 대응:
+        1) --check : API 호출 없이 DB last_date 기준 수집 대상 건수만 표시
+        2) 비개장일 자동 skip : 오늘이 KRX 비개장일이면 prices/supply 전체 skip
+        3) supply 당일 미확정 skip : KRX 확정 기준(익일 09:00) 이전이면 오늘 제외
+
+
+4. 개선 우선순위 (ROI 기준)
+개선 항목 / 예상 효과
+sync_stocks_master: get_market_ticker_name 루프 제거 → batch 방식
+(-50초/실행)
+
+daily_prices / supply: 오늘이 비개장일이면 전체 skip
+(증분 실행 시 무의미한 API 2,500회 제거)
+
+supply 증분 실행 시 당일 KRX API가 아직 미확정 데이터 제공 여부 체크 후 skip
+(석간 중복 실행 방지)
+
+결론: fundamentals는 이미 날짜순회 방식으로 최적화됨. 진짜 병목은 supply의 종목×월 순회 구조 + sync_stocks_master의 개별 종목명 조회. 비개장일 체크 추가만으로도 증분 실행 성능이 크게 개선됨.
+
 ============================================================
 """
 
@@ -135,6 +167,41 @@ def safe_float(v, default: float = 0.0) -> float:
 def open_db() -> duckdb.DuckDBPyConnection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     return duckdb.connect(str(DB_PATH))
+
+
+# ──────────────────────────────────────────────────────────
+#  개장일 / 미확정 데이터 판단
+# ──────────────────────────────────────────────────────────
+
+def is_trading_day(target: str) -> bool:
+    """
+    target(YYYY-MM-DD)이 KRX 개장일인지 확인.
+    KOSPI 지수('1028') OHLCV 조회 1회로 판단.
+    네트워크 오류 시 True 반환(보수적: 수집 시도 허용).
+    """
+    try:
+        d = to_yyyymmdd(target)
+        raw = krx.get_market_ohlcv_by_date(d, d, "1028")
+        return raw is not None and not raw.empty
+    except Exception:
+        return True   # 오류 시 보수적 허용
+
+
+def supply_effective_end(today: str) -> str:
+    """
+    KRX 투자자별 매매동향 확정 기준:
+      - 당일 데이터는 익일 09:00 이후 확정.
+      - 현재 시각이 09:00 미만이면 today를 제외하고 전일 반환.
+    반환값: supply 수집의 실질 종료일 (YYYY-MM-DD).
+
+    --> KRX 확정 시각은 공식 문서화되어 있지 않으므로, 안전하게 10로 상향
+    """
+    now_hour = int(time.strftime("%H"))
+    if now_hour < 10:
+        yesterday = (date.fromisoformat(today) - timedelta(days=1)).isoformat()
+        log(f"  [supply] 현재 {time.strftime('%H:%M')} — KRX 당일 미확정, 종료일={yesterday}")
+        return yesterday
+    return today
 
 
 # ──────────────────────────────────────────────────────────
@@ -382,6 +449,8 @@ def run_supply(conn, tickers: list[tuple[str, str]], force_start: str | None = N
 
     last_dates = {} if force_start else load_last_dates(conn, "supply")
     today      = date.today().isoformat()
+    # KRX 확정 기준: 익일 09:00 이전이면 오늘 데이터 미확정 → 전일까지만 수집
+    effective_end = force_start and today or supply_effective_end(today)
     skipped = updated = errors = 0
 
     for i, (ticker, _) in enumerate(tickers, 1):
@@ -389,13 +458,13 @@ def run_supply(conn, tickers: list[tuple[str, str]], force_start: str | None = N
         start = force_start or (
             (date.fromisoformat(last) + timedelta(days=1)).isoformat() if last else DEFAULT_START
         )
-        if start > today:
+        if start > effective_end:
             skipped += 1
             continue
 
         # 월 단위 분할 수집
-        #log(f"  [supply] {i}/{len(tickers)}. start {ticker}: {start}~{today}")
-        for p_start, p_end in _month_ranges(start, today):
+        #log(f"  [supply] {i}/{len(tickers)}. start {ticker}: {start}~{effective_end}")
+        for p_start, p_end in _month_ranges(start, effective_end):
             try:
                 df = fetch_supply_pykrx(ticker, p_start, p_end)
                 if not df.empty:
@@ -650,21 +719,31 @@ def sync_stocks_master(conn):
     """
     pykrx에서 현재 KOSPI+KOSDAQ 종목 목록을 가져와 stocks 테이블 upsert.
     신규 상장 종목 자동 추가. 상폐 종목은 is_active=FALSE 처리.
+
+    [속도개선] get_market_ticker_name() 개별 루프(~2,500회 API) 제거.
+    pykrx 내부 krx.get_market_ticker_and_name(date, market) 이 이미
+    Series(index=ticker, value=name)을 1회 호출로 반환한다.
+    get_market_ticker_list()는 이 Series의 index만 버리고 반환하므로
+    krx 내부 함수를 직접 호출해 이름까지 한 번에 획득한다.
+
+    개선 전: get_market_ticker_list 2회 + get_market_ticker_name ~2,500회 ≈ 50~90초
+    개선 후: krx.get_market_ticker_and_name 2회 ≈ 2~3초
     """
+    from pykrx.stock import krx as _krx_internal   # 내부 모듈 직접 접근
     log("[stocks] 마스터 동기화 시작")
     today = date.today().strftime("%Y%m%d")
 
     rows = []
     for pykrx_mkt, db_mkt in [("KOSPI", "KP"), ("KOSDAQ", "KQ")]:
         try:
-            tickers = krx.get_market_ticker_list(today, market=pykrx_mkt)
-            for t in tickers:
-                try:
-                    name = krx.get_market_ticker_name(t)
-                    rows.append({"ticker": t, "name": name, "market": db_mkt})
-                    time.sleep(0.02)
-                except Exception:
-                    pass
+            # Series(index=ticker, value=name) — 1회 API 호출로 전 종목+이름 획득
+            s = _krx_internal.get_market_ticker_and_name(today, pykrx_mkt)
+            if s is None or s.empty:
+                log(f"  [WARN] {pykrx_mkt} 종목 목록 비어있음 (KRX 응답 없음)")
+                continue
+            for ticker, name in s.items():
+                rows.append({"ticker": ticker, "name": name, "market": db_mkt})
+            log(f"  {pykrx_mkt}: {len(s)}종목 획득")
         except Exception as e:
             log(f"  [WARN] {pykrx_mkt} 목록 조회 실패: {e}")
 
@@ -717,7 +796,95 @@ def parse_args():
                    help="수집할 테이블 선택 (기본: 전체)")
     p.add_argument("--no-sync", action="store_true",
                    help="stocks 마스터 동기화 skip")
+    p.add_argument("--check",   action="store_true",
+                   help="API 호출 없이 DB last_date 기준 수집 대상 건수만 표시 후 종료")
     return p.parse_args()
+
+
+# ──────────────────────────────────────────────────────────
+#  --check 모드: API 호출 없이 수집 대상 건수 표시
+# ──────────────────────────────────────────────────────────
+
+def run_check(conn, tickers: list[tuple[str, str]], tables: list[str], force_start: str | None = None):
+    """
+    실제 API 호출 없이 DB의 last_date를 읽어
+    각 테이블별 수집 대상 종목 수·날짜 범위를 표시.
+    """
+    today = date.today().isoformat()
+    log("=" * 60)
+    log(f"[CHECK MODE]  기준일={today}  종목수={len(tickers)}")
+    log("=" * 60)
+
+    table_cfg = {
+        "prices":       ("daily_prices", "date"),
+        "supply":       ("supply",       "date"),
+        "fundamentals": ("fundamentals", "report_date"),
+    }
+
+    for tbl_key in tables:
+        db_table, date_col = table_cfg[tbl_key]
+
+        if tbl_key == "fundamentals":
+            # 날짜 순회 방식 — 글로벌 last_date 1개
+            try:
+                row = conn.execute(
+                    f"SELECT MAX({date_col})::VARCHAR FROM {db_table}"
+                ).fetchone()
+                last_global = row[0] if row and row[0] else None
+            except Exception:
+                last_global = None
+
+            start = force_start or (
+                (date.fromisoformat(last_global) + timedelta(days=1)).isoformat()
+                if last_global else DEFAULT_START
+            )
+            status = "최신" if start > today else f"누락 시작일={start}"
+            log(f"  [{tbl_key:14s}]  last={last_global or '없음':12s}  {status}")
+            continue
+
+        # ticker 순회 방식 (prices / supply)
+        last_dates = load_last_dates(conn, db_table, date_col) if not force_start else {}
+
+        if tbl_key == "supply":
+            eff_end = supply_effective_end(today)
+        else:
+            eff_end = today
+
+        need   = []   # 수집 필요 (ticker, start)
+        skip   = 0
+
+        for ticker, _ in tickers:
+            last  = last_dates.get(ticker)
+            start = force_start or (
+                (date.fromisoformat(last) + timedelta(days=1)).isoformat()
+                if last else DEFAULT_START
+            )
+            if start > eff_end:
+                skip += 1
+            else:
+                need.append((ticker, start))
+
+        if not need:
+            log(f"  [{tbl_key:14s}]  수집 대상 없음 (skip={skip})")
+            continue
+
+        # 시작일 분포 요약
+        starts = sorted(set(s for _, s in need))
+        oldest = starts[0]
+        newest = starts[-1]
+
+        # supply: 월 단위 API 호출 수 계산
+        if tbl_key == "supply":
+            total_calls = sum(len(_month_ranges(s, eff_end)) * 2 for _, s in need)
+            log(f"  [{tbl_key:14s}]  수집={len(need)}종목  skip={skip}"
+                f"  oldest_start={oldest}  newest_start={newest}"
+                f"  예상API호출={total_calls:,}회  eff_end={eff_end}")
+        else:
+            log(f"  [{tbl_key:14s}]  수집={len(need)}종목  skip={skip}"
+                f"  oldest_start={oldest}  newest_start={newest}")
+
+    log("=" * 60)
+    log("[CHECK MODE] 완료 — 실제 수집 미실행")
 
 
 def main():
@@ -734,6 +901,19 @@ def main():
         sys.exit(1)
 
     conn = open_db()
+
+    # --check 모드: DB 조회만 하고 종료
+    if args.check:
+        if args.tickers:
+            ph   = ",".join(f"'{t}'" for t in args.tickers)
+            rows = conn.execute(
+                f"SELECT ticker, market FROM stocks WHERE ticker IN ({ph}) AND is_active = TRUE"
+            ).fetchall()
+        else:
+            rows = get_active_tickers(conn)
+        run_check(conn, rows, args.tables, force_start=args.from_date)
+        conn.close()
+        return
 
     # 1. stocks 마스터 동기화
     if not args.no_sync:
@@ -756,7 +936,19 @@ def main():
 
     log(f"처리 대상: {len(rows)}종목  테이블={args.tables}  from={args.from_date or '(incremental)'}")
 
-    # 3. 테이블별 수집
+    # 3. 비개장일 체크 (prices / supply 한정)
+    price_supply_tables = [t for t in args.tables if t in ("prices", "supply")]
+    if price_supply_tables and not args.from_date:
+        if not is_trading_day(date.today().isoformat()):
+            log(f"[SKIP] 오늘({date.today().isoformat()})은 KRX 비개장일 — prices/supply 수집 skip")
+            args.tables = [t for t in args.tables if t == "fundamentals"]
+            if not args.tables:
+                conn.close()
+                elapsed = time.time() - t0
+                log(f"전체 완료(비개장일 skip)  소요시간={elapsed/60:.1f}분")
+                return
+
+    # 4. 테이블별 수집
     if "prices" in args.tables:
         run_daily_prices(conn, rows, force_start=args.from_date)
 
