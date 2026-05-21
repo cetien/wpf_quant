@@ -48,6 +48,10 @@
                         <Button Content="🔗" Width="30" Height="26" Style="{StaticResource IconBtn}"
                             Foreground="#8BF9BA" Click="BtnExternalLink_Click" ToolTip="네이버 금융"/>
                         <!-- 종목 제거 버튼 -->
+                        <Button x:Name="BtnDeletePrice" Content="✗$" Width="30" Height="26"
+                            Style="{StaticResource IconBtn}"
+                            Foreground="#F38BA8" 
+                            Click="BtnDeletePrice_Click" ToolTip="delete Price"/>
                         <Button x:Name="BtnDeleteStock" Content="✗" Width="30" Height="26"
                             Style="{StaticResource IconBtn}"
                             Foreground="#F38BA8" 
@@ -116,7 +120,17 @@
             </Border>
             <!-- ══ Row 3: info ═══════════════════════ -->
             <Border Grid.Row="3" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1" Padding="10,6">
-                <TextBox x:Name="TxtStockInfo"
+                <Grid VerticalAlignment="Center" Margin="8,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/> <!-- InfoPanel -->
+                        <ColumnDefinition Width="140"/> <!-- GridGroup -->
+                        <ColumnDefinition Width="200"/> <!-- CartesianChart -->
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <WrapPanel x:Name="Panel_StockInfo2" Margin="2"/> 
+<!--                            <TextBox x:Name="TxtStockInfo"
                          Text="-"
                          IsReadOnly="True"
                          AcceptsReturn="True"
@@ -129,7 +143,39 @@
                          FontSize="11"
                          Foreground="#FFF9F9C4"
                          Background="Transparent"
-                         BorderThickness="0"/>
+                         BorderThickness="0"/> -->
+                        </ScrollViewer>
+                    </Border>
+                    <DataGrid x:Name="GridGroup" Grid.Column="1" Style="{StaticResource QuantDataGrid}" VerticalAlignment="Top" AutoGenerateColumns="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Kind"  Binding="{Binding kind}"         Width="36"/>
+                            <DataGridTextColumn Header="Group" Binding="{Binding group_name}"   Width="*"/>
+                            <DataGridTextColumn Header="W"     Binding="{Binding weight}"       Width="28"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <Border Grid.Column="2" Margin="8,0,0,0">
+                        <StackPanel>
+                            <Border Background="#1A1B29" BorderBrush="#313244" BorderThickness="1" CornerRadius="4">
+                                <lvc:CartesianChart x:Name="MiniChart_Fundamentals"
+                                                    DrawMarginFrame="{x:Null}"
+                                                    Background="#1E1E2E"
+                                                    ZoomMode="X" Height="200" 
+                                                    TooltipPosition="Hidden" RenderTransformOrigin="0.5,0.5"/>
+                            </Border>
+                            <!-- 색 안내 -->
+                            <StackPanel Orientation="Horizontal" Margin="2,3,0,0">
+                                <Ellipse Width="7" Height="7" Fill="#89B4FA" VerticalAlignment="Center" Margin="0,0,3,0"/>
+                                <TextBlock Text="PER" FontFamily="Consolas" FontSize="9" Foreground="#89B4FA" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <Ellipse Width="7" Height="7" Fill="#A6E3A1" VerticalAlignment="Center" Margin="0,0,3,0"/>
+                                <TextBlock Text="PBR" FontFamily="Consolas" FontSize="9" Foreground="#A6E3A1" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <Ellipse Width="7" Height="7" Fill="#F9E2AF" VerticalAlignment="Center" Margin="0,0,3,0"/>
+                                <TextBlock Text="EPS" FontFamily="Consolas" FontSize="9" Foreground="#F9E2AF" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                </Grid>
             </Border>
             <!-- splitter -->
             <GridSplitter Grid.Row="4" HorizontalAlignment="Stretch"

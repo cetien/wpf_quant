@@ -61,6 +61,7 @@ public class GroupRow
     public string Name       { get; set; } = "";
     public int    StockCount { get; set; }
     public int    Rating     { get; set; }
+    public double Ret3m      { get; set; }
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -93,7 +94,9 @@ public class StockRow
 {
     public string Ticker { get; set; } = "";
     public string Name   { get; set; } = "";
+    public double? Ret_3m { get; set; }
     public string Market { get; set; } = "";
+    public double? RS     { get; set; }
     public int    Rating { get; set; }
 }
 
@@ -320,7 +323,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
                            ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY report_date DESC) AS rn
                     FROM fundamentals
                 )
-                SELECT s.ticker, s.name, s.market, s.rating, s.security_type
+                SELECT s.ticker, s.name, s.market, s.rating, s.security_type, c.ret_3m, c.rs
                 FROM stocks s
                 {fJoin}
                 LEFT JOIN stock_cache c ON c.ticker  = s.ticker
@@ -329,14 +332,17 @@ public partial class LeftSidePanelViewModel : ObservableObject
                 """;
 
             var dt = _db.Query(sql);
+
             _allStocks.Clear();
             foreach (DataRow row in dt.Rows)
             {
                 _allStocks.Add(new StockRow
                 {
                     Ticker = Helpers.SafeStr(row, "ticker"),
-                    Name   = Helpers.SafeStr(row, "name"),
+                    Name = Helpers.SafeStr(row, "name"),
                     Market = Helpers.SafeStr(row, "market"),
+                    Ret_3m = Helpers.SafeDouble(row, "ret_3m"),
+                    RS     = Helpers.SafeDouble(row, "rs"),
                     Rating = Helpers.SafeInt(row, "rating"),
                 });
             }
@@ -362,19 +368,12 @@ public partial class LeftSidePanelViewModel : ObservableObject
             SelectedGroup = null;
             ClearStocks();
 
-            var kindFilter   = BuildKindFilter();
-            var sql = $"""
-                SELECT g.group_id, g.kind, g.name, g.rating,
-                       COUNT(DISTINCT sgm.ticker) AS stock_count
-                FROM groups g
-                LEFT JOIN stock_group_map sgm ON g.group_id = sgm.group_id
-                WHERE 1=1 {kindFilter} 
-                GROUP BY g.group_id, g.kind, g.name, g.rating
-                ORDER BY g.rating desc, g.kind, g.name
-                """;
-                //GROUP BY g.group_id, g.kind, g.name, g.rating
+            var dt = _db.Query_GroupList(ShowSector, ShowTheme);
 
-            var dt = _db.Query(sql);
+            //var kindFilter = BuildKindFilter();
+            //var sql        = DbManager.GroupListSql(kindFilter);
+
+            //var dt = _db.Query(sql);
             foreach (DataRow row in dt.Rows)
             {
                 _allGroups.Add(new GroupRow
@@ -383,6 +382,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
                     //Kind       = Helpers.SafeStr(row, "kind"),
                     Name       = Helpers.SafeStr(row, "name"),
                     Rating     = Helpers.SafeInt(row, "rating"),
+                    Ret3m      = Helpers.SafeDouble(row, "ret_3m"),
                     StockCount = Helpers.SafeInt(row, "stock_count"),
                     Kind = row["kind"]?.ToString() switch
                     {
@@ -393,22 +393,22 @@ public partial class LeftSidePanelViewModel : ObservableObject
                 });
             }
             foreach (var g in _allGroups) Groups.Add(g);
-            GroupListInfo = $"cnt {Groups.Count}";
+            GroupListInfo = $"{Groups.Count}";
             StatusText = $"Groups count: {Groups.Count}";
         }
         catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
         finally { IsBusy = false; }
     }
 
-    private string BuildKindFilter()
-    {
-        string kindFilter = "";
-        if (!ShowSector)
-            kindFilter += "AND g.kind != 'sector' ";
-        if (!ShowTheme)
-            kindFilter += "AND g.kind != 'theme' ";
-        return kindFilter.Length > 0 ? kindFilter : "AND 1=1";
-    }
+    //private string BuildKindFilter()
+    //{
+    //    string kindFilter = "";
+    //    if (!ShowSector)
+    //        kindFilter += "AND g.kind != 'sector' ";
+    //    if (!ShowTheme)
+    //        kindFilter += "AND g.kind != 'theme' ";
+    //    return kindFilter.Length > 0 ? kindFilter : "AND 1=1";
+    //}
 
     // ──────────────────────────────────────────────────────────
     //  Group 선택 → Stocks 로드
@@ -426,17 +426,19 @@ public partial class LeftSidePanelViewModel : ObservableObject
     {
         try
         {
-            var excludeFilter = _db.BuildStockExcludeFilter("s", "c");
-            var sql = $"""
-                SELECT s.ticker, s.name, s.market, s.rating
-                FROM stocks s
-                JOIN stock_group_map sgm ON s.ticker = sgm.ticker
-                LEFT JOIN stock_cache c  ON c.ticker  = s.ticker
-                WHERE sgm.group_id = {groupId} {excludeFilter}
-                ORDER BY s.ticker
-                """;
+            //var excludeFilter = _db.BuildStockExcludeFilter("s", "c");
+            //var sql = $"""
+            //    SELECT s.ticker, s.name, s.market, s.rating
+            //    FROM stocks s
+            //    JOIN stock_group_map sgm ON s.ticker = sgm.ticker
+            //    LEFT JOIN stock_cache c  ON c.ticker  = s.ticker
+            //    WHERE sgm.group_id = {groupId} {excludeFilter}
+            //    ORDER BY s.ticker
+            //    """;
 
-            var dt = _db.Query(sql);
+            //var dt = _db.Query(sql);
+
+            var dt = _db.Query_StockList(groupId);
             _allStocks.Clear();
             foreach (DataRow row in dt.Rows)
             {
@@ -445,6 +447,8 @@ public partial class LeftSidePanelViewModel : ObservableObject
                     Ticker = Helpers.SafeStr(row, "ticker"),
                     Name   = Helpers.SafeStr(row, "name"),
                     Market = Helpers.SafeStr(row, "market"),
+                    Ret_3m = Helpers.SafeDouble(row, "ret_3m"),
+                    RS     = Helpers.SafeDouble(row, "rs"),
                     Rating = Helpers.SafeInt(row, "rating"),
                 });
             }

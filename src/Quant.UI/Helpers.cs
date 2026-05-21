@@ -110,6 +110,12 @@ public static class Helpers
         catch { return 0; }
     }
 
+    public static double SafeDouble(DataRow r, string col)
+    {
+        try { return r.IsNull(col) ? 0.0 : Convert.ToDouble(r[col]); }
+        catch { return 0.0; }
+    }
+
     //----------------------------------------------------
     public static void Status(Action<string, string>? statusEvent, string message, string colorHex)
     {

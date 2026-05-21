@@ -7,6 +7,7 @@ using Quant.Core.Models;
 
 using System.Data;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
@@ -1035,28 +1036,6 @@ final_select AS (
         lock (_optionsLock) { _optionsCache = opts; }
     }
 
-    /// <summary>
-    /// stocks 조회 쿼리에 삽입할 전역 제외 필터 절 반환.
-    /// alias: SQL에서 stocks 테이블에 붙인 별칭 (기본 "s").
-    /// cacheAlias: stock_cache 테이블 별칭. null이면 ExcludeHalted 필터 제외.
-    /// 반환 예: "AND s.name NOT LIKE '%스팩%' AND RIGHT(s.ticker,1)='0' AND c.current_price > 0"
-    /// 필터 없으면 빈 문자열 반환.
-    /// </summary>
-    public string BuildStockExcludeFilter(string alias = "s", string? cacheAlias = null)
-    {
-        var opts = LoadOptions();
-        var clauses = new List<string>();
-        if (opts.ExcludeSpac)
-            clauses.Add($"{alias}.name NOT LIKE '%스팩%'");
-        if (opts.ExcludePrefStock)
-            clauses.Add($"RIGHT({alias}.ticker, 1) = '0'");
-        if (opts.ExcludeHalted && cacheAlias is not null)
-            clauses.Add($"COALESCE({cacheAlias}.current_price, 0) > 0");
-        return clauses.Count > 0
-            ? "AND " + string.Join(" AND ", clauses)
-            : "";
-    }
-
     // ──────────────────────────────────────────────────────────
     //  Stock 등록 / 삭제
     // ──────────────────────────────────────────────────────────
@@ -1096,6 +1075,15 @@ final_select AS (
         cmd.Parameters.Add(new DuckDBParameter { Value = name });
         cmd.Parameters.Add(new DuckDBParameter { Value = market });
         cmd.Parameters.Add(new DuckDBParameter { Value = securityType });
+        cmd.ExecuteNonQuery();
+    }
+
+    public void DeletePriceData(string ticker)
+    {
+        using var conn = OpenNativeConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM daily_prices     WHERE ticker = $1";
+        cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
         cmd.ExecuteNonQuery();
     }
 
@@ -1141,6 +1129,117 @@ final_select AS (
         cmd.Parameters.Add(new DuckDBParameter { Value = key });
         cmd.Parameters.Add(new DuckDBParameter { Value = value });
         cmd.ExecuteNonQuery();
+    }
+
+    // ──────────────────────────────────────────────────────────
+    //  Group list SQL
+    // ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 그룹 목록 공통 SQL. EditGroupView·LeftSidePanelViewModel 양쪽에서 사용.
+    /// <para>
+    /// SELECT 컬럼: group_id, kind, name, description, rating, is_active, count, ret_3m<br/>
+    /// kindFilter : "AND g.kind != 'sector' " 형식의 WHERE 추가 조건 (없으면 "")<br/>
+    /// ORDER BY   : g.rating DESC, g.ret_3m DESC<br/>
+    /// </para>
+    /// </summary>
+    private static string GroupListSql(string kindFilter = "") => $"""
+        SELECT
+            g.group_id,
+            g.kind,
+            g.name,
+            g.description,
+            g.rating,
+            CASE WHEN g.is_active THEN '' ELSE 'X' END AS is_active,
+            COUNT(m.ticker) AS stock_count,
+            (SELECT c.ret_3m
+             FROM stock_group_map sgm
+             JOIN stock_cache c ON c.ticker = sgm.ticker
+             WHERE sgm.group_id = g.group_id
+             ORDER BY sgm.weight DESC, sgm.ticker
+             LIMIT 1) AS ret_3m
+        FROM groups g
+        LEFT JOIN stock_group_map m ON m.group_id = g.group_id
+        WHERE 1=1 {kindFilter}
+        GROUP BY g.group_id, g.kind, g.name, g.description, g.rating, g.is_active
+        ORDER BY g.rating DESC, ret_3m DESC
+        """;
+
+    private static string BuildGroupKindFilter(bool? sector, bool? theme)
+    {
+        string kindFilter = "";
+        if (sector != true)
+            kindFilter += "AND g.kind != 'sector' ";
+        if (theme != true)
+            kindFilter += "AND g.kind != 'theme' ";
+        return kindFilter.Length > 0 ? kindFilter : "";
+    }
+    public DataTable Query_GroupList(bool? sector, bool? theme) => Query(GroupListSql(BuildGroupKindFilter(sector, theme)));
+
+    // ──────────────────────────────────────────────────────────
+    //  Stock list SQL
+    // ──────────────────────────────────────────────────────────
+    /// <summary>
+    /// stocks 조회 쿼리에 삽입할 전역 제외 필터 절 반환.
+    /// alias: SQL에서 stocks 테이블에 붙인 별칭 (기본 "s").
+    /// cacheAlias: stock_cache 테이블 별칭. null이면 ExcludeHalted 필터 제외.
+    /// 반환 예: "AND s.name NOT LIKE '%스팩%' AND RIGHT(s.ticker,1)='0' AND c.current_price > 0"
+    /// 필터 없으면 빈 문자열 반환.
+    /// </summary>
+    public string BuildStockExcludeFilter(string alias = "s", string? cacheAlias = null)
+    {
+        var opts = LoadOptions();
+        var clauses = new List<string>();
+        if (opts.ExcludeSpac)
+            clauses.Add($"{alias}.name NOT LIKE '%스팩%'");
+        if (opts.ExcludePrefStock)
+            clauses.Add($"RIGHT({alias}.ticker, 1) = '0'");
+        if (opts.ExcludeHalted && cacheAlias is not null)
+            clauses.Add($"COALESCE({cacheAlias}.current_price, 0) > 0");
+        return clauses.Count > 0
+            ? "AND " + string.Join(" AND ", clauses)
+            : "";
+    }
+
+    public DataTable Query_StockList(int groupId)
+    {
+        var excludeFilter = BuildStockExcludeFilter("s", "c");
+        return Query($@"
+            SELECT
+                m.ticker,
+                s.name,
+                s.market,
+
+                s.rating,
+                m.weight,
+
+                c.per,
+                c.pbr,
+
+                c.ret_1m,
+                c.ret_3m,
+                c.ret_6m,
+                c.ret_1y,
+
+                c.rs,
+                c.atr_percent,
+                c.distance_from_high
+
+            FROM stock_group_map m
+
+            JOIN stocks s
+                ON s.ticker = m.ticker
+
+            LEFT JOIN stock_cache c
+                ON c.ticker = m.ticker
+
+            WHERE
+                m.group_id = {groupId}
+                {excludeFilter}
+
+            ORDER BY
+                c.ret_1m DESC NULLS LAST
+        ");
     }
 
     // ──────────────────────────────────────────────────────────

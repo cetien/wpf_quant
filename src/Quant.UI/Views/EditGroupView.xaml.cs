@@ -60,10 +60,10 @@ public partial class EditGroupView : UserControl
     {
         _db = db;
         InitializeComponent();
-        chkAllGroup.IsChecked = true;
+        //chkAllGroup.IsChecked = true;
         chkSectorGroup.IsChecked = true;
         chkThemeGroup.IsChecked = true;
-        groupKindFilter = "";
+        //groupKindFilter = "";
         DataContext = this;
         InitAxes();
         Loaded += (_, _) => LoadGroups();
@@ -103,60 +103,38 @@ public partial class EditGroupView : UserControl
     //  좌상: 그룹 Grid
     // ═════════════════════════════════════════════════════════
 
-    private string groupKindFilter = "";
+    //private string groupKindFilter = "";
 
     public void LoadGroups()
     {
-        //var activeFilter = ShowOnlyActive ? "AND g.is_active = TRUE" : "";
         try
         {
-            _groupTable = _db.Query(
-                "SELECT g.group_id, g.kind, g.name, g.description, g.rating, " +
-                "CASE WHEN g.is_active THEN '' ELSE 'NO' END AS is_active, " +
-                "COUNT(m.ticker) AS count " +
-                "FROM groups g " +
-                "LEFT JOIN stock_group_map m ON m.group_id = g.group_id " +
-                $"WHERE 1=1 {groupKindFilter} " +
-                "GROUP BY g.group_id, g.kind, g.name, g.description, g.rating, g.is_active " +
-                "ORDER BY g.kind, g.name");
+            _groupTable = _db.Query_GroupList(chkSectorGroup.IsChecked, chkThemeGroup.IsChecked);
+            //_groupTable = _db.Query(DbManager.GroupListSql(groupKindFilter));
             GridGroup.ItemsSource = _groupTable.DefaultView;
-            GroupGridCount.Text = $"{_groupTable.Rows.Count:N0}";
-            TxtRowCount.Text = $"{_groupTable.Rows.Count:N0} groups";
-            Helpers.StatusSuccess(StatusChanged, $"그룹 {_groupTable.Rows.Count}건");
+
+            var rowCount = $"{_groupTable.Rows.Count:N0}";
+            GroupGridCount.Text = rowCount;
+            Helpers.StatusSuccess(StatusChanged, $"LoadGroups= {rowCount}");
         }
-        catch (Exception ex) { Helpers.StatusException(StatusChanged, ex, "오류"); }
+        catch (Exception ex) { Helpers.StatusException(StatusChanged, ex, "LoadGroups"); }
     }
 
-    private string BuildGroupKindFilter()
-    {
-        if (chkAllGroup.IsChecked == true) return "";
-        var sector = chkSectorGroup.IsChecked == true;
-        var theme = chkThemeGroup.IsChecked == true;
-        if (sector && theme) return "AND (g.kind = 'sector' OR g.kind = 'theme')";
-        if (sector) return "AND g.kind = 'sector'";
-        if (theme) return "AND g.kind = 'theme'";
-        return "AND g.kind NOT IN ('sector', 'theme')";
-    }
+    //private string BuildGroupKindFilter()
+    //{
+    //    string kindFilter = "";
+    //    if (chkSectorGroup.IsChecked != true)
+    //        kindFilter += "AND g.kind != 'sector' ";
+    //    if (chkThemeGroup.IsChecked != true)
+    //        kindFilter += "AND g.kind != 'theme' ";
+    //    return kindFilter.Length > 0 ? kindFilter : "";
+    //}
 
-    private void GroupFilter_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not CheckBox chk) return;
-        var tag = chk.Tag;
-        if (tag?.ToString() == "All")
-        {
-            if (chk.IsChecked == true)
-            {
-                chkSectorGroup.IsChecked = true;
-                chkThemeGroup.IsChecked = true;
-            }
-        }
-        else
-        {
-            chkAllGroup.IsChecked = false;
-        }
-        groupKindFilter = BuildGroupKindFilter();
-        LoadGroups();
-    }
+    private void GroupFilter_Click(object sender, RoutedEventArgs e) => LoadGroups();
+    //{
+    //    groupKindFilter = BuildGroupKindFilter();
+    //    LoadGroups();
+    //}
 
     private void GridGroup_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -176,55 +154,57 @@ public partial class EditGroupView : UserControl
     {
         try
         {
-            var excludeFilter = _db.BuildStockExcludeFilter("s", "c");
+            /*            var excludeFilter = _db.BuildStockExcludeFilter("s", "c");
 
-            var dt = _db.Query($@"
-            SELECT
-                m.ticker,
-                s.name,
+                        var dt = _db.Query($@"
+                        SELECT
+                            m.ticker,
+                            s.name,
 
-                CASE s.market
-                    WHEN 'KP' THEN 'KOSPI'
-                    WHEN 'KQ' THEN 'KOSDAQ'
-                    WHEN 'NYSE' THEN 'NYSE'
-                    ELSE s.market
-                END AS market,
+                            CASE s.market
+                                WHEN 'KP' THEN 'KOSPI'
+                                WHEN 'KQ' THEN 'KOSDAQ'
+                                WHEN 'NYSE' THEN 'NYSE'
+                                ELSE s.market
+                            END AS market,
 
-                m.weight,
+                            m.weight,
 
-                c.ret_1m,
-                c.ret_3m,
-                c.ret_6m,
-                c.ret_1y,
+                            c.ret_1m,
+                            c.ret_3m,
+                            c.ret_6m,
+                            c.ret_1y,
 
-                c.rs,
+                            c.rs,
 
-                c.per,
-                c.pbr,
-                c.roe,
+                            c.per,
+                            c.pbr,
+                            c.roe,
 
-                c.atr_percent,
+                            c.atr_percent,
 
-                c.distance_from_high,
+                            c.distance_from_high,
 
-                c.volume_avg_20d
+                            c.volume_avg_20d
 
-            FROM stock_group_map m
+                        FROM stock_group_map m
 
-            JOIN stocks s
-                ON s.ticker = m.ticker
+                        JOIN stocks s
+                            ON s.ticker = m.ticker
 
-            LEFT JOIN stock_cache c
-                ON c.ticker = m.ticker
+                        LEFT JOIN stock_cache c
+                            ON c.ticker = m.ticker
 
-            WHERE
-                m.group_id = {groupId}
-                {excludeFilter}
+                        WHERE
+                            m.group_id = {groupId}
+                            {excludeFilter}
 
-            ORDER BY
-                c.ret_1m DESC NULLS LAST
-        ");
+                        ORDER BY
+                            c.ret_1m DESC NULLS LAST
+                    ");
+            */
 
+            var dt = _db.Query_StockList(groupId);
             if (!dt.Columns.Contains("chart_selected"))
             {
                 var col = dt.Columns.Add("chart_selected", typeof(bool));
@@ -406,6 +386,7 @@ public partial class EditGroupView : UserControl
             //}
 
             ApplyPeriod();
+            TxtStockCountAtGroupGrid.Text = $"{_rawData.Count}";
             TxtStatus.Text = $"[{TxtGroupNameAtChart.Text}] {_rawData.Count}개 종목";
             Helpers.StatusSuccess(StatusChanged, TxtStatus.Text);
         }
@@ -544,9 +525,24 @@ public partial class EditGroupView : UserControl
     private void BtnChart_Click(object sender, RoutedEventArgs e)
     {
         if (GridTicker.ItemsSource is not DataView view || sender is not Button btn) return;
-        var checkAll = (btn.Tag?.ToString() ?? "") == "1";
-        if (view.Table?.Columns.Contains("chart_selected") == true)
-            foreach (DataRow row in view.Table.Rows) row["chart_selected"] = checkAll;
+
+        if (view.Table?.Columns.Contains("chart_selected") != true) return;
+
+        foreach (DataRow row in view.Table.Rows) row["chart_selected"] = false;
+
+        var tag = btn.Tag?.ToString() ?? "";
+        if (tag == "1")
+        {
+            foreach (DataRow row in view.Table.Rows) row["chart_selected"] = true;
+            return;
+        }
+
+        if (tag == "10")
+        {
+            var count = Math.Min(10, view.Count);
+            for (var i = 0; i < count; i++)
+                view[i]["chart_selected"] = true;
+        }
     }
 
     private void BtnRemoveTicker_Click(object sender, RoutedEventArgs e)
@@ -632,6 +628,53 @@ public partial class EditGroupView : UserControl
     }
 
     private void ChartSelected_Changed(object sender, RoutedEventArgs e) => ApplyPeriod();
+
+    private void WeightEdit_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter)
+            GridTicker.CommitEdit(DataGridEditingUnit.Row, true);
+        else if (e.Key == System.Windows.Input.Key.Escape)
+            GridTicker.CancelEdit();
+    }
+
+    private void GridTicker_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+    {
+        if (e.EditAction != DataGridEditAction.Commit) return;
+        if (e.Column.Header?.ToString() != "w") return;
+        if (e.Row.Item is not DataRowView row) return;
+
+        var ticker = row["ticker"]?.ToString() ?? "";
+
+        // DataGridTemplateColumn의 EditingElement는 ContentPresenter → 그 안의 TextBox를 찾아야 함
+        var presenter = e.EditingElement as ContentPresenter;
+        var tb = presenter?.ContentTemplate?.FindName("", presenter) as TextBox
+                 ?? FindVisualChild<TextBox>(e.EditingElement);
+        if (tb == null || !int.TryParse(tb.Text, out var w)) return;
+        w = Math.Clamp(w, 1, 10);
+
+        try
+        {
+            _db.Execute($"UPDATE stock_group_map SET weight = {w} " +
+                        $"WHERE group_id = {_currentGroupId} AND ticker = '{ticker}'");
+            row["weight"] = w;
+            LoadGroups();
+            Helpers.StatusSuccess(StatusChanged, $"{ticker} weight → {w}");
+        }
+        catch (Exception ex) { Helpers.StatusException(StatusChanged, ex, "weight 저장 오류"); }
+    }
+
+    private static T? FindVisualChild<T>(DependencyObject? parent) where T : DependencyObject
+    {
+        if (parent == null) return null;
+        for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is T t) return t;
+            var result = FindVisualChild<T>(child);
+            if (result != null) return result;
+        }
+        return null;
+    }
 
     // ═════════════════════════════════════════════════════════
     //  Crosshair + Tooltip  (ChartView 방식 이식)
@@ -864,7 +907,8 @@ public partial class EditGroupView : UserControl
             _db.Execute($"DELETE FROM groups WHERE group_id = {id}");
             Helpers.StatusError(StatusChanged, $"삭제됨: {name}");
             _currentGroupId = -1;
-            TxtCurrGroupNameAtGrid.Text = ""; TxtCurrGroupNameAtGrid.Text = ""; TxtChartInfo.Text = "";
+            TxtStockCountAtGroupGrid.Text =
+            TxtCurrGroupNameAtGrid.Text = TxtCurrGroupNameAtGrid.Text = TxtChartInfo.Text = "";
             GridTicker.ItemsSource = null;
             ChartSeries.Clear(); _rawData.Clear();
             LoadGroups();

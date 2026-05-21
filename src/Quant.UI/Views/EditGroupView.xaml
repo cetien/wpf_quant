@@ -25,9 +25,6 @@
                     <Button x:Name="BtnDel" Content="✕ Delete" Style="{StaticResource ActionBtn}"
                             Click="BtnDeleteGroup_Click" Foreground="#F38BA8"/>
                 </StackPanel>
-                <TextBlock x:Name="TxtRowCount" HorizontalAlignment="Right"
-                           FontSize="10" FontFamily="Consolas"
-                           Foreground="#6C7086" VerticalAlignment="Center"/>
             </Grid>
         </Border>
 
@@ -56,10 +53,9 @@
                     <Border Grid.Row="0" Style="{StaticResource SectionHeaderBorder}" Cursor="">
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                             <TextBlock Text="#" x:Name="GroupGridCount" Style="{StaticResource BoldText}" Foreground="#FFEADC43"/>
-                            <TextBlock Text="GROUPS" Style="{StaticResource BoldText}" Margin="6,0,6,0"/>
-                            <CheckBox x:Name="chkAllGroup" Content="All" Click="GroupFilter_Click" Tag="All"/>
-                            <CheckBox x:Name="chkSectorGroup" Content="Sector" Click="GroupFilter_Click" Tag="Sector"/>
-                            <CheckBox x:Name="chkThemeGroup" Content="Theme" Click="GroupFilter_Click" Tag="Theme"/>
+                            <TextBlock Text="GROUPS" Style="{StaticResource NormalText}" Margin="6,0,6,0"/>
+                            <CheckBox x:Name="chkSectorGroup" Content="Sector" IsChecked="True" Click="GroupFilter_Click"/>
+                            <CheckBox x:Name="chkThemeGroup"  Content="Theme"  IsChecked="True" Click="GroupFilter_Click"/>
                         </StackPanel>
                     </Border>
                     <DataGrid x:Name="GridGroup" Grid.Row="1"
@@ -67,12 +63,13 @@
                               AutoGenerateColumns="False"
                               SelectionChanged="GridGroup_SelectionChanged">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="kind"   Binding="{Binding kind}"   Width="90"/>
-                            <DataGridTextColumn Header="name"   Binding="{Binding name}"   Width="100"/>
-                            <DataGridTextColumn Header="description"   Binding="{Binding description}"   Width="130"/>
-                            <DataGridTextColumn Header="rating"   Binding="{Binding rating}"   Width="60"/>
-                            <DataGridTextColumn Header="count"   Binding="{Binding count}"   Width="50"/>
-                            <DataGridTextColumn Header="active"   Binding="{Binding is_active}"   Width="46"/>
+                            <DataGridTextColumn Header="kind"   Binding="{Binding kind}"   Width="50"/>
+                            <DataGridTextColumn Header="name"   Binding="{Binding name}"   Width="200"/>
+                            <DataGridTextColumn Header="★"   Binding="{Binding rating}"   Width="30"/>
+                            <DataGridTextColumn Header="3M %"    Binding="{Binding ret_3m, Converter={StaticResource FmtF2}, ConverterParameter=F2}"  Width="60"/>
+                            <DataGridTextColumn Header="#"   Binding="{Binding stock_count}"   Width="40"/>
+                            <DataGridTextColumn Header="desc"   Binding="{Binding description}"   Width="200"/>
+                            <DataGridTextColumn Header="active"   Binding="{Binding is_active}"   Width="30"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>
@@ -86,33 +83,44 @@
                         <RowDefinition Height="28"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <Border Grid.Row="0" Style="{StaticResource SectionHeaderBorder}">
-                        <Grid>
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <TextBlock Text="Group" Margin="10,0,6,0" Style="{StaticResource NormalText}"/>
                             <TextBlock x:Name="TxtCurrGroupNameAtGrid" Text="Group"
-                                       Style="{StaticResource BoldText}"/>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
-                                        VerticalAlignment="Center">
-                                <ctrl:RatingControl x:Name="GroupRatingCtrl" Rating="5" Margin="0,2,10,3" Height="22"
-                                                    RatingChanged="GroupRatingCtrl_RatingChanged"/>
-                                <Button x:Name="BtnChartAll"  Content="All"
-                                    Click="BtnChart_Click" Tag="1" Background="#00333333" Foreground="#FFF5ED1A"/>
-                                <Button x:Name="BtnChartClear"  Content="Clear" 
-                                    Click="BtnChart_Click" Tag="0"/>
-                                <CheckBox x:Name="CheckboxAddTicker" Content="Add" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <Button x:Name="BtnDownloadGroup" Content="🔄" Style="{StaticResource ActionBtn}"
-                                        Padding="6,3" Margin="0,0,3,0" Click="BtnDownloadGroup_Click"
-                                        ToolTip="그룹 전체 가격 데이터 다운로드"/>
-                                <Button x:Name="BtnRemoveTicker" Content="✕" Style="{StaticResource ActionBtn}"
-                                        Padding="6,3" Margin="0" Foreground="{StaticResource TextError}"
-                                        Click="BtnRemoveTicker_Click"/>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
+                                       Style="{StaticResource BoldText}" Foreground="{StaticResource TextWarning}"/>
+                            <TextBlock Text="Stock" Margin="16,0,6,0" Style="{StaticResource NormalText}"/>
+                            <TextBlock x:Name="TxtStockCountAtGroupGrid" Text="Group"
+                                       Style="{StaticResource BoldText}" Foreground="{StaticResource TextWarning}"/>
+                            <CheckBox x:Name="CheckboxAddTicker" Content="Add" Margin="20,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <ctrl:RatingControl x:Name="GroupRatingCtrl" Rating="5" Margin="0,0,10,0" Height="22"
+                                                RatingChanged="GroupRatingCtrl_RatingChanged"/>
+                            <Button x:Name="BtnChartAll"  Content="All"
+                                Click="BtnChart_Click" Tag="1" Background="Transparent" Foreground="{StaticResource TextPrimary}"/>
+                            <Button x:Name="BtnChartTop10"  Content="10"
+                                Click="BtnChart_Click" Tag="10" Background="Transparent" Foreground="{StaticResource TextWarning}"/>
+                            <Button x:Name="BtnChartClear"  Content="Clear" 
+                                Click="BtnChart_Click" Tag="0" Background="Transparent"/>
+                            <Button x:Name="BtnDownloadGroup" Content="⬇" Style="{StaticResource ActionBtn}"
+                                    Padding="6,3" Margin="0,0,3,0" Click="BtnDownloadGroup_Click"
+                                    ToolTip="그룹 전체 가격 데이터 다운로드"/>
+                            <Button x:Name="BtnRemoveTicker" Content="✕" Style="{StaticResource ActionBtn}"
+                                    Padding="6,3" Margin="0" Foreground="{StaticResource TextError}"
+                                    Click="BtnRemoveTicker_Click"/>
+                        </StackPanel>
+                    </Grid>
                     <DataGrid x:Name="GridTicker" Grid.Row="1"
                               Style="{StaticResource QuantDataGrid}"
+                              IsReadOnly="False"
                               AutoGenerateColumns="False"
                               SelectionChanged="GridTicker_SelectionChanged"
-                              MouseDoubleClick="GridTicker_MouseDoubleClick">
+                              MouseDoubleClick="GridTicker_MouseDoubleClick"
+                              CellEditEnding="GridTicker_CellEditEnding">
                         <DataGrid.Columns>
                             <DataGridTemplateColumn Header="chart" Width="30" CanUserSort="False">
                                 <DataGridTemplateColumn.CellTemplate>
@@ -125,20 +133,34 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="name"     Binding="{Binding name}"     Width="90"/>
-                            <DataGridTextColumn Header="market"   Binding="{Binding market}"   Width="60"/>
-                            <DataGridTextColumn Header="weight"   Binding="{Binding weight}"   Width="30"/>
-                            <DataGridTextColumn Header="1M %" Binding="{Binding ret_1m, Converter={StaticResource FmtF2}, ConverterParameter=F2}" Width="60"/>
-                            <DataGridTextColumn Header="3M %"     Binding="{Binding ret_3m, Converter={StaticResource FmtF2}, ConverterParameter=F2}"   Width="60"/>
-                            <DataGridTextColumn Header="6M %"     Binding="{Binding ret_6m, Converter={StaticResource FmtF2}, ConverterParameter=F2}"   Width="60"/>
-                            <DataGridTextColumn Header="1Y %"     Binding="{Binding ret_1y, Converter={StaticResource FmtF2}, ConverterParameter=F2}"   Width="60"/>
-                            <DataGridTextColumn Header="rs"     Binding="{Binding rs, Converter={StaticResource FmtF1}, ConverterParameter=F1}"   Width="60"/>
-                            <DataGridTextColumn Header="per"     Binding="{Binding per, Converter={StaticResource FmtN0}, ConverterParameter=N0}"   Width="60"/>
-                            <DataGridTextColumn Header="pbr"     Binding="{Binding pbr, Converter={StaticResource FmtN0}, ConverterParameter=F2}"   Width="60"/>
-                            <DataGridTextColumn Header="roe"     Binding="{Binding roe, Converter={StaticResource FmtN0}, ConverterParameter=F2}"   Width="60"/>
-                            <DataGridTextColumn Header="%atr"     Binding="{Binding atr_percent, Converter={StaticResource FmtF1}, ConverterParameter=F1}"   Width="60"/>
-                            <DataGridTextColumn Header="distance_from_high"     Binding="{Binding distance_from_high, Converter={StaticResource FmtF1}, ConverterParameter=F1}"   Width="60"/>
-                            <DataGridTextColumn Header="volume_avg_20d"     Binding="{Binding volume_avg_20d, Converter={StaticResource FmtVol}, ConverterParameter=vol}"   Width="60"/>
+                            <DataGridTextColumn Header="name"   Binding="{Binding name}"   Width="*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="mkt" Binding="{Binding market}" Width="25" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="★" Binding="{Binding rating}" Width="25" IsReadOnly="True"/>
+                            <DataGridTemplateColumn Header="wgt" Width="36">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding weight}"
+                                                   FontFamily="Consolas" FontSize="10"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <TextBox Text="{Binding weight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 FontFamily="Consolas" FontSize="10"
+                                                 PreviewKeyDown="WeightEdit_KeyDown"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="1M %"              Binding="{Binding ret_1m,             Converter={StaticResource FmtF2}, ConverterParameter=F2}" Width="48" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="3M %"              Binding="{Binding ret_3m,             Converter={StaticResource FmtF2}, ConverterParameter=F2}" Width="48" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="6M %"              Binding="{Binding ret_6m,             Converter={StaticResource FmtF2}, ConverterParameter=F2}" Width="48" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="1Y %"              Binding="{Binding ret_1y,             Converter={StaticResource FmtF2}, ConverterParameter=F2}" Width="48" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="rs"                Binding="{Binding rs,                 Converter={StaticResource FmtF1}, ConverterParameter=F1}" Width="40" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="%atr"              Binding="{Binding atr_percent,        Converter={StaticResource FmtF1}, ConverterParameter=F1}" Width="40" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="high"  Binding="{Binding distance_from_high, Converter={StaticResource FmtF1}, ConverterParameter=F1}" Width="40" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="per"               Binding="{Binding per,                Converter={StaticResource FmtN0}, ConverterParameter=N0}" Width="30" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="pbr"               Binding="{Binding pbr,                Converter={StaticResource FmtN0}, ConverterParameter=F2}" Width="30" IsReadOnly="True"/>
 
                             <!--
                             <DataGridTemplateColumn Header="" Width="36" CanUserSort="False" CanUserResize="False">

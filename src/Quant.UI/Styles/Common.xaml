@@ -11,6 +11,7 @@
         <SolidColorBrush x:Key="BgTextBox"   Color="#252536"/>
         <SolidColorBrush x:Key="BgSurface"   Color="#313244"/>
         <SolidColorBrush x:Key="AccentBlue"  Color="#89B4FA"/>
+        <SolidColorBrush x:Key="TextWarning" Color="#F5ED1A"/>
         <SolidColorBrush x:Key="TextPrimary" Color="#CDD6F4"/>
         <SolidColorBrush x:Key="TextMuted"   Color="#7E8192"/>
         <SolidColorBrush x:Key="TextError"   Color="#F38BA8"/>

@@ -233,11 +233,12 @@
                          2. Options
                          ════════════════════════════════════════════ -->
                         <Border Background="#1E1E2E" Margin="6,0,6,0" CornerRadius="4">
-                                <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding GroupListInfo}" Margin="0,0,6,0" Style="{StaticResource BoldText}" Foreground="#FFF5E969"/>
-                                    <CheckBox Content="Sector" IsChecked="{Binding ShowSector}"/>
-                                    <CheckBox Content="Theme" IsChecked="{Binding ShowTheme}"/>
-                                </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding GroupListInfo}" Style="{StaticResource BoldText}" Foreground="#FFF5E969"/>
+                                <TextBlock Text="GROUPS" Style="{StaticResource NormalText}" Margin="8,0,10,0"/>
+                                <CheckBox Content="Sector" IsChecked="{Binding ShowSector}"/>
+                                <CheckBox Content="Theme" IsChecked="{Binding ShowTheme}"/>
+                            </StackPanel>
                         </Border>
 
                         <DataGrid x:Name="GroupGrid" AutoGenerateColumns="False"
@@ -249,6 +250,7 @@
                                 <DataGridTextColumn Header=""  Binding="{Binding Kind}"       Width="24"/>
                                 <DataGridTextColumn Header="Name"  Binding="{Binding Name}"       Width="*"/>
                                 <DataGridTextColumn Header="★"  Binding="{Binding Rating}"       Width="30"/>
+                                <DataGridTextColumn Header="3M %"    Binding="{Binding Ret3m, Converter={StaticResource FmtF2}, ConverterParameter=F2}"  Width="60"/>
                                 <DataGridTextColumn Header="#"     Binding="{Binding StockCount}" Width="30">
                                     <DataGridTextColumn.ElementStyle>
                                         <Style TargetType="TextBlock">
@@ -300,7 +302,7 @@
                 <StackPanel Orientation="Horizontal" Margin="6,6,0,0">
                     <TextBlock Text="Group" Margin="0,0,10,0" Style="{StaticResource NormalText}"/>
                     <TextBlock Text="{Binding SelectedGroupInfo}" Style="{StaticResource BoldText}" Foreground="#FFF5E969"/>
-                    <TextBlock Text="Stock cnt" Margin="16,0,10,0" Style="{StaticResource NormalText}"/>
+                    <TextBlock Text="Stock" Margin="16,0,10,0" Style="{StaticResource NormalText}"/>
                     <TextBlock Text="{Binding StockListInfo}" Style="{StaticResource BoldText}" Foreground="#FFF5E969"/>
                 </StackPanel>
 
@@ -319,17 +321,21 @@
                         </Style>
                     </Border.Style>
                     <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="37*"/>
+                            <ColumnDefinition Width="92*"/>
+                        </Grid.ColumnDefinitions>
                         <TextBox Text="{Binding StockSearchText, UpdateSourceTrigger=PropertyChanged}"
                                  FontFamily="Consolas" FontSize="10"
                                  Foreground="#CDD6F4" Background="Transparent"
                                  BorderThickness="0" Padding="6,4"
                                  CaretBrush="#CDD6F4"
-                                 x:Name="StockSearchBox"/>
+                                 x:Name="StockSearchBox" Grid.ColumnSpan="2" Margin="0,2,0,2"/>
                         <!-- placeholder -->
                         <TextBlock Text="종목명 / 티커 검색…"
                                    FontFamily="Consolas" FontSize="10"
                                    Foreground="#45475A" Margin="7,4,0,0"
-                                   IsHitTestVisible="False">
+                                   IsHitTestVisible="False" Grid.ColumnSpan="2">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Visibility" Value="Collapsed"/>
@@ -348,17 +354,13 @@
                     <DataGrid x:Name="StockGrid" AutoGenerateColumns="False"
                               ItemsSource="{Binding Stocks}"
                               SelectedItem="{Binding SelectedStock, Mode=TwoWay}"
-                              Height="300">
+                              Height="320">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Ticker" Binding="{Binding Ticker}" Width="58"/>
+                            <DataGridTextColumn Header="mkt"   Binding="{Binding Market}"   Width="30"/>
                             <DataGridTextColumn Header="Name"   Binding="{Binding Name}"   Width="*"/>
-                            <DataGridTextColumn Header="Mkt"    Binding="{Binding Market}"  Width="34">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="#6C7086"/>
-                                    </Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="★" Binding="{Binding Rating}" Width="25"/>
+                            <DataGridTextColumn Header="3M %" Binding="{Binding Ret_3m, StringFormat={}{0:F1}, TargetNullValue=-}" Width="40"/>
+                            <DataGridTextColumn Header="RS" Binding="{Binding RS, StringFormat={}{0:F0}, TargetNullValue=-}" Width="40"/>
                         </DataGrid.Columns>
                         <DataGrid.Style>
                             <Style TargetType="DataGrid" BasedOn="{StaticResource QuantDataGrid}">

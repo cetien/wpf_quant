@@ -1,7 +1,12 @@
-using Quant.Core.Infrastructure;
+﻿using Quant.Core.Infrastructure;
+using Quant.UI.Controls;
+
+using System.Data;
+using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 
 namespace Quant.UI.Views;
 
@@ -110,6 +115,58 @@ public partial class SearchView : UserControl
     }
 
     // ── 검색 실행 ────────────────────────────────────────────────────────────
+    private void LoadStocksByScreener(string whereClause)
+    {
+        try
+        {
+            whereClause = "1=1";
+            var excludeFilter = _db.BuildStockExcludeFilter("s", "c");
+            var needsF = true;// SelectedScreener?.NeedsFundamentals ?? true;
+            var fJoin = needsF
+                ? "JOIN latest_f f ON s.ticker = f.ticker AND f.rn = 1"
+                : "LEFT JOIN latest_f f ON s.ticker = f.ticker AND f.rn = 1";
+            var sql = $"""
+                WITH latest_f AS (
+                    SELECT ticker, pbr, per, roe,
+                           ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY report_date DESC) AS rn
+                    FROM fundamentals
+                )
+                SELECT s.ticker, s.name, s.market, s.rating, s.security_type, c.ret_3m, c.rs
+                FROM stocks s
+                {fJoin}
+                LEFT JOIN stock_cache c ON c.ticker  = s.ticker
+                WHERE {whereClause} {excludeFilter}
+                ORDER BY s.ticker LIMIT 500
+                """;
+
+            var dt = _db.Query(sql);
+
+            GridResults.ItemsSource = dt.DefaultView;
+
+            var infoPanel = new InfoPanelBuilder(Panel_Info);
+            infoPanel.Text($"검색 결과: {dt.Rows.Count}종목", Brushes.Yellow);
+
+
+            //_allStocks.Clear();
+            foreach (DataRow row in dt.Rows)
+            {
+                //_allStocks.Add(new StockRow
+                //{
+                //    Ticker = Helpers.SafeStr(row, "ticker"),
+                //    Name = Helpers.SafeStr(row, "name"),
+                //    Market = Helpers.SafeStr(row, "market"),
+                //    Ret_3m = Helpers.SafeDouble(row, "ret_3m"),
+                //    RS = Helpers.SafeDouble(row, "rs"),
+                //    Rating = Helpers.SafeInt(row, "rating"),
+                //});
+            }
+            //ApplyStockFilter();
+            //StatusText = $"{SelectedScreener?.Name}  {_allStocks.Count}종목";
+        }
+        catch (Exception ex) { SetStatus($"오류: {ex.Message}", "#F38BA8"); }
+    }
+
+
     private void BtnSearch_Click(object sender, RoutedEventArgs e) => ExecuteSearch();
 
     private void TxtQuery_KeyDown(object sender, KeyEventArgs e)
@@ -119,6 +176,9 @@ public partial class SearchView : UserControl
 
     private void ExecuteSearch()
     {
+        LoadStocksByScreener("");
+
+
         var q = TxtQuery.Text.Trim();
 
         // TODO [SCENARIO 1] 2글자 미만 가드
@@ -193,6 +253,11 @@ public partial class SearchView : UserControl
     {
         TxtStatus.Text     = msg;
         StatusChanged?.Invoke(msg, hex);
+    }
+
+    private void FilterActivated_Changed(object sender, RoutedEventArgs e)
+    {
+
     }
 
     // TODO [SCENARIO 2] WHERE 절 빌더

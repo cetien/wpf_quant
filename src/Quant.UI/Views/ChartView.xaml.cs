@@ -13,6 +13,7 @@ using SkiaSharp;
 
 using System.Collections.ObjectModel;
 using System.Data;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -72,6 +73,8 @@ public partial class ChartView : UserControl
     private List<OhlcvRow> _allData = [];
     private int    _periodDays    = 365;
     private string _currentTicker = "";
+    private InfoPanelBuilder? infoPanel = null;
+    private InfoPanelBuilder? infoPanel2 = null;
 
     // 신규종목 등록 팝업 상태
     private RegisterState? _pendingRegister;
@@ -98,6 +101,9 @@ public partial class ChartView : UserControl
         InitAxes();
         Loaded += (_, _) =>
         {
+            infoPanel = new InfoPanelBuilder(Panel_StockInfo);
+            infoPanel2 = new InfoPanelBuilder(Panel_StockInfo2);
+
             Helpers.HighlightButton(Btn1Y, new[] { Btn1M, Btn3M, Btn6M, Btn1Y, Btn2Y, BtnAll });
             Helpers.HighlightButton(null, new[] { BtnVol, BtnMacd, BtnRsi });
             if (_showVol) Helpers.HighlightButton(BtnVol);
@@ -205,21 +211,22 @@ public partial class ChartView : UserControl
     // ══════════════════════════════════════════════════════════
     private void LoadInfo_ReturnRatio(string ticker)
     {
-        var infoPanel = new InfoPanelBuilder(Panel_StockInfo);
-        infoPanel.Clear();
+        //var infoPanel = new InfoPanelBuilder(Panel_StockInfo);
+        infoPanel?.Clear();
+        infoPanel2?.Clear();
 
         var cache = _db.GetStockCache(ticker);
         if (cache is null)
         {
             //TxtStockInfo_ReturnRatio.Text = "no data";
-            infoPanel.Text("no data");
-            TxtStockInfo.Text             = "no data";
+            infoPanel?.Text("no data");
+            infoPanel2?.Text("no data");
             MiniChart_ReturnRatio.Series  = Array.Empty<ISeries>();
             return;
         }
 
 
-        infoPanel.AddCard(card =>
+        infoPanel?.AddCard(card =>
         {
             card.Header3(cache.Name)
                 .Text($"{cache.Ticker} {cache.Market}.{cache.SecurityType}")
@@ -239,7 +246,7 @@ public partial class ChartView : UserControl
 //VolumeAvg20D: 29859078.7
 //DistanceFromHigh: -8.01
 
-        infoPanel.AddCard(card =>
+        infoPanel?.AddCard(card =>
         {
             card.Metric("price", cache.CurrentPrice.ToString("#,##0"), 40, Brushes.White)
                 .MetricColoredDigit("high", cache.DistanceFromHigh)
@@ -272,7 +279,8 @@ public partial class ChartView : UserControl
         var sb = new System.Text.StringBuilder();
         foreach (var p in props)
             sb.AppendLine($"{p.Name}: {p.GetValue(cache)}");
-        TxtStockInfo.Text = sb.ToString().TrimEnd();
+        infoPanel2?.Text(sb.ToString().TrimEnd());
+        //TxtStockInfo.Text = sb.ToString().TrimEnd();
 
         // ── MiniChart: Line ─────────────────────────────────
         // X: 0=1M, 1=3M, 2=6M, 3=1Y  (ObservablePoint)
@@ -888,6 +896,22 @@ public partial class ChartView : UserControl
             GridReport.ItemsSource = _db.Query(sql).DefaultView;
         }
         catch { GridReport.ItemsSource = null; }
+
+        // ── GridGroup: v_active_group_map ─────────────────────
+        try
+        {
+            var dt = _db.Query($"""
+                SELECT kind, group_name, group_rating, weight
+                FROM v_active_group_map
+                WHERE ticker = '{ticker}'
+                ORDER BY group_rating DESC, kind
+                """);
+            GridGroup.ItemsSource = dt.DefaultView;
+        }
+        catch { GridGroup.ItemsSource = null; }
+
+        // ── MiniChart_Fundamentals: PER / PBR 시계열 ──────────
+        LoadMiniChartFundamentals(ticker);
     }
 
     private string ColorForNet(long v) => v >= 0 ? StatusColors.Info : StatusColors.Error;
@@ -908,6 +932,197 @@ public partial class ChartView : UserControl
         FundamentalMetrics.Add(new("PBR", val, color));
         FundamentalMetrics.Add(new("EPS", val, color));
         FundamentalMetrics.Add(new("ROE", val, color));
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  MiniChart_Fundamentals: PER / PBR 시계열 (최근 8분기)
+    // ══════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════
+    //  MiniChart_Fundamentals — Base-100 정규화
+    //
+    //  PER / PBR / EPS 의 절대값 스케일이 달라 한 Y축에 표시 불가.
+    //  → 각 지표의 첫 유효값(≠0)을 100으로 정규화하여 단일 Y축 표시.
+    //    Y=100 기준선 추가.  음수 EPS 허용 (Base는 첫 양수값 사용).
+    //    첫 값이 0이면 다음 유효값으로 fallback.
+    //  X축: Labeler 함수 방식 (Labels 배열 중복 버그 회피)
+    // ══════════════════════════════════════════════════════════
+    private void LoadMiniChartFundamentals(string ticker)
+    {
+        //var infoPanel = new InfoPanelBuilder(Panel_StockInfo);
+        //infoPanel2?.Clear();
+        //var card = infoPanel2?.AddCard();
+
+        try
+        {
+            var dt = _db.Query($"""
+                SELECT report_date, per, pbr, eps
+                FROM fundamentals
+                WHERE ticker = '{ticker}'
+                  AND report_date IS NOT NULL
+                  AND report_date >= (CURRENT_DATE - INTERVAL 1 YEAR)
+                ORDER BY report_date ASC
+                """);
+
+            if (dt.Rows.Count == 0)
+            {
+                MiniChart_Fundamentals.Series = Array.Empty<ISeries>();
+                return;
+            }
+
+            var n       = dt.Rows.Count;
+            var xLabels = new string[n];
+            //Debug.WriteLine($"[MiniFund] ticker={ticker}, dt.Rows.Count={n}");
+            //for (int i = 0; i < n; i++)
+            //{
+            //    var r = dt.Rows[i];
+            //    Debug.WriteLine(
+            //        $"[MiniFund][row {i:D2}] report_date={r[0]}, per={r[1]}, pbr={r[2]}, eps={r[3]}"
+            //    );
+            //}
+
+            // 원본 값 수집
+            var perRaw = new double?[n];
+            var pbrRaw = new double?[n];
+            var epsRaw = new double?[n];
+
+            for (int i = 0; i < n; i++)
+            {
+                var r   = dt.Rows[i];
+                var raw = r[0]?.ToString() ?? "";
+                xLabels[i] = raw.Length >= 7 ? raw[..7] : raw;
+
+                if (double.TryParse(r[1]?.ToString(), out var per) && per > 0)  perRaw[i] = per;
+                if (double.TryParse(r[2]?.ToString(), out var pbr) && pbr > 0)  pbrRaw[i] = pbr;
+                if (double.TryParse(r[3]?.ToString(), out var eps) && eps != 0) epsRaw[i] = eps;
+            }
+
+            int perValid = perRaw.Count(v => v.HasValue);
+            int pbrValid = pbrRaw.Count(v => v.HasValue);
+            int epsValid = epsRaw.Count(v => v.HasValue);
+            // Debug.WriteLine($"[MiniFund] valid-count PER={perValid}, PBR={pbrValid}, EPS={epsValid}");
+            // Debug.WriteLine($"[MiniFund] raw-sample EPS={string.Join(", ", epsRaw.Take(6).Select(v => v?.ToString("N0") ?? "null"))}");
+
+            // Base-100 정규화: 첫 유효값(>0인 값) 기준
+            static List<ObservablePoint> Normalize(double?[] raw)
+            {
+                double?  first   = raw.FirstOrDefault(v => v.HasValue && v.Value != 0);
+                double   baseVal = first ?? 0;
+                if (baseVal == 0) return [];
+                var pts = new List<ObservablePoint>();
+                for (int i = 0; i < raw.Length; i++)
+                    if (raw[i].HasValue)
+                        pts.Add(new ObservablePoint(i, raw[i]!.Value / baseVal * 100.0));
+                return pts;
+            }
+
+            var perPts = Normalize(perRaw);
+            var pbrPts = Normalize(pbrRaw);
+            var epsPts = Normalize(epsRaw);
+
+            //static string PtRange(List<ObservablePoint> pts)
+            //{
+            //    if (pts.Count == 0) return "empty";
+            //    var min = pts.Min(p => p.Y);
+            //    var max = pts.Max(p => p.Y);
+            //    return $"{min:F2}..{max:F2}";
+            //}
+
+            // Debug.WriteLine($"[MiniFund] norm-count PER={perPts.Count}, PBR={pbrPts.Count}, EPS={epsPts.Count}");
+            // Debug.WriteLine($"[MiniFund] norm-range PER={PtRange(perPts)}, PBR={PtRange(pbrPts)}, EPS={PtRange(epsPts)}");
+            // Debug.WriteLine($"[MiniFund] norm-sample EPS={string.Join(", ", epsPts.Take(6).Select(p => $"({p.X:F0},{p.Y:F2})"))}");
+
+            var series = new List<ISeries>();
+
+            // Y=100 기준선
+            series.Add(new LineSeries<ObservablePoint>
+            {
+                Name           = "",
+                Values         = new ObservablePoint[] { new(-0.5, 100), new(n - 0.5, 100) },
+                Stroke         = new SolidColorPaint(SKColor.Parse("#45475A")) { StrokeThickness = 1 },
+                Fill           = null,
+                GeometrySize   = 0, GeometryFill = null, GeometryStroke = null,
+                LineSmoothness = 0,
+            });
+
+            if (perPts.Count > 0)
+                series.Add(new LineSeries<ObservablePoint>
+                {
+                    Name           = "PER",
+                    Values         = new ObservableCollection<ObservablePoint>(perPts),
+                    Stroke         = new SolidColorPaint(SKColor.Parse("#89B4FA")) { StrokeThickness = 2 },
+                    Fill           = null,
+                    GeometrySize   = 0,
+                    GeometryFill   = null,
+                    GeometryStroke = null,
+                    LineSmoothness = 0,
+                });
+
+            if (pbrPts.Count > 0)
+                series.Add(new LineSeries<ObservablePoint>
+                {
+                    Name           = "PBR",
+                    Values         = new ObservableCollection<ObservablePoint>(pbrPts),
+                    Stroke         = new SolidColorPaint(SKColor.Parse("#A6E3A1")) { StrokeThickness = 2 },
+                    Fill           = null,
+                    GeometrySize   = 0,
+                    GeometryFill   = null,
+                    GeometryStroke = null,
+                    LineSmoothness = 0,
+                });
+
+            if (epsPts.Count > 0)
+                series.Add(new LineSeries<ObservablePoint>
+                {
+                    Name           = "EPS",
+                    Values         = new ObservableCollection<ObservablePoint>(epsPts),
+                    Stroke         = new SolidColorPaint(SKColor.Parse("#F9E2AF")) { StrokeThickness = 2 },
+                    Fill           = null,
+                    GeometrySize   = 0,
+                    GeometryFill   = null,
+                    GeometryStroke = null,
+                    LineSmoothness = 0,
+                });
+
+            MiniChart_Fundamentals.Series = series.ToArray();
+
+            MiniChart_Fundamentals.XAxes = new Axis[]
+            {
+                new Axis
+                {
+                    Labeler = v =>
+                    {
+                        var i = (int)Math.Round(v);
+                        return (i >= 0 && i < xLabels.Length) ? xLabels[i] : "";
+                    },
+                    UnitWidth       = 1,
+                    MinStep         = 1,
+                    MinLimit        = -0.5,
+                    MaxLimit        = n - 0.5,
+                    LabelsPaint     = new SolidColorPaint(SKColor.Parse("#6C7086")),
+                    SeparatorsPaint = new SolidColorPaint(SKColor.Parse("#313244")),
+                    TextSize        = 8,
+                }
+            };
+
+            // 단일 Y축 — Base-100 기준 (이중 Y축 불필요)
+            MiniChart_Fundamentals.YAxes = new Axis[]
+            {
+                new Axis
+                {
+                    Labeler         = v => v.ToString("F0"),
+                    LabelsPaint     = new SolidColorPaint(SKColor.Parse("#6C7086")),
+                    SeparatorsPaint = new SolidColorPaint(SKColor.Parse("#313244")),
+                    TextSize        = 8,
+                    Position        = LiveChartsCore.Measure.AxisPosition.End,
+                },
+            };
+
+            MiniChart_Fundamentals.LegendPosition = LiveChartsCore.Measure.LegendPosition.Hidden;
+        }
+        catch
+        {
+            MiniChart_Fundamentals.Series = Array.Empty<ISeries>();
+        }
     }
 
     private static string FormatNet(long v) => v == 0 ? "0" : v > 0 ? $"+{v:N0}" : $"{v:N0}";
@@ -1295,11 +1510,13 @@ public partial class ChartView : UserControl
             _pendingRegister = null;
 
             // 등록 후 자동으로 주가 다운로드 시도
-            var ticker  = TxtTickerCode.Text.Trim().ToUpper();
-            var svc     = new PriceDownloadService(_db);
-            var progress = new Progress<string>(msg => Helpers.StatusInfo(StatusChanged, msg));
-            var (inserted, lastDate) = await svc.DownloadAsync(ticker, progress);
-            if (inserted > 0) _db.RebuildStockCache();
+            var inserted = await DownloadPrice(TxtTickerCode.Text.Trim().ToUpper());
+
+            //var ticker  = TxtTickerCode.Text.Trim().ToUpper();
+            //var svc     = new PriceDownloadService(_db);
+            //var progress = new Progress<string>(msg => Helpers.StatusInfo(StatusChanged, msg));
+            //var (inserted, lastDate) = await svc.DownloadAsync(ticker, progress);
+            //if (inserted > 0) _db.RebuildStockCache();
             LoadChart();
         }
         catch (Exception ex)
@@ -1345,7 +1562,7 @@ public partial class ChartView : UserControl
             TxtChartDataLoadingInfo.Text = "";
             SupplyMetrics.Clear();
             FundamentalMetrics.Clear();
-            TxtStockInfo.Text = "-";
+            infoPanel2?.Text("no data");
             GridReport.ItemsSource = null;
 
             Helpers.StatusWarning(StatusChanged, $"{ticker} 제거 완료");
@@ -1355,6 +1572,43 @@ public partial class ChartView : UserControl
             MessageBox.Show($"제거 실패: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
             Helpers.StatusException(StatusChanged, ex, $"{ticker} 제거 실패");
         }
+    }
+
+    private async void BtnDeletePrice_Click( object sender, EventArgs e )
+    {
+        var ticker = TxtTickerCode.Text.Trim().ToUpper();
+        if (string.IsNullOrEmpty(ticker)) return;
+        var name = TxtStockName.Text;
+        var result = MessageBox.Show(
+            $"종목 [{ticker}] {name}의 PriceInfo(daily_prices)를 제거합니다.\n\n" +
+            $"• daily_prices 테이블에서 해당 ticker의 모든 행 삭제\n\n" +
+            $"이 작업은 되돌릴 수 없습니다. 진행하시겠습니까?",
+            "PriceInfo 제거",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (result != MessageBoxResult.Yes) return;
+        try
+        {
+            _db.DeletePriceData(ticker);
+            Helpers.StatusWarning(StatusChanged, $"{ticker} PriceInfo 제거 완료");
+            var inserted = await DownloadPrice(ticker);
+            LoadChart();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"PriceInfo 삭제 실패: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            Helpers.StatusException(StatusChanged, ex, $"{ticker} PriceInfo 제거 실패");
+        }
+    }
+
+    private async Task<int> DownloadPrice(string ticker)
+    {
+        var svc = new PriceDownloadService(_db);
+        var progress = new Progress<string>(msg => Helpers.StatusInfo(StatusChanged, msg));
+        var (inserted, lastDate) = await svc.DownloadAsync(ticker, progress);
+        if (inserted > 0) _db.RebuildStockCache();
+        return inserted;
     }
 
     // 콤보박스 콘텐츠로 항목 선택
