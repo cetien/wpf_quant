@@ -27,7 +27,8 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
                     <DataGridTextColumn Header="name"  Binding="{Binding kind}"         Width="*"/>
-                    <DataGridTextColumn Header="sql"     Binding="{Binding weight}"       Width="60"/>
+                    <DataGridTextColumn Header="desc"     Binding="{Binding description}"       Width="60"/>
+                    <DataGridTextColumn Header="sql"     Binding="{Binding sql}"       Width="60"/>
                 </DataGrid.Columns>
             </DataGrid>
         </Grid>

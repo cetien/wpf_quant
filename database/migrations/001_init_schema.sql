@@ -100,7 +100,6 @@ CREATE TABLE IF NOT EXISTS supply (
 );
 
 -- ── stock_cache ──────────────────────────────────────────────
--- 현재는 대시보드 고속 표시용 유지
 CREATE TABLE IF NOT EXISTS stock_cache (
      ticker      TEXT    NOT NULL, -- REFERENCES stocks(ticker),
      asof_date   DATE    NOT NULL,
@@ -121,7 +120,13 @@ CREATE TABLE IF NOT EXISTS stock_cache (
     high_52w    DOUBLE, 
     low_52w     DOUBLE, 
     volume_avg_20d  DOUBLE, 
-    distance_from_high  DOUBLE, 
+    distance_from_high  DOUBLE,
+    ma20        DOUBLE,                     -- 20일 이동평균 (adj_close 기준)
+    ma60        DOUBLE,                     -- 60일 이동평균
+    ma120       DOUBLE,                     -- 120일 이동평균
+    volume_ratio DOUBLE,                    -- 현재 거래량 / 20일 평균 거래량
+    high_60d    DOUBLE,                     -- 60거래일 고가
+    high_120d   DOUBLE,                     -- 120거래일 고가
      updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
      PRIMARY KEY (ticker)
 );
@@ -156,6 +161,7 @@ CREATE TABLE IF NOT EXISTS stock_cache (
 );
 
 -- ── pdf_reports ──────────────────────────────────────────────
+-- TODO: target_price, report_summary, key_points, sentiment
 CREATE TABLE IF NOT EXISTS pdf_reports (
     id          INTEGER     PRIMARY KEY,
     date        DATE        NOT NULL,

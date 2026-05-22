@@ -59,6 +59,13 @@ public sealed class StockCache
     public double VolumeAvg20D { get; set; }
 
     public double DistanceFromHigh { get; set; }
+
+    public double Ma20 { get; set; }
+    public double Ma60 { get; set; }
+    public double Ma120 { get; set; }
+    public double VolumeRatio { get; set; }    // 현재 거래량 / 20일 평균 거래량
+    public double High60D { get; set; }        // 60거래일 고가
+    public double High120D { get; set; }       // 120거래일 고가
 }
 
 /// <summary>
@@ -434,7 +441,13 @@ INSERT INTO stock_cache (
     high_52w,
     low_52w,
     volume_avg_20d,
-    distance_from_high
+    distance_from_high,
+    ma20,
+    ma60,
+    ma120,
+    volume_ratio,
+    high_60d,
+    high_120d
 )
 WITH base AS (
     SELECT
@@ -473,7 +486,37 @@ WITH base AS (
             PARTITION BY dp.ticker
             ORDER BY dp.date
             ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
-        ) AS volume_avg_20d
+        ) AS volume_avg_20d,
+
+        AVG(dp.adj_close) OVER (
+            PARTITION BY dp.ticker
+            ORDER BY dp.date
+            ROWS BETWEEN 19 PRECEDING AND CURRENT ROW
+        ) AS ma20,
+
+        AVG(dp.adj_close) OVER (
+            PARTITION BY dp.ticker
+            ORDER BY dp.date
+            ROWS BETWEEN 59 PRECEDING AND CURRENT ROW
+        ) AS ma60,
+
+        AVG(dp.adj_close) OVER (
+            PARTITION BY dp.ticker
+            ORDER BY dp.date
+            ROWS BETWEEN 119 PRECEDING AND CURRENT ROW
+        ) AS ma120,
+
+        MAX(dp.high) OVER (
+            PARTITION BY dp.ticker
+            ORDER BY dp.date
+            ROWS BETWEEN 59 PRECEDING AND CURRENT ROW
+        ) AS high_60d,
+
+        MAX(dp.high) OVER (
+            PARTITION BY dp.ticker
+            ORDER BY dp.date
+            ROWS BETWEEN 119 PRECEDING AND CURRENT ROW
+        ) AS high_120d
 
     FROM daily_prices dp
     WHERE dp.date >= CURRENT_DATE - INTERVAL 400 DAY
@@ -669,7 +712,17 @@ SELECT
             r.current_price / l.high_52w - 1
         ) * 100,
         2
-    ) AS distance_from_high
+    ) AS distance_from_high,
+
+    ROUND(l.ma20,   2) AS ma20,
+    ROUND(l.ma60,   2) AS ma60,
+    ROUND(l.ma120,  2) AS ma120,
+    ROUND(
+        l.volume / NULLIF(l.volume_avg_20d, 0),
+        4
+    ) AS volume_ratio,
+    l.high_60d,
+    l.high_120d
 
 FROM returns r
 JOIN latest l
@@ -836,6 +889,12 @@ final_select AS (
             Low52W           = Safe(reader["low_52w"]),
             VolumeAvg20D     = Safe(reader["volume_avg_20d"]),
             DistanceFromHigh = Safe(reader["distance_from_high"]),
+            Ma20             = Safe(reader["ma20"]),
+            Ma60             = Safe(reader["ma60"]),
+            Ma120            = Safe(reader["ma120"]),
+            VolumeRatio      = Safe(reader["volume_ratio"]),
+            High60D          = Safe(reader["high_60d"]),
+            High120D         = Safe(reader["high_120d"]),
         };
     }
     //public (double current, double ret1m, double ret3m, double ret6m, double ret1y) LoadPrice_(string ticker)
