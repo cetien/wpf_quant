@@ -77,6 +77,19 @@ public partial class MainWindow : Window
     private void MenuEditGroup_Click(object sender, RoutedEventArgs e)     => ShowEditGroup();
     private void MenuEditWatchlist_Click(object sender, RoutedEventArgs e) => ShowEditWatchlist();
     private void MenuDbBrowser_Click(object sender, RoutedEventArgs e)     => ShowDbBrowser();
+    private async void MenuRebuildStockCache_Click(object sender, RoutedEventArgs e)
+    {
+        SetStatus("stock_cache 재구성 중...", StatusColors.Muted);
+        try
+        {
+            await Task.Run(() => _db.RebuildStockCache());
+            SetStatus("stock_cache 재구성 완료", StatusColors.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"stock_cache 재구성 실패: {ex.Message}", StatusColors.Error);
+        }
+    }
 
     private void BtnDashboard_Click(object sender, RoutedEventArgs e) => ShowDashboard();
     private void BtnChart_Click(object sender, RoutedEventArgs e)     => ShowChart();
@@ -182,7 +195,7 @@ public partial class MainWindow : Window
     }
 
     private void SetStatus(string msg, string hex)
-    {
+    { 
         TxtMsg.Text       = msg;
         TxtMsg.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
     }

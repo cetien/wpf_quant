@@ -14,9 +14,11 @@ using SkiaSharp;
 using System.Collections.ObjectModel;
 using System.Data;
 using System.Diagnostics;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Data;
 using System.Windows.Media;
 
 namespace Quant.UI.Views;
@@ -25,6 +27,15 @@ internal record OhlcvRow(DateTime Date, double Open, double High, double Low, do
 
 // 신규종목 등록 팝업 상태
 internal record RegisterState(string Ticker, string? FetchedName, string? FetchedMarket, string? FetchedType);
+
+public class GroupKindEmojiConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => Helpers.GroupKind2Emoji(value?.ToString() ?? "");
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => Binding.DoNothing;
+}
 
 public partial class ChartView : UserControl
 {
@@ -73,6 +84,8 @@ public partial class ChartView : UserControl
     private List<OhlcvRow> _allData = [];
     private int    _periodDays    = 365;
     private string _currentTicker = "";
+    private StockCache _currentCache;
+
     private InfoPanelBuilder? infoPanel = null;
     private InfoPanelBuilder? infoPanel2 = null;
 
@@ -377,6 +390,8 @@ public partial class ChartView : UserControl
 
         DbManager.Instance.LoadOptions().LastTicker = ticker;
         _currentTicker = ticker;
+        _currentCache = _db.GetStockCache(ticker) ?? new StockCache { Ticker = ticker };
+
         try
         {
             // ── stocks 테이블에 없으면 신규등록 Popup 표시 ─────────────
@@ -385,6 +400,8 @@ public partial class ChartView : UserControl
                 OpenRegisterPopup(ticker);
                 return;
             }
+
+
             RatingCtrl.Rating = _db.GetStockInfo(ticker).rating;
             LoadInfo_ReturnRatio(ticker);
             LoadInfoPanel(ticker);
@@ -889,17 +906,41 @@ public partial class ChartView : UserControl
         try
         {
             var sql = $"""
-                SELECT date, title, writer, filepath
+                SELECT id, date, title, target_price, writer, filepath
                 FROM pdf_reports WHERE ticker='{TxtStockName.Text}'
                 ORDER BY date DESC LIMIT 5000
                 """;
-            GridReport.ItemsSource = _db.Query(sql).DefaultView;
+            var dtReports = _db.Query(sql);
+            GridReport.ItemsSource = dtReports.DefaultView;
+
+            // 리포트 목록(최신순)에서 가장 첫 번째로 발견되는 유효한 목표주가를 찾아 상승여력을 계산합니다.
+            double targetPrice = 0;
+            foreach (DataRow row in dtReports.Rows)
+            {
+                if (row["target_price"] != DBNull.Value && double.TryParse(row["target_price"].ToString(), out var tp) && tp > 0)
+                {
+                    targetPrice = tp;
+                    break;
+                }
+            }
+
+            if (targetPrice > 0 && _currentCache.CurrentPrice > 0)
+            {
+                // 상승여력(Upside) = (목표가 / 현재가 - 1) * 100
+                var upside = (targetPrice / _currentCache.CurrentPrice - 1) * 100;
+                Upside.Text = upside.ToString("+0.00;-0.00;0") + "%";
+            }
+            else
+            {
+                Upside.Text = "-";
+            }
+
         }
         catch { GridReport.ItemsSource = null; }
 
         // ── GridGroup: v_active_group_map ─────────────────────
         try
-        {
+        { 
             var dt = _db.Query($"""
                 SELECT kind, group_name, group_rating, weight
                 FROM v_active_group_map
@@ -1404,8 +1445,12 @@ public partial class ChartView : UserControl
         catch (Exception ex) { Helpers.StatusException(StatusChanged, ex, "rating 저장 오류"); }
     }
 
-    private void GridReportClick(object sender, SelectionChangedEventArgs e)
+    private void GridReportClick(object sender, MouseButtonEventArgs e)
     {
+        if (e.OriginalSource is not DependencyObject d) return;
+        var cell = FindVisualParent<DataGridCell>(d);
+        if (cell?.Column?.Header?.ToString() != "title") return;
+
         if (GridReport.SelectedItem is not DataRowView row) return;
         var filepath = row["filepath"]?.ToString();
         var (ok, message) = Helpers.OpenWithChrome(filepath);
@@ -1414,6 +1459,16 @@ public partial class ChartView : UserControl
             Helpers.StatusInfo(StatusChanged, message);
         else
             Helpers.StatusError(StatusChanged, message);
+    }
+
+    private static T? FindVisualParent<T>(DependencyObject? child) where T : DependencyObject
+    {
+        while (child is not null)
+        {
+            if (child is T target) return target;
+            child = VisualTreeHelper.GetParent(child);
+        }
+        return null;
     }
 
     // ══════════════════════════════════════════════════════════
@@ -1624,5 +1679,45 @@ public partial class ChartView : UserControl
         }
         // 없으면 first 항목 선택
         if (cmb.Items.Count > 0) cmb.SelectedIndex = 0;
+    }
+
+
+    /// <summary>
+    /// DataGrid의 셀 편집이 완료되었을 때 호출되어 DB에 변경 사항을 저장합니다.
+    /// </summary>
+    private void GridReport_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+    {
+        if (e.EditAction == DataGridEditAction.Commit)
+        {
+            if (e.Row.Item is not DataRowView row) return;
+
+            // 바인딩된 소스 값이 업데이트될 시간을 주기 위해 Background 우선순위로 실행
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    using var conn = _db.OpenNativeConnection();
+                    using var cmd = conn.CreateCommand();
+                    cmd.CommandText = "UPDATE pdf_reports SET target_price = $1, analyze_status = 'done' WHERE id = $2";
+                    cmd.Parameters.Add(new DuckDBParameter { Value = Convert.ToDouble(row["target_price"]) });
+                    cmd.Parameters.Add(new DuckDBParameter { Value = Convert.ToInt64(row["id"]) });
+                    cmd.ExecuteNonQuery();
+
+                    TxtStatus.Text = $"ID {row["id"]} 목표주가 저장 완료: {row["target_price"]:N0}";
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"DB 업데이트 실패: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }), System.Windows.Threading.DispatcherPriority.Background);
+        }
+    }
+
+    private void TextBox_GotFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox tb)
+        {
+            tb.Dispatcher.BeginInvoke(new Action(() => tb.SelectAll()));
+        }
     }
 }

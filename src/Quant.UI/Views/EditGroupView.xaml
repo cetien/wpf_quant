@@ -152,6 +152,8 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellEditingTemplate>
                             </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="rpt"    Binding="{Binding report_count,Converter={StaticResource FmtN0}, ConverterParameter=N0}"         Width="34"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="upside" Binding="{Binding upside,        Converter={StaticResource FmtF1}}"         Width="44"  IsReadOnly="True"/>
                             <DataGridTextColumn Header="1M %"              Binding="{Binding ret_1m,             Converter={StaticResource FmtF2}, ConverterParameter=F2}" Width="48" IsReadOnly="True"/>
                             <DataGridTextColumn Header="3M %"              Binding="{Binding ret_3m,             Converter={StaticResource FmtF2}, ConverterParameter=F2}" Width="48" IsReadOnly="True"/>
                             <DataGridTextColumn Header="6M %"              Binding="{Binding ret_6m,             Converter={StaticResource FmtF2}, ConverterParameter=F2}" Width="48" IsReadOnly="True"/>
@@ -159,9 +161,10 @@
                             <DataGridTextColumn Header="rs"                Binding="{Binding rs,                 Converter={StaticResource FmtF1}, ConverterParameter=F1}" Width="40" IsReadOnly="True"/>
                             <DataGridTextColumn Header="%atr"              Binding="{Binding atr_percent,        Converter={StaticResource FmtF1}, ConverterParameter=F1}" Width="40" IsReadOnly="True"/>
                             <DataGridTextColumn Header="high"  Binding="{Binding distance_from_high, Converter={StaticResource FmtF1}, ConverterParameter=F1}" Width="40" IsReadOnly="True"/>
+                            <!--
                             <DataGridTextColumn Header="per"               Binding="{Binding per,                Converter={StaticResource FmtN0}, ConverterParameter=N0}" Width="30" IsReadOnly="True"/>
                             <DataGridTextColumn Header="pbr"               Binding="{Binding pbr,                Converter={StaticResource FmtN0}, ConverterParameter=F2}" Width="30" IsReadOnly="True"/>
-
+-->
                             <!--
                             <DataGridTemplateColumn Header="" Width="36" CanUserSort="False" CanUserResize="False">
                                 <DataGridTemplateColumn.CellTemplate>

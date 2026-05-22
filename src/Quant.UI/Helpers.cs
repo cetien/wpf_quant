@@ -116,6 +116,13 @@ public static class Helpers
         catch { return 0.0; }
     }
 
+    public static string GroupKind2Emoji(string kind) => kind switch
+    {
+        "watch" => "🔖",
+        "theme" => "♻️",
+        _       => ""
+    };
+
     //----------------------------------------------------
     public static void Status(Action<string, string>? statusEvent, string message, string colorHex)
     {

@@ -447,7 +447,9 @@ INSERT INTO stock_cache (
     ma120,
     volume_ratio,
     high_60d,
-    high_120d
+    high_120d,
+    report_count,
+    target_price
 )
 WITH base AS (
     SELECT
@@ -677,6 +679,22 @@ latest_fundamentals AS (
         FROM fundamentals f
     )
     WHERE rn = 1
+),
+report_counts AS (
+    SELECT s.ticker, COUNT(*) as report_count
+    FROM pdf_reports p
+    JOIN stocks s ON p.ticker = s.name
+    GROUP BY s.ticker
+),
+latest_tp AS (
+    SELECT ticker, target_price
+    FROM (
+        SELECT s.ticker, p.target_price, ROW_NUMBER() OVER (PARTITION BY s.ticker ORDER BY p.date DESC) as rn
+        FROM pdf_reports p
+        JOIN stocks s ON p.ticker = s.name
+        WHERE p.target_price IS NOT NULL AND p.target_price > 0
+    )
+    WHERE rn = 1
 )
 
 SELECT
@@ -708,6 +726,7 @@ SELECT
     l.volume_avg_20d,
 
     ROUND(
+
         (
             r.current_price / l.high_52w - 1
         ) * 100,
@@ -722,7 +741,9 @@ SELECT
         4
     ) AS volume_ratio,
     l.high_60d,
-    l.high_120d
+    l.high_120d,
+    COALESCE(rc.report_count, 0) AS report_count,
+    lt.target_price
 
 FROM returns r
 JOIN latest l
@@ -736,6 +757,12 @@ LEFT JOIN atr_latest a
 
 LEFT JOIN latest_fundamentals lf
     ON r.ticker = lf.ticker
+
+LEFT JOIN report_counts rc
+    ON r.ticker = rc.ticker
+
+LEFT JOIN latest_tp lt
+    ON r.ticker = lt.ticker
 ";
                 cmd.ExecuteNonQuery();
             }
@@ -1282,7 +1309,10 @@ final_select AS (
 
                 c.rs,
                 c.atr_percent,
-                c.distance_from_high
+                c.distance_from_high,
+                c.report_count,
+                c.target_price,
+                ROUND((c.target_price / NULLIF(c.current_price, 0) - 1) * 100, 2) AS upside
 
             FROM stock_group_map m
 

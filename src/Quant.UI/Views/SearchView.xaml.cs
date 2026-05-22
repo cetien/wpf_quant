@@ -1,191 +1,215 @@
 ﻿using Quant.Core.Infrastructure;
-using Quant.UI.Controls;
 
+using DuckDB.NET.Data;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Data;
-using System.Security.Cryptography;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace Quant.UI.Views;
 
 // =============================================================================
-// SearchView.xaml.cs  —  종목 검색 뷰
-// 연결 진입점: MainWindow.xaml.cs  ShowSearch() → _searchView ??= new SearchView(_db)
+// SearchView.xaml.cs  —  종목 검색 뷰 (GridFilter 기반 스크리너)
+// =============================================================================
+// 구조 개요
+//   FilterDef          : 개별 필터 정의 (SQL 절 + 파라미터)
+//   FilterRow          : GridFilter에 바인딩되는 ViewModel (INotifyPropertyChanged)
+//   FilterPreset       : 복합 필터 프리셋 (FilterRow 묶음)
+//   BuildWhereClause() : 활성화된 FilterRow들을 AND로 조합 → SQL WHERE 생성
+//   ExecuteSearch()    : WHERE + Market/Type/Rating 필터 조합 → stock_cache 쿼리
+//
+// stock_cache 컬럼 활용:
+//   current_price, ma20, ma60, ma120, volume_ratio, high_60d, high_120d,
+//   high_52w, rs, ret_1m/3m/6m/1y, atr_percent, distance_from_high
+//
+// 구현 제외 (stock_cache에 전일값 없음 → Phase 2):
+//   골든크로스/데드크로스 계열 (12~43번) — daily_prices 2행 조인 필요
 // =============================================================================
 
-//TODO: GridFilter에서 검색 조건 조합하여 SQL WHERE 절 생성하는 방식으로 변경.
-//  아래 조건들을 조합하여 검색할 수 있도록 checkbox 사용.
-//  아래 목록은 예시이므로, 현재 구현 가능한 것만 적용할 것
-//  작업 후, 적용된 조건들은 주석에서 삭제
-//1. 정배열 - close >ma20 > ma60 > ma120
-//2. 거래량 급증(ratio) - 오늘 거래량 > 20일 평균 거래량 * 2
-//3. 신고가 근처 - 현재가 >= 120일 신고가 * 0.98
-//4. RS 강함 - RS >= 85
-//5. 눌림목 - 정배열 상태에서 현재가가 20일선 근처 (±3% 이내)
-//6. 고점 대비 조정 - 최근 60일 신고가 대비 10~20% 하락 //   drawdown = (close - high60) / high60  → -20% ~ -10%
-//7. 저점 대비 반등 - 최근 60일 저가 대비 10~20% 상승 //   rebound = (close - low60) / low60 → +10% ~ +20%
-//8. RS 상위 - RS >= 90
-//9. 거래량 증가 - 오늘 거래량 > 20일 평균 거래량 * 1.5
-//10. 신고가 돌파 - 현재가 > 120일 신고가
-//11. 신고가 돌파 직전 - 현재가 > 120일 신고가 * 0.98 AND 현재가 < 120일 신고가
-//12. 20일선 돌파 - 현재가 > 20일선 AND 어제는 20일선 아래
-//13. 20일선 돌파 직전 - 현재가 > 20일선 * 0.98 AND 현재가 < 20일선
-//14. 20일선 지지 - 현재가 > 20일선 AND 어제도 20일선 위
-//15. 20일선 지지 직전 - 현재가 > 20일선 * 0.98 AND 현재가 < 20일선 AND 어제도 20일선 위
-//16. 20일선 저항 - 현재가 < 20일선 AND 어제도 20일선 아래
-//17. 20일선 저항 직전 - 현재가 < 20일선 * 1.02 AND 현재가 > 20일선 AND 어제도 20일선 아래
-//18. 60일선 돌파 - 현재가 > 60일선 AND 어제는 60일선 아래
-//19. 60일선 돌파 직전 - 현재가 > 60일선 * 0.98 AND 현재가 < 60일선
-//20. 60일선 지지 - 현재가 > 60일선 AND 어제도 60일선 위
-//21. 60일선 지지 직전 - 현재가 > 60일선 * 0.98 AND 현재가 < 60일선 AND 어제도 60일선 위
-//22. 60일선 저항 - 현재가 < 60일선 AND 어제도 60일선 아래
-//23. 60일선 저항 직전 - 현재가 < 60일선 * 1.02 AND 현재가 > 60일선 AND 어제도 60일선 아래
-//24. 120일선 돌파 - 현재가 > 120일선 AND 어제는 120일선 아래
-//25. 120일선 돌파 직전 - 현재가 > 120일선 * 0.98 AND 현재가 < 120일선
-//26. 120일선 지지 - 현재가 > 120일선 AND 어제도 120일선 위
-//27. 120일선 지지 직전 - 현재가 > 120일선 * 0.98 AND 현재가 < 120일선 AND 어제도 120일선 위
-//28. 120일선 저항 - 현재가 < 120일선 AND 어제도 120일선 아래
-//29. 120일선 저항 직전 - 현재가 < 120일선 * 1.02 AND 현재가 > 120일선 AND 어제도 120일선 아래
-//30. 20일선과 60일선 골든크로스 - 오늘은 20일선 > 60일선, 어제는 20일선 < 60일선
-//31. 20일선과 60일선 데드크로스 - 오늘은 20일선 < 60일선, 어제는 20일선 > 60일선
-//32. 20일선과 120일선 골든크로스 - 오늘은 20일선 > 120일선, 어제는 20일선 < 120일선
-//33. 20일선과 120일선 데드크로스 - 오늘은 20일선 < 120일선, 어제는 20일선 > 120일선
-//33. 60일선과 120일선 골든크로스 - 오늘은 60일선 > 120일선, 어제는 60일선 < 120일선
-//34. 60일선과 120일선 데드크로스 - 오늘은 60일선 < 120일선, 어제는 60일선 > 120일선
-//35. 20일선과 60일선 골든크로스 직전 - 오늘은 20일선 > 60일선 * 0.98 AND 오늘은 20일선 < 60일선, 어제는 20일선 < 60일선
-//36. 20일선과 60일선 데드크로스 직전 - 오늘은 20일선 < 60일선 * 1.02 AND 오늘은 20일선 > 60일선, 어제는 20일선 > 60일선
-//37. 20일선과 120일선 골든크로스 직전 - 오늘은 20일선 > 120일선 * 0.98 AND 오늘은 20일선 < 120일선, 어제는 20일선 < 120일선
-//38. 20일선과 120일선 데드크로스 직전 - 오늘은 20일선 < 120일선 * 1.02 AND 오늘은 20일선 > 120일선, 어제는 20일선 > 120일선
-//39. 60일선과 120일선 골든크로스 직전 - 오늘은 60일선 > 120일선 * 0.98 AND 오늘은 60일선 < 120일선, 어제는 60일선 < 120일선
-//40. 60일선과 120일선 데드크로스 직전 - 오늘은 60일선 < 120일선 * 1.02 AND 오늘은 60일선 > 120일선, 어제는 60일선 > 120일선
-//41. 20일선과 60일선 골든크로스 + 거래량 급증 - 오늘은 20일선 > 60일선, 어제는 20일선 < 60일선, 오늘 거래량 > 20일 평균 * 2
-//42. 20일선과 120일선 골든크로스 + 거래량 급증 - 오늘은 20일선 > 120일선, 어제는 20일선 < 120일선, 오늘 거래량 > 20일 평균 * 2
-//43. 60일선과 120일선 골든크로스 + 거래량 급증 - 오늘은 60일선 > 120일선, 어제는 60일선 < 120일선, 오늘 거래량 > 20일 평균 * 2
-//44. RS 강함 + 정배열 - RS >= 85 AND close > ma20 AND ma20 > ma60 AND ma60 > ma120
-//45. RS 상위 + 정배열 - RS >= 90 AND close > ma20 AND ma20 > ma60 AND ma60 > ma120 AND volume > vol_avg20* 1.5
-//46. 신고가 근처 + 거래량 증가 - close >= high_120* 0.98 AND volume > vol_avg20* 2
-//47. 눌림목 검색 - 정배열 상태, MA20 근처까지 조정 - close > ma60 AND ABS(close-ma20)/ma20< 0.03
-//48. 고점 대비 조정 - 최근 60일 신고가 대비 10~20% 하락 - close < high_60 AND (high_60 - close) / high_60 BETWEEN 0.1 AND 0.2
-//49. 저점 대비 반등 - 최근 60일 저가 대비 10~20% 상승 - close > low_60 AND (close - low_60) / low_60 BETWEEN 0.1 AND 0.2
-//50. 20일선과 60일선 골든크로스 + 거래량 급증 - 오늘은 20일선 > 60일선, 어제는 20일선 < 60일선, 오늘 거래량 > 20일 평균 * 2
-//51. 20일선과 120일선 골든크로스 + 거래량 급증 - 오늘은 20일선 > 120일선, 어제는 20일선 < 120일선, 오늘 거래량 > 20일 평균 * 2
-//52. 60일선과 120일선 골든크로스 + 거래량 급증 - 오늘은 60일선 > 120일선, 어제는 60일선 < 120일선, 오늘 거래량 > 20일 평균 * 2
-//53. 20일선과 60일선 골든크로스 직전 + 거래량 급증 - 오늘은 20일선 > 60일선 * 0.98 AND 오늘은 20일선 < 60일선, 어제는 20일선 < 60일선, 오늘 거래량 > 20일 평균 * 2
-//54. 20일선과 120일선 골든크로스 직전 + 거래량 급증 - 오늘은 20일선 > 120일선 * 0.98 AND 오늘은 20일선 < 120일선, 어제는 20일선 < 120일선, 오늘 거래량 > 20일 평균 * 2
-//55. 60일선과 120일선 골든크로스 직전 + 거래량 급증 - 오늘은 60일선 > 120일선 * 0.98 AND 오늘은 60일선 < 120일선, 어제는 60일선 < 120일선, 오늘 거래량 > 20일 평균 * 2
-// 52. 20일선과 60일선 데드크로스 직전 + 거래량 급증 - 오늘은 20일선 < 60일선 * 1.02 AND 오늘은 20일선 > 60일선, 어제는 20일선 > 60일선, 오늘 거래량 > 20일 평균 * 2
-// 53. 20일선과 120일선 데드크로스 직전 + 거래량 급증 - 오늘은 20일선 < 120일선 * 1.02 AND 오늘은 20일선 > 120일선, 어제는 20일선 > 120일선, 오늘 거래량 > 20일 평균 * 2
-// 54. 60일선과 120일선 데드크로스 직전 + 거래량 급증 - 오늘은 60일선 < 120일선 * 1.02 AND 오늘은 60일선 > 120일선, 어제는 60일선 > 120일선, 오늘 거래량 > 20일 평균 * 2
-// 53. 20일선과 60일선 데드크로스 직전 + 거래량 급증 - 오늘은 20일선 < 60일선 * 1.02 AND 오늘은 20일선 > 60일선, 어제는 20일선 > 60일선, 오늘 거래량 > 20일 평균 * 2
-// 54. 20일선과 120일선 데드크로스 직전 + 거래량 급증 - 오늘은 20일선 < 120일선 * 1.02 AND 오늘은 20일선 > 120일선, 어제는 20일선 > 120일선, 오늘 거래량 > 20일 평균 * 2
-// 55. 60일선과 120일선 데드크로스 직전 + 거래량 급증 - 오늘은 60일선 < 120일선 * 1.02 AND 오늘은 60일선 > 120일선, 어제는 60일선 > 120일선, 오늘 거래량 > 20일 평균 * 2
-// 54. 20일선과 60일선 데드크로스 직전 + 거래량 급증 - 오늘은 20일선 < 60일선 * 1.02 AND 오늘은 20일선 > 60일선, 어제는 20일선 > 60일선, 오늘 거래량 > 20일 평균 * 2
-// 55. 20일선과 120일선 데드크로스 직전 + 거래량 급증 - 오늘은 20일선 < 120일선 * 1.02 AND 오늘은 20일선 > 120일선, 어제는 20일선 > 120일선, 오늘 거래량 > 20일 평균 * 2
-// 56. 60일선과 120일선 데드크로스 직전 + 거래량 급증 - 오늘은 60일선 < 120일선 * 1.02 AND 오늘은 60일선 > 120일선, 어제는 60일선 > 120일선, 오늘 거래량 > 20일 평균 * 2
-// 57. 20일선과 60일선 골든크로스 직전 + 거래량 급증 - 오늘은 20일선 > 60일선 * 0.98 AND 오늘은 20일선 < 60일선, 어제는 20일선 < 60일선, 오늘 거래량 > 20일 평균 * 2
-// 58. 20일선과 120일선 골든크로스 직전 + 거래량 급증 - 오늘은 20일선 > 120일선 * 0.98 AND 오늘은 20일선 < 120일선, 어제는 20일선 < 120일선, 오늘 거래량 > 20일 평균 * 2
-// 59. 60일선과 120일선 골든크로스 직전 + 거래량 급증 - 오늘은 60일선 > 120일선 * 0.98 AND 오늘은 60일선 < 120일선, 어제는 60일선 < 120일선, 오늘 거래량 > 20일 평균 * 2
-// 52. 20일선과 60일선 데드크로스 직전 + 거래량 급증 - 오늘은 20일선 < 60일선 * 1.02 AND 오늘은 20일선 > 60일선, 어제는 20일선 > 60일선, 오늘 거래량 > 20일 평균 * 2
-// 53. 20일선과 120일선 데드크로스 직전 + 거래량 급증 - 오늘은 20일선 < 120일선 * 1.02 AND 오늘은 20일선 > 120일선, 어제는 20일선 > 120일선, 오늘 거래량 > 20일 평균 * 2
-// 54. 60일선과 120일선 데드크로스 직전 + 거래량 급증 - 오늘은 60일선 < 120일선 * 1.02 AND 오늘은 60일선 > 120일선, 어제는 60일선 > 120일선, 오늘 거래량 > 20일 평균 * 2
-//
+// ── FilterDef: 필터 정의 레코드 ─────────────────────────────────────────────
+// {P} 플레이스홀더는 FilterRow.ParamValue로 치환됨
+internal record FilterDef(
+    string Id,
+    string Name,
+    string Sql,               // DuckDB stock_cache 컬럼 기준 WHERE 절. {P} = 사용자 파라미터
+    string? DefaultParam,     // null = 파라미터 없음
+    string? ParamHint         // TextBox placeholder
+);
 
-//  필터 조합 - 위 조건들을 AND로 조합하여 검색 가능하도록 구현
-//  예시: 정배열 + 거래량 급증 + 신고가 근처
-//  예시: RS 강함 & 정배열 & 20일선 근처   // WHERE rs >= 85 AND close > ma60 AND ABS(close-ma20)/ma20 < 0.03
-//  예시: RS 상위 & 정배열 & 거래량 증가   // WHERE rs >= 90 AND close > ma20 AND ma20 > ma60 AND ma60 > ma120 AND volume > vol_avg20* 1.5
-//  예시: 신고가 근처 && 거래량 증가    // WHERE close >= high_120* 0.98 AND volume > vol_avg20* 2
-//  예시: 눌림목 검색: 정배열 상태, MA20 근처까지 조정    // WHERE close > ma60 AND ABS(close-ma20)/ma20< 0.03
+// ── FilterRow: GridFilter 바인딩 ViewModel ──────────────────────────────────
+internal class FilterRow : INotifyPropertyChanged
+{
+    private bool   _isActive;
+    private string _paramValue = "";
 
+    public string Id          { get; init; } = "";
+    public string Name        { get; init; } = "";
+    public string SqlTemplate { get; init; } = "";  // {P} 포함 가능
+    public string ParamHint   { get; init; } = "";  // TextBox placeholder
+    public bool   HasParam    => !string.IsNullOrEmpty(ParamHint);
 
+    public bool IsActive
+    {
+        get => _isActive;
+        set { _isActive = value; OnChanged(); }
+    }
 
+    public string ParamValue
+    {
+        get => _paramValue;
+        set { _paramValue = value; OnChanged(); }
+    }
 
+    // SQL 절 생성 — {P}를 ParamValue로 치환
+    public string? BuildSql()
+    {
+        if (!IsActive) return null;
+        if (HasParam && string.IsNullOrWhiteSpace(ParamValue)) return null;
+        return SqlTemplate.Replace("{P}", ParamValue.Trim());
+    }
 
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void OnChanged([CallerMemberName] string? p = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(p));
+}
 
+// ── FilterPreset ─────────────────────────────────────────────────────────────
+internal record FilterPreset(string Name, string[] FilterIds);
 
-
-
-// ---------------------------------------------------------------------------
-// TODO [SCENARIO 1] 텍스트 검색 (기본)
-//   트리거  : TxtQuery에 입력 후 Enter 또는 BtnSearch 클릭
-//   입력    : 종목명(부분일치) 또는 Ticker(접두사/완전일치)
-//   쿼리 대상: stock_cache 테이블 (Name ILIKE '%{q}%' OR Ticker ILIKE '{q}%')
-//   출력    : GridResults에 StockCache 리스트 바인딩
-//   엣지케이스:
-//     - 빈 문자열 → 전체 목록 반환 (상위 500건 LIMIT)
-//     - 2글자 미만 → 상태바 경고 표시 후 쿼리 생략 (성능 보호)
-//     - 특수문자 입력 → SQL Injection 방지: parameterized query 필수
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// TODO [SCENARIO 2] 필터 조합 검색
-//   트리거  : CmbMarket / CmbType / CmbRating SelectionChanged
-//   동작    : 텍스트 쿼리와 AND 조합으로 재검색 (자동 실행)
-//   필터 항목:
-//     - Market   : KP | KQ | NYSE | 전체
-//     - Type     : stock | ETF | index | 전체
-//     - Rating≥  : 3 | 4 | 5 | 전체
-//   구현 방식: BuildWhereClause() 헬퍼가 활성 필터만 AND로 조합
-//   주의    : 필터 변경 시 결과가 0건이면 "조건에 맞는 종목 없음" 상태바 표시
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// TODO [SCENARIO 3] 행 선택 → 차트 연동
-//   트리거  : GridResults_SelectionChanged (단일 클릭)
-//   동작    : 선택된 StockCache의 Ticker/Name을 StatusBar에 미리보기 표시
-//   이벤트  : StockSelected?.Invoke(ticker, name) 를 MainWindow가 구독
-//             → MainWindow.SidePanel_StockSelected()와 동일 패턴
-//   주의    : 뷰 전환은 하지 않음 — 단순 선택만
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// TODO [SCENARIO 4] 행 더블클릭 → ChartView 전환
-//   트리거  : GridResults_MouseDoubleClick
-//   동작    : StockSelected 이벤트 발행 후 MainWindow가 ShowChart() 호출
-//   구현    : event Action<string, string>? StockSelected  (ticker, name)
-//             MainWindow에서 _searchView.StockSelected += SidePanel_StockSelected 구독
-//   주의    : 이미 ChartView가 열려 있으면 LoadTicker()만 호출 (뷰 재생성 금지)
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// TODO [SCENARIO 5] 결과 정렬
-//   트리거  : DataGrid 컬럼 헤더 클릭 (WPF 기본 정렬 동작)
-//   1차 정렬: RS 내림차순 (기본값 — 모멘텀 중심 워크플로 가정)
-//   확장    : 컬럼별 오름/내림차순 토글, 정렬 상태 유지
-//   주의    : DataView.Sort vs CollectionView.SortDescriptions — 바인딩 방식 확인 후 결정
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// TODO [SCENARIO 6] 검색 기록 / 즐겨찾기 (Phase 2 — 현재 미구현)
-//   - 최근 검색어 5개 드롭다운 (메모리 내 Queue<string>)
-//   - 별표 버튼으로 Watchlist 즉시 추가 (WatchlistRepository 연동)
-//   - AppOptions.LastSearchQuery 저장 → 앱 재시작 시 복원
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// TODO [SCENARIO 7] 성능 — 대량 데이터 대응
-//   - stock_cache 행 수 예상: KP(800) + KQ(1600) + NYSE(?) = 수천 건
-//   - LIMIT 500 기본 적용, 초과 시 "상위 500건만 표시" 경고
-//   - 검색 디바운스: TextChanged 이벤트 250ms 지연 후 실행 (DispatcherTimer)
-//   - 비동기 실행: Task.Run() + Dispatcher.Invoke() 패턴 (UI 블로킹 방지)
-//     → DbBrowserView.RunQuery() 패턴 참고
-// ---------------------------------------------------------------------------
-
+// ============================================================================
 public partial class SearchView : UserControl
 {
     // ── 이벤트 ──────────────────────────────────────────────────────────────
-    public event Action<string, string>? StockSelected;  // (ticker, name)
-    public event Action<string, string>? StatusChanged;  // (message, colorHex)
+    public event Action<string, string>? StockSelected;   // (ticker, name)
+    public event Action<string, string>? StatusChanged;   // (message, colorHex)
 
     // ── 상태 ────────────────────────────────────────────────────────────────
     private readonly DbManager _db;
-    private List<StockCache>   _allResults  = [];
-    private List<StockCache>   _filtered    = [];
+    private readonly ObservableCollection<FilterRow> _filterRows = [];
+    private DispatcherTimer? _debounce;
 
-    // TODO [SCENARIO 7] 디바운스용 타이머
-    // private DispatcherTimer? _debounceTimer;
+    // ════════════════════════════════════════════════════════════════════════
+    //  필터 정의 목록 (stock_cache 컬럼 기준, 골든크로스 계열 제외)
+    // ════════════════════════════════════════════════════════════════════════
+    private static readonly FilterDef[] FilterDefs =
+    [
+        // ── 추세/정배열 ─────────────────────────────────────────────────────
+        new("ma_align",
+            "정배열",
+            "current_price > ma20 AND ma20 > ma60 AND ma60 > ma120",
+            null, null),
+
+        new("above_ma20",
+            "MA20 위",
+            "current_price > ma20",
+            null, null),
+
+        new("above_ma60",
+            "MA60 위",
+            "current_price > ma60",
+            null, null),
+
+        new("above_ma120",
+            "MA120 위",
+            "current_price > ma120",
+            null, null),
+
+        new("near_ma20",
+            "MA20 근처 ±%",
+            "ABS(current_price - ma20) / NULLIF(ma20, 0) <= {P} / 100.0",
+            "3", "% (예: 3)"),
+
+        // ── 신고가 ──────────────────────────────────────────────────────────
+        new("near_high120",
+            "120일 신고가 근처 ±%",
+            "current_price >= high_120d * (1 - {P} / 100.0)",
+            "2", "% (예: 2)"),
+
+        new("break_high120",
+            "120일 신고가 돌파",
+            "current_price > high_120d",
+            null, null),
+
+        new("near_high60",
+            "60일 신고가 근처 ±%",
+            "current_price >= high_60d * (1 - {P} / 100.0)",
+            "2", "% (예: 2)"),
+
+        // ── RS ──────────────────────────────────────────────────────────────
+        new("rs_strong",
+            "RS 강함 ≥",
+            "rs >= {P}",
+            "85", "값 (예: 85)"),
+
+        new("rs_top",
+            "RS 상위 ≥",
+            "rs >= {P}",
+            "90", "값 (예: 90)"),
+
+        // ── 거래량 ──────────────────────────────────────────────────────────
+        new("vol_surge",
+            "거래량 급증 ≥ ×",
+            "volume_ratio >= {P}",
+            "2", "배 (예: 2)"),
+
+        new("vol_increase",
+            "거래량 증가 ≥ ×",
+            "volume_ratio >= {P}",
+            "1.5", "배 (예: 1.5)"),
+
+        // ── 조정/눌림목 ─────────────────────────────────────────────────────
+        new("pullback",
+            "눌림목 (정배열+MA20 근처)",
+            "current_price > ma60 AND ABS(current_price - ma20) / NULLIF(ma20, 0) < 0.03",
+            null, null),
+
+        new("drawdown_60",
+            "고점 대비 조정 (60일) 하 %",
+            "(high_60d - current_price) / NULLIF(high_60d, 0) BETWEEN {P} / 100.0 AND {P2} / 100.0",
+            "10", "하단% (예: 10)"),   // {P2} 처리는 아래 BuildSql 확장으로
+
+        new("rebound_60",
+            "저점 반등 (60일) ≥ %",
+            "current_price > low_52w AND (current_price - low_52w) / NULLIF(low_52w, 0) >= {P} / 100.0",
+            "10", "% (예: 10)"),
+
+        // ── 밸류에이션 ──────────────────────────────────────────────────────
+        new("per_low",
+            "PER ≤",
+            "per > 0 AND per <= {P}",
+            "15", "배 (예: 15)"),
+
+        new("pbr_low",
+            "PBR ≤",
+            "pbr > 0 AND pbr <= {P}",
+            "1.5", "배 (예: 1.5)"),
+
+        // ── 리포트 / 목표가 ──────────────────────────────────────────────────
+        new("report_count_min",
+            "리포트 수 ≥",
+            "report_count >= {P}",
+            "5", "건 (예: 5)"),
+
+        new("upside_min",
+            "상승여력 ≥ %",
+            "target_price > 0 AND (target_price / NULLIF(current_price, 0) - 1) * 100 >= {P}",
+            "50", "% (예: 50)"),
+    ];
+
+    // ── 프리셋 정의 ─────────────────────────────────────────────────────────
+    private static readonly FilterPreset[] Presets =
+    [
+        new("★ RS강함+정배열",       ["rs_strong",  "ma_align"]),
+        new("★ RS상위+정배열+거래량", ["rs_top",     "ma_align", "vol_increase"]),
+        new("★ 신고가+거래량급증",    ["near_high120","vol_surge"]),
+        new("★ 눌림목",              ["pullback"]),
+        new("★ 정배열+눌림목+RS강함", ["ma_align",  "pullback", "rs_strong"]),
+        new("★ 리포트집중+상승여력",    ["report_count_min", "upside_min"]),
+    ];
 
     // ════════════════════════════════════════════════════════════════════════
     public SearchView(DbManager db)
@@ -197,177 +221,344 @@ public partial class SearchView : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        // TODO [SCENARIO 7] 디바운스 타이머 초기화
-        // _debounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
-        // _debounceTimer.Tick += (_, _) => { _debounceTimer.Stop(); ExecuteSearch(); };
-        // TxtQuery.TextChanged += (_, _) => { _debounceTimer.Stop(); _debounceTimer.Start(); };
+        BuildFilterRows();
+        BuildPresetButtons();
 
+        // 디바운스 타이머
+        _debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
+        _debounce.Tick += (_, _) => { _debounce.Stop(); ExecuteSearch(); };
+        TxtQuery.TextChanged += (_, _) => { _debounce.Stop(); _debounce.Start(); };
+
+        TxtWatchlistName.Text = DateTime.Today.ToString("yyyy-MM-dd");
         TxtQuery.Focus();
-        SetStatus("종목명 또는 Ticker를 입력하세요.", "#6C7086");
+        SetStatus("필터를 선택하거나 종목명/Ticker를 입력하세요.", StatusColors.Muted);
+    }
+
+    // ── 필터 행 초기화 ───────────────────────────────────────────────────────
+    private void BuildFilterRows()
+    {
+        _filterRows.Clear();
+        foreach (var def in FilterDefs)
+        {
+            var row = new FilterRow
+            {
+                Id          = def.Id,
+                Name        = def.Name,
+                SqlTemplate = def.Sql,
+                ParamValue  = def.DefaultParam ?? "",
+                ParamHint   = def.ParamHint ?? "",
+            };
+            // 필터 변경 시 자동 재검색
+            row.PropertyChanged += (_, _) => TriggerSearch();
+            _filterRows.Add(row);
+        }
+        GridFilter.ItemsSource = _filterRows;
+    }
+
+    // ── 프리셋 버튼 동적 생성 ───────────────────────────────────────────────
+    private void BuildPresetButtons()
+    {
+        PresetPanel.Children.Clear();
+        foreach (var preset in Presets)
+        {
+            var btn = new Button
+            {
+                Content     = preset.Name,
+                Tag         = preset,
+                Margin      = new Thickness(0, 0, 6, 4),
+                Padding     = new Thickness(10, 4, 10, 4),
+                FontFamily  = new System.Windows.Media.FontFamily("Consolas"),
+                FontSize    = 11,
+                Cursor      = Cursors.Hand,
+            };
+            btn.Click += PresetBtn_Click;
+            PresetPanel.Children.Add(btn);
+        }
+    }
+
+    private void PresetBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not FilterPreset preset) return;
+
+        // 모든 필터 비활성화 후 프리셋 활성화
+        foreach (var row in _filterRows) row.IsActive = false;
+        foreach (var row in _filterRows)
+        {
+            if (preset.FilterIds.Contains(row.Id))
+            {
+                row.IsActive = true;
+                // 파라미터는 기본값 유지 (사용자가 이미 수정한 경우 덮어쓰지 않음)
+            }
+        }
+        SetStatus($"프리셋 적용: {preset.Name}", StatusColors.Info);
+        ExecuteSearch();
+    }
+
+    // ── WHERE 절 빌더 ────────────────────────────────────────────────────────
+    private string BuildWhereClause(string q)
+    {
+        var parts = new List<string>();
+
+        // 텍스트 검색 (name / ticker)
+        if (q.Length >= 2)
+        {
+            var safe = q.Replace("'", "''");
+            parts.Add($"(s.name ILIKE '%{safe}%' OR s.ticker ILIKE '{safe}%')");
+        }
+
+        // Market / Type / Rating 콤보
+        var market = (CmbMarket.SelectedItem as ComboBoxItem)?.Content?.ToString();
+        if (market is not null && market != "전체")
+            parts.Add($"s.market = '{market}'");
+
+        var type = (CmbType.SelectedItem as ComboBoxItem)?.Content?.ToString();
+        if (type is not null && type != "전체")
+            parts.Add($"s.security_type = '{type}'");
+
+        if (int.TryParse(
+                (CmbRating.SelectedItem as ComboBoxItem)?.Content?.ToString(),
+                out var minRating))
+            parts.Add($"s.rating >= {minRating}");
+
+        // GridFilter 활성 조건 (stock_cache 컬럼 기준)
+        foreach (var row in _filterRows)
+        {
+            var sql = row.BuildSql();
+            if (sql is not null) parts.Add($"({sql})");
+        }
+
+        return parts.Count > 0 ? string.Join(" AND ", parts) : "1=1";
     }
 
     // ── 검색 실행 ────────────────────────────────────────────────────────────
-    private void LoadStocksByScreener(string whereClause)
+    private void TriggerSearch()
     {
-        try
-        {
-            whereClause = "1=1";
-            var excludeFilter = _db.BuildStockExcludeFilter("s", "c");
-            var needsF = true;// SelectedScreener?.NeedsFundamentals ?? true;
-            var fJoin = needsF
-                ? "JOIN latest_f f ON s.ticker = f.ticker AND f.rn = 1"
-                : "LEFT JOIN latest_f f ON s.ticker = f.ticker AND f.rn = 1";
-            var sql = $"""
-                WITH latest_f AS (
-                    SELECT ticker, pbr, per, roe,
-                           ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY report_date DESC) AS rn
-                    FROM fundamentals
-                )
-                SELECT s.ticker, s.name, s.market, s.rating, s.security_type, c.ret_3m, c.rs
-                FROM stocks s
-                {fJoin}
-                LEFT JOIN stock_cache c ON c.ticker  = s.ticker
-                WHERE {whereClause} {excludeFilter}
-                ORDER BY s.ticker LIMIT 500
-                """;
-
-            var dt = _db.Query(sql);
-
-            GridResults.ItemsSource = dt.DefaultView;
-
-            var infoPanel = new InfoPanelBuilder(Panel_Info);
-            infoPanel.Text($"검색 결과: {dt.Rows.Count}종목", Brushes.Yellow);
-
-
-            //_allStocks.Clear();
-            foreach (DataRow row in dt.Rows)
-            {
-                //_allStocks.Add(new StockRow
-                //{
-                //    Ticker = Helpers.SafeStr(row, "ticker"),
-                //    Name = Helpers.SafeStr(row, "name"),
-                //    Market = Helpers.SafeStr(row, "market"),
-                //    Ret_3m = Helpers.SafeDouble(row, "ret_3m"),
-                //    RS = Helpers.SafeDouble(row, "rs"),
-                //    Rating = Helpers.SafeInt(row, "rating"),
-                //});
-            }
-            //ApplyStockFilter();
-            //StatusText = $"{SelectedScreener?.Name}  {_allStocks.Count}종목";
-        }
-        catch (Exception ex) { SetStatus($"오류: {ex.Message}", "#F38BA8"); }
+        _debounce?.Stop();
+        _debounce?.Start();
     }
 
-
-    private void BtnSearch_Click(object sender, RoutedEventArgs e) => ExecuteSearch();
+    private void BtnSearch_Click(object sender, RoutedEventArgs e)
+    {
+        _debounce?.Stop();
+        ExecuteSearch();
+    }
 
     private void TxtQuery_KeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter) ExecuteSearch();
+        if (e.Key == Key.Enter) { _debounce?.Stop(); ExecuteSearch(); }
     }
 
     private void ExecuteSearch()
     {
-        LoadStocksByScreener("");
+        try
+        {
+            var q     = TxtQuery.Text.Trim();
+            var where = BuildWhereClause(q);
+            var excl  = _db.BuildStockExcludeFilter("s", "c");
 
+            var activeCount = _filterRows.Count(r => r.IsActive);
+            SetStatus("검색 중...", StatusColors.Muted);
 
-        var q = TxtQuery.Text.Trim();
+            var sql = $"""
+                SELECT
+                    s.ticker,
+                    s.name,
+                    s.market,
+                    s.rating,
+                    s.security_type,
+                    c.current_price,
+                    c.ma20,
+                    c.ma60,
+                    c.ma120,
+                    c.volume_ratio,
+                    c.high_60d,
+                    c.high_120d,
+                    c.ret_1m,
+                    c.ret_3m,
+                    c.ret_6m,
+                    c.ret_1y,
+                    c.rs,
+                    c.atr_percent,
+                    c.distance_from_high,
+                    c.per,
+                    c.pbr,
+                    c.roe,
+                    c.report_count,
+                    c.target_price,
+                    ROUND((c.target_price / NULLIF(c.current_price, 0) - 1) * 100, 2) AS upside
+                FROM stocks s
+                LEFT JOIN stock_cache c ON c.ticker = s.ticker
+                WHERE {where} {excl}
+                ORDER BY c.rs DESC NULLS LAST
+                LIMIT 500
+                """;
 
-        // TODO [SCENARIO 1] 2글자 미만 가드
-        // if (q.Length > 0 && q.Length < 2)
-        // {
-        //     SetStatus("2글자 이상 입력하세요.", "#F9E2AF");
-        //     return;
-        // }
+            var dt = _db.Query(sql);
+            GridResults.ItemsSource = dt.DefaultView;
 
-        // TODO [SCENARIO 1, 2] stock_cache 쿼리 + 필터 조합
-        // var where = BuildWhereClause(q);
-        // var sql   = $"SELECT * FROM stock_cache WHERE {where} ORDER BY rs DESC LIMIT 500";
-        // _allResults = await Task.Run(() => _db.QueryList<StockCache>(sql));
-        // ApplyFilters();
+            TxtResultCount.Text = $"{dt.Rows.Count:N0}건";
 
-        SetStatus($"검색: '{q}' — 미구현 (TODO SCENARIO 1)", "#F9E2AF");
+            var filterDesc = activeCount > 0
+                ? $" | 필터 {activeCount}개 적용"
+                : "";
+            var status = dt.Rows.Count == 500
+                ? $"상위 500건 표시 (조건 추가 권장){filterDesc}"
+                : $"{dt.Rows.Count:N0}종목 검색됨{filterDesc}";
+
+            SetStatus(status, dt.Rows.Count > 0 ? StatusColors.Success : StatusColors.Warning);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"오류: {ex.Message}", StatusColors.Error);
+        }
     }
 
-    // ── 필터 변경 ────────────────────────────────────────────────────────────
-    private void Filter_Changed(object sender, SelectionChangedEventArgs e)
-    {
-        // TODO [SCENARIO 2] 필터 변경 시 _allResults에 클라이언트 사이드 필터 적용
-        // ApplyFilters();
-    }
+    // ── 필터 콤보 변경 ───────────────────────────────────────────────────────
+    private void Filter_Changed(object sender, SelectionChangedEventArgs e) => TriggerSearch();
 
-    private void ApplyFilters()
-    {
-        // TODO [SCENARIO 2] BuildWhereClause 또는 LINQ 필터
-        // var market = (CmbMarket.SelectedItem as ComboBoxItem)?.Content.ToString();
-        // var type   = (CmbType.SelectedItem as ComboBoxItem)?.Content.ToString();
-        // var rating = int.TryParse((CmbRating.SelectedItem as ComboBoxItem)?.Content.ToString(), out var r) ? r : 0;
-        //
-        // _filtered = _allResults
-        //     .Where(s => market == "전체" || s.Market == market)
-        //     .Where(s => type   == "전체" || s.SecurityType == type)
-        //     .Where(s => rating == 0 || s.Rating >= rating)
-        //     .ToList();
-        //
-        // GridResults.ItemsSource = _filtered;
-        // TxtResultCount.Text = $"{_filtered.Count:N0}건";
-    }
-
-    // ── 행 선택 / 더블클릭 ───────────────────────────────────────────────────
+    // ── 행 선택 ─────────────────────────────────────────────────────────────
     private void GridResults_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        // TODO [SCENARIO 3]
-        // if (GridResults.SelectedItem is not StockCache s) return;
-        // SetStatus($"선택: {s.Name} ({s.Ticker})", "#CDD6F4");
+        if (GridResults.SelectedItem is not DataRowView row) return;
+        var ticker = row["ticker"]?.ToString() ?? "";
+        var name   = row["name"]?.ToString() ?? "";
+        SetStatus($"선택: {name} ({ticker})", StatusColors.Info);
     }
 
     private void GridResults_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        // TODO [SCENARIO 4]
-        // if (GridResults.SelectedItem is not StockCache s) return;
-        // StockSelected?.Invoke(s.Ticker, s.Name);
+        if (GridResults.SelectedItem is not DataRowView row) return;
+        var ticker = row["ticker"]?.ToString() ?? "";
+        var name   = row["name"]?.ToString() ?? "";
+        if (!string.IsNullOrEmpty(ticker))
+            StockSelected?.Invoke(ticker, name);
+    }
+
+    // ── Watchlist 등록 ────────────────────────────────────────────────────────
+    private void TxtWatchlistName_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) AddToWatchlist();
+    }
+
+    private void BtnAddWatchlist_Click(object sender, RoutedEventArgs e) => AddToWatchlist();
+
+    private void AddToWatchlist()
+    {
+        var name = TxtWatchlistName.Text.Trim();
+        if (string.IsNullOrEmpty(name))
+        {
+            SetStatus("Watchlist 이름을 입력하세요.", StatusColors.Warning);
+            TxtWatchlistName.Focus();
+            return;
+        }
+
+        // 현재 검색 결과 수집
+        if (GridResults.ItemsSource is not System.Data.DataView dv || dv.Count == 0)
+        {
+            SetStatus("등록할 검색 결과가 없습니다.", StatusColors.Warning);
+            return;
+        }
+
+        var tickers = dv.Cast<System.Data.DataRowView>()
+                        .Select(r => r["ticker"]?.ToString() ?? "")
+                        .Where(t => !string.IsNullOrEmpty(t))
+                        .ToList();
+
+        if (tickers.Count == 0)
+        {
+            SetStatus("유효한 종목이 없습니다.", StatusColors.Warning);
+            return;
+        }
+
+        // description = 현재 WHERE 절 (필터 재현용)
+        var description = BuildWhereClause(TxtQuery.Text.Trim());
+
+        try
+        {
+            using var conn = _db.OpenNativeConnection();
+
+            // ── 1. 동일 (kind='watch', name) 그룹 존재 여부 조회
+            long groupId;
+            using (var cmdSel = conn.CreateCommand())
+            {
+                cmdSel.CommandText =
+                    "SELECT group_id FROM groups WHERE kind = $1 AND name = $2 LIMIT 1";
+                cmdSel.Parameters.Add(new DuckDBParameter { Value = "watch" });
+                cmdSel.Parameters.Add(new DuckDBParameter { Value = name    });
+                using var r = cmdSel.ExecuteReader();
+                if (r.Read())
+                {
+                    // 기존 그룹 재사용 + description 갱신
+                    groupId = r.GetInt64(0);
+                    using var cmdUpd = conn.CreateCommand();
+                    cmdUpd.CommandText =
+                        "UPDATE groups SET description = $1, updated_at = CURRENT_TIMESTAMP " +
+                        "WHERE group_id = $2";
+                    cmdUpd.Parameters.Add(new DuckDBParameter { Value = description });
+                    cmdUpd.Parameters.Add(new DuckDBParameter { Value = groupId     });
+                    cmdUpd.ExecuteNonQuery();
+                }
+                else
+                {
+                    // 신규 INSERT
+                    using var cmdIns = conn.CreateCommand();
+                    cmdIns.CommandText =
+                        "INSERT INTO groups (kind, name, description) VALUES ($1, $2, $3) " +
+                        "RETURNING group_id";
+                    cmdIns.Parameters.Add(new DuckDBParameter { Value = "watch"      });
+                    cmdIns.Parameters.Add(new DuckDBParameter { Value = name         });
+                    cmdIns.Parameters.Add(new DuckDBParameter { Value = description  });
+                    using var r2 = cmdIns.ExecuteReader();
+                    if (!r2.Read()) throw new Exception("group_id 반환 실패");
+                    groupId = r2.GetInt64(0);
+                }
+            }
+
+            // stock_group_map 일괄 삽입
+            int inserted = 0;
+            foreach (var ticker in tickers)
+            {
+                using var cmd2 = conn.CreateCommand();
+                cmd2.CommandText =
+                    "INSERT INTO stock_group_map (ticker, group_id, weight) " +
+                    "VALUES ($1, $2, 5) " +
+                    "ON CONFLICT (ticker, group_id) DO NOTHING";
+                cmd2.Parameters.Add(new DuckDBParameter { Value = ticker  });
+                cmd2.Parameters.Add(new DuckDBParameter { Value = groupId });
+                inserted += cmd2.ExecuteNonQuery();
+            }
+
+            SetStatus(
+                $"Watchlist [{name}] 등록 완료 — {inserted}종목 추가 (group_id={groupId})",
+                StatusColors.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"등록 오류: {ex.Message}", StatusColors.Error);
+        }
     }
 
     // ── 초기화 ───────────────────────────────────────────────────────────────
     private void BtnClear_Click(object sender, RoutedEventArgs e)
     {
         TxtQuery.Clear();
+        foreach (var row in _filterRows) row.IsActive = false;
         GridResults.ItemsSource = null;
         TxtResultCount.Text = "";
-        _allResults.Clear();
-        _filtered.Clear();
-        SetStatus("초기화되었습니다.", "#6C7086");
+        CmbMarket.SelectedIndex = 0;
+        CmbType.SelectedIndex   = 0;
+        CmbRating.SelectedIndex = 0;
+        SetStatus("초기화되었습니다.", StatusColors.Muted);
         TxtQuery.Focus();
     }
 
     // ── 헬퍼 ────────────────────────────────────────────────────────────────
     private void SetStatus(string msg, string hex)
     {
-        TxtStatus.Text     = msg;
+        TxtStatus.Text = msg;
         StatusChanged?.Invoke(msg, hex);
     }
 
-    private void FilterActivated_Changed(object sender, RoutedEventArgs e)
-    {
-
-    }
-
-    // TODO [SCENARIO 2] WHERE 절 빌더
-    // private string BuildWhereClause(string q)
-    // {
-    //     var parts = new List<string>();
-    //     if (!string.IsNullOrEmpty(q))
-    //         parts.Add($"(name ILIKE '%{q}%' OR ticker ILIKE '{q}%')");
-    //
-    //     var market = (CmbMarket.SelectedItem as ComboBoxItem)?.Content.ToString();
-    //     if (market != "전체") parts.Add($"market = '{market}'");
-    //
-    //     var type = (CmbType.SelectedItem as ComboBoxItem)?.Content.ToString();
-    //     if (type != "전체") parts.Add($"security_type = '{type}'");
-    //
-    //     if (int.TryParse((CmbRating.SelectedItem as ComboBoxItem)?.Content.ToString(), out var r))
-    //         parts.Add($"rating >= {r}");
-    //
-    //     return parts.Count > 0 ? string.Join(" AND ", parts) : "1";
-    // }
+    // ── 미사용 stub (XAML 이벤트 바인딩 유지용) ─────────────────────────────
+    private void FilterActivated_Changed(object sender, RoutedEventArgs e) { }
 }

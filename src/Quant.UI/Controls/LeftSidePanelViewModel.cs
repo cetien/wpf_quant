@@ -378,18 +378,13 @@ public partial class LeftSidePanelViewModel : ObservableObject
             {
                 _allGroups.Add(new GroupRow
                 {
-                    GroupId    = Helpers.SafeInt(row, "group_id"),
+                    GroupId = Helpers.SafeInt(row, "group_id"),
                     //Kind       = Helpers.SafeStr(row, "kind"),
-                    Name       = Helpers.SafeStr(row, "name"),
-                    Rating     = Helpers.SafeInt(row, "rating"),
-                    Ret3m      = Helpers.SafeDouble(row, "ret_3m"),
+                    Name = Helpers.SafeStr(row, "name"),
+                    Rating = Helpers.SafeInt(row, "rating"),
+                    Ret3m = Helpers.SafeDouble(row, "ret_3m"),
                     StockCount = Helpers.SafeInt(row, "stock_count"),
-                    Kind = row["kind"]?.ToString() switch
-                    {
-                        "watch" => "🔖",
-                        "theme" => "♻️",
-                        _       => ""
-                    }
+                    Kind = Helpers.GroupKind2Emoji(Helpers.SafeStr(row, "kind"))
                 });
             }
             foreach (var g in _allGroups) Groups.Add(g);

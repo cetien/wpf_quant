@@ -1,61 +1,137 @@
 ﻿<UserControl x:Class="Quant.UI.Views.SearchView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Quant.UI"
              Background="#1E1E2E">
+
+    <UserControl.Resources>
+        <!-- 파라미터 있는 행: TextBox 표시 / 없는 행: 숨김 -->
+        <BooleanToVisibilityConverter x:Key="BoolVis"/>
+    </UserControl.Resources>
+
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="320"/>
-            <!-- 좌측 여백 -->
+            <ColumnDefinition Width="340"/>   <!-- 좌: FilterGrid -->
             <ColumnDefinition Width="4"/>
-            <ColumnDefinition Width="320"/>
-            <ColumnDefinition Width="4"/>
-            <!-- 좌측 여백 -->
-            <ColumnDefinition Width="*"/>            <!-- 좌측 여백 -->
+            <ColumnDefinition Width="*"/>     <!-- 우: 검색+결과 -->
         </Grid.ColumnDefinitions>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             좌측: 필터 패널
+             ══════════════════════════════════════════════════════════════ -->
         <Grid Grid.Column="0">
-            <DataGrid x:Name="GridFilter" Style="{StaticResource QuantDataGrid}" VerticalAlignment="Top" AutoGenerateColumns="False">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>  <!-- 섹션 제목 -->
+                <RowDefinition Height="Auto"/>  <!-- 프리셋 버튼 -->
+                <RowDefinition Height="Auto"/>  <!-- 구분선 -->
+                <RowDefinition Height="*"/>     <!-- FilterGrid -->
+            </Grid.RowDefinitions>
+
+            <!-- 프리셋 섹션 제목 -->
+            <TextBlock Grid.Row="0"
+                       Text="PRESETS"
+                       Foreground="#6C7086" FontFamily="Consolas" FontSize="10"
+                       FontWeight="Bold" Margin="8,8,0,4"/>
+
+            <!-- 프리셋 버튼 (동적 생성 — code-behind BuildPresetButtons) -->
+            <WrapPanel x:Name="PresetPanel"
+                       Grid.Row="1"
+                       Margin="6,0,6,6"
+                       Orientation="Horizontal"/>
+
+            <Border Grid.Row="2" Height="1" Background="#313244" Margin="0,0,0,0"/>
+
+            <!-- 필터 DataGrid -->
+            <DataGrid x:Name="GridFilter"
+                      Grid.Row="3"
+                      Style="{StaticResource QuantDataGrid}"
+                      AutoGenerateColumns="False"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserReorderColumns="False"
+                      CanUserResizeRows="False"
+                      HeadersVisibility="Column"
+                      SelectionMode="Single"
+                      SelectionUnit="Cell">
+
                 <DataGrid.Columns>
+
+                    <!-- on: 활성화 체크박스 -->
                     <DataGridTemplateColumn Header="on" Width="30" CanUserSort="False">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <CheckBox HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"
-                                                  IsChecked="{Binding filter_activated, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                  Checked="FilterActivated_Changed"
-                                                  Unchecked="FilterActivated_Changed"/>
+                                          VerticalAlignment="Center"
+                                          IsChecked="{Binding IsActive, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          Checked="FilterActivated_Changed"
+                                          Unchecked="FilterActivated_Changed"/>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="name"  Binding="{Binding kind}"         Width="*"/>
-                    <DataGridTextColumn Header="desc"     Binding="{Binding description}"       Width="60"/>
-                    <DataGridTextColumn Header="sql"     Binding="{Binding sql}"       Width="60"/>
+
+                    <!-- 필터명 -->
+                    <DataGridTextColumn Header="필터"
+                                       Binding="{Binding Name}"
+                                       Width="*"
+                                       IsReadOnly="True">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="FontFamily" Value="Consolas"/>
+                                <Setter Property="FontSize"   Value="11"/>
+                                <Setter Property="Foreground" Value="#CDD6F4"/>
+                                <Setter Property="VerticalAlignment" Value="Center"/>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+
+                    <!-- 파라미터 TextBox (HasParam=true인 행만 표시) -->
+                    <DataGridTemplateColumn Header="값" Width="72" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <!-- HasParam=false → Collapsed -->
+                                <TextBox Text="{Binding ParamValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         Visibility="{Binding HasParam, Converter={StaticResource BoolVis}}"
+                                         FontFamily="Consolas" FontSize="11"
+                                         Foreground="#F9E2AF" Background="#313244"
+                                         BorderBrush="#585B70" BorderThickness="1"
+                                         Padding="4,2"
+                                         ToolTip="{Binding ParamHint}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
                 </DataGrid.Columns>
             </DataGrid>
         </Grid>
+
+        <!-- 구분선 -->
+        <Border Grid.Column="1" Background="#313244"/>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             우측: 검색 + 결과
+             ══════════════════════════════════════════════════════════════ -->
         <Grid Grid.Column="2">
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <WrapPanel x:Name="Panel_Info" Margin="2"/>
-            </ScrollViewer>
-        </Grid>
-        <Grid Grid.Column="4">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>  <!-- 검색 입력 영역 -->
+                <RowDefinition Height="Auto"/>  <!-- 검색 입력 -->
                 <RowDefinition Height="Auto"/>  <!-- 필터 바 -->
                 <RowDefinition Height="*"/>     <!-- 결과 그리드 -->
                 <RowDefinition Height="Auto"/>  <!-- 상태 바 -->
             </Grid.RowDefinitions>
 
-            <!-- ── 검색 입력 영역 ── -->
+            <!-- ── 검색 입력 ── -->
             <Border Grid.Row="0" Background="#181825" Padding="12,8">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="1"/>    <!-- 구분선 -->
+                        <ColumnDefinition Width="130"/>  <!-- Watchlist 이름 입력 -->
+                        <ColumnDefinition Width="Auto"/> <!-- 등록 버튼 -->
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="TxtQuery"
                              Grid.Column="0"
-                             FontFamily="Consolas" FontSize="14"
+                             FontFamily="Consolas" FontSize="13"
                              Foreground="#CDD6F4" Background="#313244"
                              BorderBrush="#45475A" BorderThickness="1"
                              Padding="8,6"
@@ -64,25 +140,43 @@
                     <Button x:Name="BtnSearch"
                             Grid.Column="1"
                             Content="검색" Margin="8,0,0,0"
-                            Padding="16,6"
-                            FontFamily="Consolas"
+                            Padding="16,6" FontFamily="Consolas"
                             Click="BtnSearch_Click"/>
                     <Button x:Name="BtnClear"
                             Grid.Column="2"
                             Content="초기화" Margin="4,0,0,0"
-                            Padding="12,6"
-                            FontFamily="Consolas"
+                            Padding="12,6" FontFamily="Consolas"
                             Click="BtnClear_Click"/>
+                    <!-- 구분선 -->
+                    <Border Grid.Column="3" Background="#45475A" Margin="10,2,10,2"/>
+                    <!-- Watchlist 등록 영역 -->
+                    <TextBox x:Name="TxtWatchlistName"
+                             Grid.Column="4"
+                             FontFamily="Consolas" FontSize="12"
+                             Foreground="#CDD6F4" Background="#313244"
+                             BorderBrush="#45475A" BorderThickness="1"
+                             Padding="6,6"
+                             VerticalContentAlignment="Center"
+                             ToolTip="Watchlist 이름을 입력하세요"
+                             KeyDown="TxtWatchlistName_KeyDown"/>
+                    <Button x:Name="BtnAddWatchlist"
+                            Grid.Column="5"
+                            Content="등록" Margin="4,0,0,0"
+                            Padding="12,6" FontFamily="Consolas"
+                            ToolTip="검색 결과를 Watchlist로 등록"
+                            Click="BtnAddWatchlist_Click"/>
                 </Grid>
             </Border>
 
-            <!-- ── 필터 바 ── -->
-            <Border Grid.Row="1" Background="#1E1E2E" Padding="12,6" BorderBrush="#313244" BorderThickness="0,0,0,1">
+            <!-- ── 필터 바 (Market / Type / Rating) ── -->
+            <Border Grid.Row="1" Background="#1E1E2E" Padding="12,6"
+                    BorderBrush="#313244" BorderThickness="0,0,0,1">
                 <WrapPanel Orientation="Horizontal">
-                    <!-- Market 필터 -->
-                    <TextBlock Text="Market:" Foreground="#6C7086" FontFamily="Consolas" FontSize="12"
+
+                    <TextBlock Text="Market:" Foreground="#6C7086"
+                               FontFamily="Consolas" FontSize="12"
                                VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <ComboBox x:Name="CmbMarket" Width="90" FontFamily="Consolas" FontSize="12"
+                    <ComboBox x:Name="CmbMarket" Width="80" FontFamily="Consolas" FontSize="12"
                               Margin="0,0,16,0" SelectionChanged="Filter_Changed">
                         <ComboBoxItem Content="전체" IsSelected="True"/>
                         <ComboBoxItem Content="KP"/>
@@ -90,10 +184,10 @@
                         <ComboBoxItem Content="NYSE"/>
                     </ComboBox>
 
-                    <!-- SecurityType 필터 -->
-                    <TextBlock Text="Type:" Foreground="#6C7086" FontFamily="Consolas" FontSize="12"
+                    <TextBlock Text="Type:" Foreground="#6C7086"
+                               FontFamily="Consolas" FontSize="12"
                                VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <ComboBox x:Name="CmbType" Width="90" FontFamily="Consolas" FontSize="12"
+                    <ComboBox x:Name="CmbType" Width="80" FontFamily="Consolas" FontSize="12"
                               Margin="0,0,16,0" SelectionChanged="Filter_Changed">
                         <ComboBoxItem Content="전체" IsSelected="True"/>
                         <ComboBoxItem Content="stock"/>
@@ -101,8 +195,8 @@
                         <ComboBoxItem Content="index"/>
                     </ComboBox>
 
-                    <!-- Rating 필터 -->
-                    <TextBlock Text="Rating≥:" Foreground="#6C7086" FontFamily="Consolas" FontSize="12"
+                    <TextBlock Text="Rating≥:" Foreground="#6C7086"
+                               FontFamily="Consolas" FontSize="12"
                                VerticalAlignment="Center" Margin="0,0,6,0"/>
                     <ComboBox x:Name="CmbRating" Width="60" FontFamily="Consolas" FontSize="12"
                               Margin="0,0,16,0" SelectionChanged="Filter_Changed">
@@ -112,9 +206,8 @@
                         <ComboBoxItem Content="5"/>
                     </ComboBox>
 
-                    <!-- 결과 카운트 -->
-                    <TextBlock x:Name="TxtResultCount" Text="" Foreground="#89B4FA"
-                               FontFamily="Consolas" FontSize="12"
+                    <TextBlock x:Name="TxtResultCount" Text=""
+                               Foreground="#89B4FA" FontFamily="Consolas" FontSize="12"
                                VerticalAlignment="Center" Margin="12,0,0,0"/>
                 </WrapPanel>
             </Border>
@@ -123,7 +216,7 @@
             <DataGrid x:Name="GridResults"
                       Grid.Row="2"
                       AutoGenerateColumns="False"
-                     
+                      IsReadOnly="True"
                       SelectionMode="Single"
                       SelectionUnit="FullRow"
                       Background="#1E1E2E"
@@ -137,26 +230,34 @@
                       MouseDoubleClick="GridResults_MouseDoubleClick"
                       SelectionChanged="GridResults_SelectionChanged">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="name"   Binding="{Binding name}"   Width="*"/>
-                    <DataGridTextColumn Header="mkt" Binding="{Binding market}" Width="25"/>
-                    <DataGridTextColumn Header="★" Binding="{Binding rating}" Width="25"/>
-                    <DataGridTextColumn Header="1M %"              Binding="{Binding ret_1m,             Converter={StaticResource FmtF2}, ConverterParameter=F2}" Width="48"/>
-                    <DataGridTextColumn Header="3M %"              Binding="{Binding ret_3m,             Converter={StaticResource FmtF2}, ConverterParameter=F2}" Width="48"/>
-                    <DataGridTextColumn Header="6M %"              Binding="{Binding ret_6m,             Converter={StaticResource FmtF2}, ConverterParameter=F2}" Width="48"/>
-                    <DataGridTextColumn Header="1Y %"              Binding="{Binding ret_1y,             Converter={StaticResource FmtF2}, ConverterParameter=F2}" Width="48"/>
-                    <DataGridTextColumn Header="rs"                Binding="{Binding rs,                 Converter={StaticResource FmtF1}, ConverterParameter=F1}" Width="40"/>
-                    <DataGridTextColumn Header="%atr"              Binding="{Binding atr_percent,        Converter={StaticResource FmtF1}, ConverterParameter=F1}" Width="40"/>
-                    <DataGridTextColumn Header="high"  Binding="{Binding distance_from_high, Converter={StaticResource FmtF1}, ConverterParameter=F1}" Width="40"/>
-                    <DataGridTextColumn Header="per"               Binding="{Binding per,                Converter={StaticResource FmtN0}, ConverterParameter=N0}" Width="30"/>
-                    <DataGridTextColumn Header="pbr"               Binding="{Binding pbr,                Converter={StaticResource FmtN0}, ConverterParameter=F2}" Width="30"/>
+                    <DataGridTextColumn Header="ticker" Binding="{Binding ticker}" Width="70" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="name"   Binding="{Binding name}"   Width="*"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="mkt"    Binding="{Binding market}"  Width="28" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="★"      Binding="{Binding rating}"  Width="24" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="price"  Binding="{Binding current_price, Converter={StaticResource FmtF2}}"         Width="60"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="rpt"    Binding="{Binding report_count,Converter={StaticResource FmtN0}, ConverterParameter=N0}"         Width="34"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="upside" Binding="{Binding upside,        Converter={StaticResource FmtF1}}"         Width="44"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="volR"   Binding="{Binding volume_ratio,  Converter={StaticResource FmtF2}}"         Width="44"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="h60"    Binding="{Binding high_60d,      Converter={StaticResource FmtF2}}"         Width="54"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="h120"   Binding="{Binding high_120d,     Converter={StaticResource FmtF2}}"         Width="54"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="1M%"    Binding="{Binding ret_1m,        Converter={StaticResource FmtF1}}"         Width="44"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="3M%"    Binding="{Binding ret_3m,        Converter={StaticResource FmtF1}}"         Width="44"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="6M%"    Binding="{Binding ret_6m,        Converter={StaticResource FmtF1}}"         Width="44"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="1Y%"    Binding="{Binding ret_1y,        Converter={StaticResource FmtF1}}"         Width="44"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="rs"     Binding="{Binding rs,            Converter={StaticResource FmtF1}}"         Width="38"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="%atr"   Binding="{Binding atr_percent,   Converter={StaticResource FmtF1}}"         Width="38"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="↓high"  Binding="{Binding distance_from_high, Converter={StaticResource FmtF1}}"   Width="42"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="per"    Binding="{Binding per,           Converter={StaticResource FmtF1}}"         Width="34"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="pbr"    Binding="{Binding pbr,           Converter={StaticResource FmtF2}}"         Width="34"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="roe"    Binding="{Binding roe,           Converter={StaticResource FmtF1}}"         Width="34"  IsReadOnly="True"/>
                 </DataGrid.Columns>
             </DataGrid>
 
             <!-- ── 상태 바 ── -->
             <Border Grid.Row="3" Background="#181825" Padding="12,4">
                 <TextBlock x:Name="TxtStatus"
-                           Text="종목명 또는 Ticker를 입력하고 Enter 또는 검색 버튼을 누르세요."
-                           Foreground="#6C7086" FontFamily="Consolas" FontSize="11"/>
+                           Foreground="#6C7086"
+                           FontFamily="Consolas" FontSize="11"/>
             </Border>
         </Grid>
     </Grid>

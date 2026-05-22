@@ -5,9 +5,11 @@
              xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
              xmlns:lvc_core="clr-namespace:LiveChartsCore;assembly=LiveChartsCore"
              xmlns:ctrl="clr-namespace:Quant.UI.Controls"
+             xmlns:local="clr-namespace:Quant.UI.Views"
              Background="#1E1E2E">
 
     <UserControl.Resources>
+        <local:GroupKindEmojiConverter x:Key="GroupKindEmojiConverter"/>
     </UserControl.Resources>
 
     <!-- ── 전체 레이아웃 Grid ──────────────────────────────── -->
@@ -26,7 +28,7 @@
                 <RowDefinition Height="Auto"/>  <!-- 2: Rating -->
                 <RowDefinition Height="*" MinHeight="300"/>  <!-- 3: info -->
                 <RowDefinition Height="4"/>     <!-- 4: splitter -->
-                <RowDefinition Height="Auto" MinHeight="100"/>     <!-- 5: report -->
+                <RowDefinition Height="*" MinHeight="200"/>     <!-- 5: report -->
             </Grid.RowDefinitions>
             <!-- ══ Row 0: ticker ══════════════════════════════════ -->
             <Border Grid.Row="0" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1">
@@ -123,7 +125,7 @@
                 <Grid VerticalAlignment="Center" Margin="8,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/> <!-- InfoPanel -->
-                        <ColumnDefinition Width="140"/> <!-- GridGroup -->
+                        <ColumnDefinition Width="180"/> <!-- GridGroup -->
                         <ColumnDefinition Width="200"/> <!-- CartesianChart -->
                     </Grid.ColumnDefinitions>
 
@@ -148,9 +150,9 @@
                     </Border>
                     <DataGrid x:Name="GridGroup" Grid.Column="1" Style="{StaticResource QuantDataGrid}" VerticalAlignment="Top" AutoGenerateColumns="False">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Kind"  Binding="{Binding kind}"         Width="36"/>
-                            <DataGridTextColumn Header="Group" Binding="{Binding group_name}"   Width="*"/>
-                            <DataGridTextColumn Header="W"     Binding="{Binding weight}"       Width="28"/>
+                            <DataGridTextColumn Header=""  Binding="{Binding kind, Converter={StaticResource GroupKindEmojiConverter}}" Width="24" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Group" Binding="{Binding group_name}"   Width="*" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="W"     Binding="{Binding weight}"       Width="28" IsReadOnly="True"/>
                         </DataGrid.Columns>
                     </DataGrid>
 
@@ -172,6 +174,7 @@
                                 <Ellipse Width="7" Height="7" Fill="#F9E2AF" VerticalAlignment="Center" Margin="0,0,3,0"/>
                                 <TextBlock Text="EPS" FontFamily="Consolas" FontSize="9" Foreground="#F9E2AF" VerticalAlignment="Center"/>
                             </StackPanel>
+                            <TextBlock x:Name="Upside" Text="+0.00%" FontSize="20" Foreground="{StaticResource TextWarning}" VerticalAlignment="Center" Margin="2,0,0,0"/>
                         </StackPanel>
                     </Border>
 
@@ -183,11 +186,28 @@
             <!-- ══ Row 5: Report ═══════════════════════ -->
             <Border Grid.Row="5">
                 <DataGrid x:Name="GridReport" Grid.Column="0" Style="{StaticResource QuantDataGrid}" AutoGenerateColumns="False"
-                      SelectionChanged="GridReportClick" VerticalAlignment="Top">
+                      PreviewMouseLeftButtonUp="GridReportClick" VerticalAlignment="Stretch" IsReadOnly="False"
+                      CellEditEnding="GridReport_CellEditEnding">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="date"   Binding="{Binding date}"   Width="90"/>
-                        <DataGridTextColumn Header="title"  Binding="{Binding title}"  Width="300"/>
-                        <DataGridTextColumn Header="writer" Binding="{Binding writer}" Width="100"/>
+                        <DataGridTextColumn Header="date"   Binding="{Binding date}"   Width="90" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="title"  Binding="{Binding title}"  Width="300" IsReadOnly="True"/>
+                        <DataGridTemplateColumn Header="TP" Width="100">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding target_price, StringFormat={}{0:N0}}" 
+                                               VerticalAlignment="Center" HorizontalAlignment="Right" Margin="10,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                            <DataGridTemplateColumn.CellEditingTemplate>
+                                <DataTemplate>
+                                    <TextBox Text="{Binding target_price, UpdateSourceTrigger=LostFocus}"
+                                             Background="#313244" Foreground="#CDD6F4"
+                                             BorderThickness="0" VerticalContentAlignment="Center" 
+                                             HorizontalContentAlignment="Right" GotFocus="TextBox_GotFocus"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellEditingTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="writer" Binding="{Binding writer}" Width="100" IsReadOnly="True"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </Border>

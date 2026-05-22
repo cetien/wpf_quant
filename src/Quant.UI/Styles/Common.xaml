@@ -4,6 +4,10 @@
 <!-- ────────────────
 ⬇⏬⤓📥💾⬇️↻↺⇄📈
 🔄🔁♻️🔖📑⭐👁️‍🗨️👁✦🗄️📦
+
+
+    Foreground="{StaticResource TextWarning}"
+    
 -->
 
         <SolidColorBrush x:Key="BgBase"      Color="#1E1E2E"/>

@@ -127,6 +127,10 @@ CREATE TABLE IF NOT EXISTS stock_cache (
     volume_ratio DOUBLE,                    -- 현재 거래량 / 20일 평균 거래량
     high_60d    DOUBLE,                     -- 60거래일 고가
     high_120d   DOUBLE,                     -- 120거래일 고가
+
+    report_count INTEGER,                   -- 리포트 수
+    target_price DOUBLE,                    -- 최신 리포트 목표주가
+
      updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
      PRIMARY KEY (ticker)
 );
@@ -170,6 +174,15 @@ CREATE TABLE IF NOT EXISTS pdf_reports (
     writer      TEXT,
     filepath    TEXT        UNIQUE,
     file_hash   TEXT        UNIQUE,
+
+    target_price    DOUBLE,
+    analyze_status  TEXT DEFAULT 'pending', -- NOT NULL 
+        -- 'pending' | 'done' | 'failed' | 'skip'
+        -- pending : 미분석 (신규 ingest 기본값)
+        -- done    : 정규식 추출 성공 (target_price NULL 포함 — 표현 없음도 done)
+        -- failed  : pdfplumber 예외 발생
+        -- skip    : 1페이지 텍스트 추출 결과 빈 문자열 (스캔본 등)
+
     created_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

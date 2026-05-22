@@ -70,20 +70,24 @@
 
             <DataGrid x:Name="GridCompany" Grid.Column="0"
                       Style="{StaticResource QuantDataGrid}"
+                      IsReadOnly="True"
                       SelectionChanged="Grid_CompanyClick"/>
             <DataGrid x:Name="GridDate" Grid.Column="1"
                       Style="{StaticResource QuantDataGrid}"
+                      IsReadOnly="True"
                       SelectionChanged="Grid_DateClick"/>
             <DataGrid x:Name="GridReport" Grid.Column="2"
                       Style="{StaticResource QuantDataGrid}"
                       AutoGenerateColumns="False"
                       MouseDoubleClick="Grid_ReportClick">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="date"   Binding="{Binding date}"   Width="90"/>
-                    <DataGridTextColumn Header="ticker" Binding="{Binding ticker}" Width="100"/>
-                    <DataGridTextColumn Header="group"  Binding="{Binding group}"  Width="100"/>
-                    <DataGridTextColumn Header="title"  Binding="{Binding title}"  Width="*"/>
-                    <DataGridTextColumn Header="writer" Binding="{Binding writer}" Width="100"/>
+                    <DataGridTextColumn Header="date"   Binding="{Binding date}"   Width="90" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="ticker" Binding="{Binding ticker}" Width="100" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="group"  Binding="{Binding group}"  Width="100" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="TP"     Binding="{Binding target_price, Converter={StaticResource FmtN0}}" Width="70" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="st"     Binding="{Binding analyze_status}" Width="46" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="title"  Binding="{Binding title}"  Width="*" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="writer" Binding="{Binding writer}" Width="100" IsReadOnly="True"/>
                     <DataGridTemplateColumn Header="" Width="36" CanUserSort="False" CanUserResize="False">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
@@ -103,9 +107,7 @@
 
         <!-- 상태바 -->
         <Border Grid.Row="2" Background="#252536" Padding="10,0">
-            <TextBlock x:Name="TxtStatus" Text=""
-                       FontSize="10" FontFamily="Consolas"
-                       Foreground="#FFEBECF5" VerticalAlignment="Center"/>
+            <TextBlock x:Name="TxtStatus" Text="" FontSize="10" FontFamily="Consolas" Foreground="#6C7086" VerticalAlignment="Center"/>
         </Border>
     </Grid>
 </UserControl>

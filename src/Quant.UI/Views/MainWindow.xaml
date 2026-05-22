@@ -80,7 +80,7 @@
                 <MenuItem Header="Edit Watchlist" Click="MenuEditWatchlist_Click"/>
             </MenuItem>
             <MenuItem Header="_Data">
-                <MenuItem Header="Update"     IsEnabled="False" Foreground="#45475A"/>
+                <MenuItem Header="Rebuild StockCache" Click="MenuRebuildStockCache_Click"/>
                 <Separator/>
                 <MenuItem Header="DB Browser" Click="MenuDbBrowser_Click"/>
             </MenuItem>

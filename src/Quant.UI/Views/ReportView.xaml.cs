@@ -160,14 +160,15 @@ public partial class ReportView : UserControl
         using var conn = _db.OpenNativeConnection();
         using var cmd  = conn.CreateCommand();
         cmd.CommandText = @"
-            INSERT INTO pdf_reports (date, ticker, title, writer, filepath, file_hash, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, now())
+            INSERT INTO pdf_reports (date, ticker, title, writer, filepath, file_hash, analyze_status, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, 'pending', now())
             ON CONFLICT (filepath) DO UPDATE SET
                 date      = excluded.date,
                 ticker    = excluded.ticker,
                 title     = excluded.title,
                 writer    = excluded.writer,
-                file_hash = excluded.file_hash";
+                file_hash = excluded.file_hash
+                -- analyze_status/target_price 는 덮어쓰지 않음 (분석 결과 보존)";
         cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = date.ToString("yyyy-MM-dd") });
         cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = ticker });
         cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = title });
@@ -201,7 +202,8 @@ public partial class ReportView : UserControl
         try
         {
             _allReports = _db.Query(
-                "SELECT r.id, r.date, r.ticker, s.sector AS \"group\", r.title, r.writer, r.filepath " +
+                "SELECT r.id, r.date, r.ticker, s.sector AS \"group\", r.title, r.writer, r.filepath, " +
+                "r.target_price, r.analyze_status " +
                 "FROM pdf_reports r " +
                 "LEFT JOIN v_stock_primary_sector s ON s.name = r.ticker " +
                 "ORDER BY r.date DESC, r.ticker ASC LIMIT 5000");
