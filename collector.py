@@ -187,6 +187,19 @@ def is_trading_day(target: str) -> bool:
         return True   # 오류 시 보수적 허용
 
 
+def get_latest_trading_date(end_date: str) -> str:
+    """end_date 포함, 그 이전의 가장 최근 KRX 개장일을 반환."""
+    try:
+        # 최근 10일치 지수 데이터를 조회하여 가장 마지막 날짜 확인
+        start_date = (date.fromisoformat(end_date) - timedelta(days=10)).isoformat()
+        raw = krx.get_market_ohlcv_by_date(to_yyyymmdd(start_date), to_yyyymmdd(end_date), "1028")
+        if raw is not None and not raw.empty:
+            return raw.index[-1].strftime("%Y-%m-%d")
+    except Exception:
+        pass
+    return end_date  # 실패 시 보수적으로 입력일 반환
+
+
 def supply_effective_end(today: str) -> str:
     """
     KRX 투자자별 매매동향 확정 기준:
@@ -199,7 +212,7 @@ def supply_effective_end(today: str) -> str:
     now_hour = int(time.strftime("%H"))
     if now_hour < 10:
         yesterday = (date.fromisoformat(today) - timedelta(days=1)).isoformat()
-        log(f"  [supply] 현재 {time.strftime('%H:%M')} — KRX 당일 미확정, 종료일={yesterday}")
+        log(f"  [supply] 현재 {time.strftime('%H:%M')} - KRX 당일 미확정, 종료일={yesterday}")
         return yesterday
     return today
 
@@ -311,6 +324,8 @@ def run_daily_prices(conn, tickers: list[tuple[str, str]], force_start: str | No
 
     last_dates = {} if force_start else load_last_dates(conn, "daily_prices")
     today      = date.today().isoformat()
+    # 시장의 최신 개장일을 확인하여, DB가 그보다 뒤처진 경우에만 수집 진행
+    latest_trade = get_latest_trading_date(today)
     skipped = updated = errors = 0
 
     for i, (ticker, market) in enumerate(tickers, 1):
@@ -318,7 +333,7 @@ def run_daily_prices(conn, tickers: list[tuple[str, str]], force_start: str | No
         start = force_start or (
             (date.fromisoformat(last) + timedelta(days=1)).isoformat() if last else DEFAULT_START
         )
-        if start > today:
+        if start > latest_trade:
             skipped += 1
             continue
 
@@ -451,6 +466,8 @@ def run_supply(conn, tickers: list[tuple[str, str]], force_start: str | None = N
     today      = date.today().isoformat()
     # KRX 확정 기준: 익일 09:00 이전이면 오늘 데이터 미확정 → 전일까지만 수집
     effective_end = force_start and today or supply_effective_end(today)
+    # 수급 데이터가 확정된 가장 최근 개장일 확인
+    latest_trade  = get_latest_trading_date(effective_end)
     skipped = updated = errors = 0
 
     for i, (ticker, _) in enumerate(tickers, 1):
@@ -458,7 +475,7 @@ def run_supply(conn, tickers: list[tuple[str, str]], force_start: str | None = N
         start = force_start or (
             (date.fromisoformat(last) + timedelta(days=1)).isoformat() if last else DEFAULT_START
         )
-        if start > effective_end:
+        if start > latest_trade:
             skipped += 1
             continue
 
@@ -998,7 +1015,7 @@ def run_check(conn, tickers: list[tuple[str, str]], tables: list[str], force_sta
                 f"  oldest_start={oldest}  newest_start={newest}")
 
     log("=" * 60)
-    log("[CHECK MODE] 완료 — 실제 수집 미실행")
+    log("[CHECK MODE] 완료 - 실제 수집 미실행")
 
 
 def main():
@@ -1049,18 +1066,6 @@ def main():
         return
 
     log(f"처리 대상: {len(rows)}종목  테이블={args.tables}  from={args.from_date or '(incremental)'}")
-
-    # 3. 비개장일 체크 (prices / supply 한정)
-    price_supply_tables = [t for t in args.tables if t in ("prices", "supply")]
-    if price_supply_tables and not args.from_date:
-        if not is_trading_day(date.today().isoformat()):
-            log(f"[SKIP] 오늘({date.today().isoformat()})은 KRX 비개장일 — prices/supply 수집 skip")
-            args.tables = [t for t in args.tables if t == "fundamentals"]
-            if not args.tables:
-                conn.close()
-                elapsed = time.time() - t0
-                log(f"전체 완료(비개장일 skip)  소요시간={elapsed/60:.1f}분")
-                return
 
     # 4. 테이블별 수집
     if "prices" in args.tables:

@@ -331,7 +331,7 @@
                             Series="{Binding Series}"
                             XAxes="{Binding XAxes}"
                             YAxes="{Binding YAxes}"
-                            ZoomMode="X"
+                            ZoomMode="X" AnimationsSpeed="0"
                             TooltipPosition="Hidden"/>
 
         <!-- ══ Row 4: 거래량 서브차트 (높이=0 → 토글로 제어) -->

@@ -245,6 +245,7 @@
                                         XAxes="{Binding ChartXAxes}"
                                         YAxes="{Binding ChartYAxes}"
                                         ZoomMode="X"
+                                        AnimationsSpeed="0"
                                         TooltipPosition="Hidden"/>
 
                     <!-- ── Crosshair 오버레이 (Row 1 = 차트 영역) ── -->
@@ -292,5 +293,3 @@
         </Border>
     </Grid>
 </UserControl>
-
-

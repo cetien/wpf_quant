@@ -458,6 +458,25 @@ public partial class EditGroupView : UserControl
             TxtChartInfo.Text = $"▲ {best.label}  {best.last - 100:+0.0;-0.0}%   ▼ {worst.label}  {worst.last - 100:+0.0;-0.0}%";
         }
 
+        // X축 범위 수동 설정 (AnimationsSpeed="0" 사용 시 자동 스케일링 지연 방지)
+        var xAxis = ChartXAxes[0];
+        var xValues = ChartSeries
+            .OfType<LineSeries<DateTimePoint>>()
+            .SelectMany(s => s.Values ?? [])
+            .Select(p => (double)p.DateTime.Ticks)
+            .ToList();
+
+        if (xValues.Count > 0)
+        {
+            xAxis.MinLimit = xValues.Min();
+            xAxis.MaxLimit = xValues.Max();
+        }
+        else
+        {
+            xAxis.MinLimit = null;
+            xAxis.MaxLimit = null;
+        }
+
         var yAxis = ChartYAxes[0];
         var allValues = ChartSeries
             .OfType<LineSeries<DateTimePoint>>()
