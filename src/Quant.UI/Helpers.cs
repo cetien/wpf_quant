@@ -98,23 +98,6 @@ public static class Helpers
 
     //----------------------------------------------------
     public static readonly Regex TickerRegex = new("^[A-Za-z0-9]{6}$", RegexOptions.Compiled);
-    public static string SafeStr(DataRow r, string col)
-    {
-        try { return r.IsNull(col) ? "" : r[col]?.ToString() ?? ""; }
-        catch { return ""; }
-    }
-
-    public static int SafeInt(DataRow r, string col)
-    {
-        try { return r.IsNull(col) ? 0 : Convert.ToInt32(r[col]); }
-        catch { return 0; }
-    }
-
-    public static double SafeDouble(DataRow r, string col)
-    {
-        try { return r.IsNull(col) ? 0.0 : Convert.ToDouble(r[col]); }
-        catch { return 0.0; }
-    }
 
     public static string GroupKind2Emoji(string kind) => kind switch
     {

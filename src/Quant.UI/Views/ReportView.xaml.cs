@@ -15,6 +15,7 @@ namespace Quant.UI.Views;
 public partial class ReportView : UserControl
 {
     public event Action<string, string>? StatusChanged;
+    public event Action<string, string>? TickerDoubleClicked;  // (ticker, name)
 
     private readonly DbManager _db;
     private DataTable _allReports = new();
@@ -42,8 +43,9 @@ public partial class ReportView : UserControl
 
     private void Ingest()
     {
-        var opts   = _db.LoadOptions();
-        var folder = opts.ReportPdfFolder;
+        var folder = App.Config().ReportPdfFolder;
+        //var opts   = _db.LoadOptions();
+        //var folder = opts.ReportPdfFolder;
 
         if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
         {
@@ -287,10 +289,35 @@ public partial class ReportView : UserControl
 	//  Event handlers
 	// ══════════════════════════════════════════════════════════
 
-	private void Grid_CompanyClick(object sender, SelectionChangedEventArgs e)
+    private void Grid_CompanyClick(object sender, SelectionChangedEventArgs e)
     {
         if (GridCompany.SelectedItem is not DataRowView row) return;
-		ApplyReportFilter("ticker", row["ticker"]?.ToString());
+        ApplyReportFilter("ticker", row["ticker"]?.ToString());
+    }
+
+    private void Grid_CompanyDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (GridCompany.SelectedItem is not DataRowView row) return;
+        var tickerOrName = row["ticker"]?.ToString() ?? "";
+        if (string.IsNullOrEmpty(tickerOrName) || tickerOrName == "All") return;
+
+        // pdf_reports.ticker 컄럼은 종목코드 또는 종목명 둘 다 올 수 있음
+        // stocks 테이블에서 코드(정확일 치) 먼저, 없으면 name으로 조회
+        var dt = _db.Query(
+            $"SELECT ticker, name FROM stocks " +
+            $"WHERE ticker = '{tickerOrName.Replace("'", "''")}' " +
+            $"   OR name   = '{tickerOrName.Replace("'", "''")}' " +
+            $"LIMIT 1");
+
+        if (dt.Rows.Count == 0)
+        {
+            Helpers.StatusWarning(StatusChanged, $"종목 미발견: {tickerOrName}");
+            return;
+        }
+
+        var code = dt.Rows[0]["ticker"].ToString()!;
+        var name = dt.Rows[0]["name"].ToString()!;
+        TickerDoubleClicked?.Invoke(code, name);
     }
 
 	private void Grid_DateClick(object sender, SelectionChangedEventArgs e)

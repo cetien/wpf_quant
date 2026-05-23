@@ -47,12 +47,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void SidePanel_StockSelected(string ticker, string name)
-    {
-		if (MainContent.Content is ChartView cv) cv.LoadTicker(ticker, name);
-        else if (MainContent.Content is EditGroupView gv) gv.AddTicker(ticker, name);
-        SetStatus($"선택: {name}({ticker})", "#CDD6F4");
-    }
+    private void SidePanel_StockSelected(string ticker, string name) => ShowChart(ticker, name);
 
     private void SidePanel_GroupSelected(int groupId, string name) { }
 
@@ -104,7 +99,8 @@ public partial class MainWindow : Window
         SwitchView(_dashboardView, BtnDashboard, "Dashboard");
     }
 
-    private void ShowChart()
+    private void ShowChart() => ShowChart(null, null);
+    private void ShowChart(string? ticker, string? name = null)
     {
         if (_chartView is null)
         {
@@ -112,6 +108,8 @@ public partial class MainWindow : Window
             _chartView.StatusChanged += SetStatus;
         }
         SwitchView(_chartView, BtnChart, "Chart");
+        if (!string.IsNullOrEmpty(ticker))
+            _chartView.LoadTicker(ticker, name ?? ticker);
     }
 
     private void ShowSearch()
@@ -120,7 +118,7 @@ public partial class MainWindow : Window
         {
             _searchView = new SearchView(_db);
             _searchView.StatusChanged  += SetStatus;
-            _searchView.StockSelected  += SidePanel_StockSelected;
+            _searchView.StockSelected += (ticker, name) => ShowChart(ticker, name);
         }
         SwitchView(_searchView, BtnSearch, "Search");
     }
@@ -141,7 +139,8 @@ public partial class MainWindow : Window
         if (_reportView is null)
         {
             _reportView = new ReportView(_db);
-            _reportView.StatusChanged += SetStatus;
+            _reportView.StatusChanged      += SetStatus;
+            _reportView.TickerDoubleClicked += (ticker, name) => ShowChart(ticker, name);
         }
         SwitchView(_reportView, BtnReport, "Report");
     }
@@ -152,11 +151,7 @@ public partial class MainWindow : Window
         {
             _editGroupView = new EditGroupView(_db);
             _editGroupView.StatusChanged      += SetStatus;
-            _editGroupView.TickerDoubleClicked += (ticker, name) =>
-            {
-                ShowChart();
-                (_chartView as ChartView)?.LoadTicker(ticker, name);
-            };
+            _editGroupView.TickerDoubleClicked += (ticker, name) => ShowChart(ticker, name);
         }
         SwitchView(_editGroupView, BtnGroup, "Edit Group");
     }

@@ -1,4 +1,4 @@
-// Services/PriceDownloadService.cs
+﻿// Services/PriceDownloadService.cs
 using Quant.Core.Infrastructure;
 using Quant.Core.Models;
 using System.Net.Http;
@@ -51,7 +51,7 @@ public class PriceDownloadService
     {
         EnsureStockExists(ticker);
 
-        var lastInDb = _db.GetLastDate("daily_prices", ticker: ticker);
+        var lastInDb = _db.MaxDateForTicker("daily_prices", ticker: ticker);
         var fromDate = lastInDb.HasValue ? lastInDb.Value.AddDays(1) : new DateOnly(2020, 1, 1);
         var toDate   = DateOnly.FromDateTime(DateTime.Today);
 
@@ -318,31 +318,31 @@ public class PriceDownloadService
     ///   - \d{6}       → 일반 KRX (069500)
     ///   - \d{4}[A-Z]\d → 신규 ETF (0091P0, 2023년 이후)
     /// </summary>
-    private bool IsKrxTicker(string ticker)
-    {
-        using var conn = _db.OpenNativeConnection();
-        using var cmd  = conn.CreateCommand();
-        cmd.CommandText = "SELECT market FROM stocks WHERE ticker = $1";
-        cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = ticker });
-        var res = cmd.ExecuteScalar();
-        if (res is not null and not DBNull)
-        {
-            var m = res.ToString()!;
-            return m == "KP" || m == "KQ";
-        }
-        return System.Text.RegularExpressions.Regex.IsMatch(ticker, @"^\d{6}$") ||
-               System.Text.RegularExpressions.Regex.IsMatch(ticker, @"^\d{4}[A-Z]\d$");
-    }
+    private bool IsKrxTicker(string ticker) => _db.IsKrxTicker(ticker);
+    //{
+    //    using var conn = _db.OpenNativeConnection();
+    //    using var cmd  = conn.CreateCommand();
+    //    cmd.CommandText = "SELECT market FROM stocks WHERE ticker = $1";
+    //    cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = ticker });
+    //    var res = cmd.ExecuteScalar();
+    //    if (res is not null and not DBNull)
+    //    {
+    //        var m = res.ToString()!;
+    //        return m == "KP" || m == "KQ";
+    //    }
+    //    return System.Text.RegularExpressions.Regex.IsMatch(ticker, @"^\d{6}$") ||
+    //           System.Text.RegularExpressions.Regex.IsMatch(ticker, @"^\d{4}[A-Z]\d$");
+    //}
 
-    private string GetSecurityType(string ticker)
-    {
-        using var conn = _db.OpenNativeConnection();
-        using var cmd  = conn.CreateCommand();
-        cmd.CommandText = "SELECT security_type FROM stocks WHERE ticker = $1";
-        cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = ticker });
-        var res = cmd.ExecuteScalar();
-        return res is null or DBNull ? "stock" : res.ToString()!;
-    }
+    private string GetSecurityType(string ticker) => _db.SecurityTypeForTicker(ticker);
+    //{
+    //    using var conn = _db.OpenNativeConnection();
+    //    using var cmd  = conn.CreateCommand();
+    //    cmd.CommandText = "SELECT security_type FROM stocks WHERE ticker = $1";
+    //    cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = ticker });
+    //    var res = cmd.ExecuteScalar();
+    //    return res is null or DBNull ? "stock" : res.ToString()!;
+    //}
 
     private List<string> BuildYahooCandidates(string ticker)
     {
@@ -441,11 +441,14 @@ public class PriceDownloadService
 
     private void EnsureStockExists(string ticker)
     {
-        using var conn = _db.OpenNativeConnection();
-        using var cmd  = conn.CreateCommand();
-        cmd.CommandText = "SELECT ticker FROM stocks WHERE ticker = $1";
-        cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = ticker });
-        if (cmd.ExecuteScalar() is null or DBNull)
-            _db.UpsertHistory(ticker, ticker);
+        if (!_db.ExistTicker("stocks", ticker))
+            _db.UpsertStock(ticker, ticker);
+
+        //using var conn = _db.OpenNativeConnection();
+        //using var cmd  = conn.CreateCommand();
+        //cmd.CommandText = "SELECT ticker FROM stocks WHERE ticker = $1";
+        //cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = ticker });
+        //if (cmd.ExecuteScalar() is null or DBNull)
+        //    _db.UpsertStock(ticker, ticker);
     }
 }

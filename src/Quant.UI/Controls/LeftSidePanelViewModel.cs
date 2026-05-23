@@ -1,7 +1,11 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+﻿using Chaen;
+
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+
 using Quant.Core.Infrastructure;
 using Quant.Core.Services;
+
 using System.Collections.ObjectModel;
 using System.Data;
 
@@ -338,12 +342,12 @@ public partial class LeftSidePanelViewModel : ObservableObject
             {
                 _allStocks.Add(new StockRow
                 {
-                    Ticker = Helpers.SafeStr(row, "ticker"),
-                    Name = Helpers.SafeStr(row, "name"),
-                    Market = Helpers.SafeStr(row, "market"),
-                    Ret_3m = Helpers.SafeDouble(row, "ret_3m"),
-                    RS     = Helpers.SafeDouble(row, "rs"),
-                    Rating = Helpers.SafeInt(row, "rating"),
+                    Ticker = ChaenHelper.SafeStr(row, "ticker"),
+                    Name = ChaenHelper.SafeStr(row, "name"),
+                    Market = ChaenHelper.SafeStr(row, "market"),
+                    Ret_3m = ChaenHelper.SafeDouble(row, "ret_3m"),
+                    RS     = ChaenHelper.SafeDouble(row, "rs"),
+                    Rating = ChaenHelper.SafeInt(row, "rating"),
                 });
             }
             ApplyStockFilter();
@@ -378,13 +382,13 @@ public partial class LeftSidePanelViewModel : ObservableObject
             {
                 _allGroups.Add(new GroupRow
                 {
-                    GroupId = Helpers.SafeInt(row, "group_id"),
-                    //Kind       = Helpers.SafeStr(row, "kind"),
-                    Name = Helpers.SafeStr(row, "name"),
-                    Rating = Helpers.SafeInt(row, "rating"),
-                    Ret3m = Helpers.SafeDouble(row, "ret_3m"),
-                    StockCount = Helpers.SafeInt(row, "stock_count"),
-                    Kind = Helpers.GroupKind2Emoji(Helpers.SafeStr(row, "kind"))
+                    GroupId = ChaenHelper.SafeInt(row, "group_id"),
+                    //Kind       = ChaenHelper.SafeStr(row, "kind"),
+                    Name = ChaenHelper.SafeStr(row, "name"),
+                    Rating = ChaenHelper.SafeInt(row, "rating"),
+                    Ret3m = ChaenHelper.SafeDouble(row, "ret_3m"),
+                    StockCount = ChaenHelper.SafeInt(row, "stock_count"),
+                    Kind = Helpers.GroupKind2Emoji(ChaenHelper.SafeStr(row, "kind"))
                 });
             }
             foreach (var g in _allGroups) Groups.Add(g);
@@ -439,12 +443,12 @@ public partial class LeftSidePanelViewModel : ObservableObject
             {
                 _allStocks.Add(new StockRow
                 {
-                    Ticker = Helpers.SafeStr(row, "ticker"),
-                    Name   = Helpers.SafeStr(row, "name"),
-                    Market = Helpers.SafeStr(row, "market"),
-                    Ret_3m = Helpers.SafeDouble(row, "ret_3m"),
-                    RS     = Helpers.SafeDouble(row, "rs"),
-                    Rating = Helpers.SafeInt(row, "rating"),
+                    Ticker = ChaenHelper.SafeStr(row, "ticker"),
+                    Name   = ChaenHelper.SafeStr(row, "name"),
+                    Market = ChaenHelper.SafeStr(row, "market"),
+                    Ret_3m = ChaenHelper.SafeDouble(row, "ret_3m"),
+                    RS     = ChaenHelper.SafeDouble(row, "rs"),
+                    Rating = ChaenHelper.SafeInt(row, "rating"),
                 });
             }
             ApplyStockFilter();

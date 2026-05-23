@@ -186,7 +186,7 @@
             <!-- ══ Row 5: Report ═══════════════════════ -->
             <Border Grid.Row="5">
                 <DataGrid x:Name="GridReport" Grid.Column="0" Style="{StaticResource QuantDataGrid}" AutoGenerateColumns="False"
-                      PreviewMouseLeftButtonUp="GridReportClick" VerticalAlignment="Stretch" IsReadOnly="False"
+                      MouseDoubleClick="GridReportClick" VerticalAlignment="Stretch" IsReadOnly="False"
                       CellEditEnding="GridReport_CellEditEnding">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="date"   Binding="{Binding date}"   Width="90" IsReadOnly="True"/>

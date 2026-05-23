@@ -56,6 +56,9 @@ public partial class EditGroupView : UserControl
     // ── 현재 차트에 그려진 종목 (Crosshair 툴팁 필터) ────────
     private HashSet<string> _chartedTickers = [];
 
+    // ── 차트 색상 매핑: ticker → SKColor (ApplyPeriod와 동기화) ──
+    private Dictionary<string, SKColor> _tickerColors = [];
+
     public EditGroupView(DbManager db)
     {
         _db = db;
@@ -428,6 +431,7 @@ public partial class EditGroupView : UserControl
         }
 
         int colorIdx = 0;
+        _tickerColors.Clear();
         var lastValues = new List<(string label, double last)>();
 
         foreach (var (ticker, (name, prices)) in _rawData)
@@ -438,6 +442,7 @@ public partial class EditGroupView : UserControl
                 .Select(d => new DateTimePoint(d.date, Math.Round(d.close / baseClose * 100.0, 4)))
                 .ToList();
             var color = Palette[colorIdx++ % Palette.Length];
+            _tickerColors[ticker] = color;
             ChartSeries.Add(new LineSeries<DateTimePoint>
             {
                 Values = new ObservableCollection<DateTimePoint>(points),
@@ -489,6 +494,10 @@ public partial class EditGroupView : UserControl
             yAxis.MaxLimit = allValues.Max() + margin;
         }
         else { yAxis.MinLimit = null; yAxis.MaxLimit = null; }
+
+        // 마우스가 차트 밖에 있을 때 최신 날짜 툴팁 갱신
+        if (!ChartAreaGrid.IsMouseOver)
+            ShowEgTooltipAtLastDate();
     }
 
     private void AddKospiOverlay()
@@ -773,12 +782,10 @@ public partial class EditGroupView : UserControl
         // ── 각 종목의 해당 날짜(또는 직전 영업일) 값 조회 ──
         // ── 각 종목 데이터 수집 ───────────────────────────────
         var tooltipRows = new List<(string name, double rel, SKColor color)>();
-        int colorIdx = 0;
         foreach (var (ticker, (name, prices)) in _rawData)
         {
-            var color = Palette[colorIdx % Palette.Length];
-            colorIdx++;
             if (!_chartedTickers.Contains(ticker) || prices.Count < 2) continue;
+            if (!_tickerColors.TryGetValue(ticker, out var color)) continue;
 
             var match = prices
                 .Where(p => p.date.Date <= targetDate)
@@ -849,12 +856,10 @@ public partial class EditGroupView : UserControl
             .Min();
 
         var tooltipRows = new List<(string name, double rel, SKColor color)>();
-        int colorIdx = 0;
         foreach (var (ticker, (name, prices)) in _rawData)
         {
-            var color = Palette[colorIdx % Palette.Length];
-            colorIdx++;
             if (!_chartedTickers.Contains(ticker) || prices.Count < 2) continue;
+            if (!_tickerColors.TryGetValue(ticker, out var color)) continue;
 
             var match = prices
                 .Where(p => p.date.Date <= targetDate)

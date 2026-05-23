@@ -71,7 +71,8 @@
             <DataGrid x:Name="GridCompany" Grid.Column="0"
                       Style="{StaticResource QuantDataGrid}"
                       IsReadOnly="True"
-                      SelectionChanged="Grid_CompanyClick"/>
+                      SelectionChanged="Grid_CompanyClick"
+                      MouseDoubleClick="Grid_CompanyDoubleClick"/>
             <DataGrid x:Name="GridDate" Grid.Column="1"
                       Style="{StaticResource QuantDataGrid}"
                       IsReadOnly="True"

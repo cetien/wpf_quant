@@ -15,6 +15,15 @@ collector.py  ─  독립 실행형 데이터 수집기
     --db-path 옵션으로 DuckDB 파일 경로 지정 가능 (예: --db-path ./my_quant.duckdb).
         C:/Users/tien7/AppData/Local/quant/quant.duckdb 기본값 대신 다른 위치에 저장하려는 경우 사용.
 
+    # 이상 종목 탐지 후 재다운로드 (dry-run)
+    python collector.py --anomaly-refresh --dry-run
+
+    # 이상 종목 탐지 후 실제 재다운로드
+    python collector.py --anomaly-refresh
+
+    # 탐지 lookback 기간 지정 (기본 90일)
+    python collector.py --anomaly-refresh --anomaly-days 30
+
     # 수집 대상 확인 (API 호출 없음)
     python collector.py --check
 
@@ -929,6 +938,12 @@ def parse_args():
                    help="stocks 마스터 동기화 skip")
     p.add_argument("--check",   action="store_true",
                    help="API 호출 없이 DB last_date 기준 수집 대상 건수만 표시 후 종료")
+    p.add_argument("--anomaly-refresh", dest="anomaly_refresh", action="store_true",
+                   help="이상 가격변동 종목 탐지 후 daily_prices Full Refresh")
+    p.add_argument("--anomaly-days", dest="anomaly_days", type=int, default=90,
+                   help="이상 탐지 lookback 일수 (기본: 90)")
+    p.add_argument("--dry-run", dest="dry_run", action="store_true",
+                   help="--anomaly-refresh 시 탐지만 하고 실제 다운로드 미실행")
     return p.parse_args()
 
 
@@ -1018,6 +1033,136 @@ def run_check(conn, tickers: list[tuple[str, str]], tables: list[str], force_sta
     log("[CHECK MODE] 완료 - 실제 수집 미실행")
 
 
+# ──────────────────────────────────────────────────────────
+#  Anomaly Detection & Auto Refresh
+# ──────────────────────────────────────────────────────────
+
+ANOMALY_THRESHOLD = 0.30   # 전일 종가 대비 변동률 임계값 (상한가 +30% 초과부터 이상으로 판단)
+
+
+def detect_anomaly_tickers(
+    conn: duckdb.DuckDBPyConnection,
+    lookback_days: int = 90,
+) -> list[tuple[str, list[dict]]]:
+    """
+    daily_prices 에서 최근 lookback_days 일 내
+    전일 종가 대비 ±29% 이상 변동된 종목을 탐지한다.
+
+    반환: [(ticker, [{'date':..,'prev_close':..,'close':..,'change':..}, ...]), ...]
+          변동 이벤트가 있는 종목만 포함. ticker 오름차순 정렬.
+    """
+    sql = f"""
+        WITH changes AS (
+            SELECT
+                p.ticker,
+                p.date,
+                p.open,
+                p.close,
+                LAG(p.close) OVER (
+                    PARTITION BY p.ticker
+                    ORDER BY p.date
+                ) AS prev_close,
+                LAG(p.date) OVER (
+                    PARTITION BY p.ticker
+                    ORDER BY p.date
+                ) AS prev_date
+            FROM daily_prices p
+            WHERE p.date >= CURRENT_DATE - INTERVAL '{lookback_days}' DAY
+        )
+        SELECT
+            c.ticker,
+            s.name,
+            c.date::VARCHAR,
+            c.prev_close,
+            c.open,
+            c.close,
+            ROUND((c.close / c.prev_close - 1) * 100, 2) AS chg_close_pct,
+            ROUND((c.open  / c.prev_close - 1) * 100, 2) AS chg_open_pct
+        FROM changes c
+        JOIN stocks s ON s.ticker = c.ticker
+        WHERE
+            c.prev_close IS NOT NULL
+            AND c.prev_close > 0
+            -- 거래정지 후 재개 제외: 전일 데이터와 7일 이상 공백이면 스킵
+            AND c.date - c.prev_date <= 7
+            AND (
+                ABS(ROUND(c.close / c.prev_close - 1, 4)) > {ANOMALY_THRESHOLD}
+                OR
+                ABS(ROUND(c.open  / c.prev_close - 1, 4)) > {ANOMALY_THRESHOLD}
+            )
+        ORDER BY c.ticker, c.date
+    """
+    rows = conn.execute(sql).fetchall()
+
+    # ticker별로 이벤트 묶기
+    result: dict[str, dict] = {}   # ticker -> {name, events}
+    for ticker, name, dt, prev_close, open_, close, chg_close_pct, chg_open_pct in rows:
+        if ticker not in result:
+            result[ticker] = {"name": name, "events": []}
+        result[ticker]["events"].append({
+            "date":         dt,
+            "prev_close":   prev_close,
+            "open":         open_,
+            "close":        close,
+            "chg_close_pct": chg_close_pct,
+            "chg_open_pct":  chg_open_pct,
+        })
+
+    return [(t, d["name"], d["events"]) for t, d in sorted(result.items())]
+
+
+def run_anomaly_refresh(
+    conn: duckdb.DuckDBPyConnection,
+    lookback_days: int = 90,
+    dry_run: bool = False,
+):
+    """
+    1) 이상 종목 탐지
+    2) dry_run=False 이면 해당 종목만 daily_prices Full Refresh (DELETE + 재수집)
+    """
+    log("=" * 60)
+    log(f"[ANOMALY] 탐지 시작  lookback={lookback_days}일  dry_run={dry_run}")
+
+    anomalies = detect_anomaly_tickers(conn, lookback_days)
+
+    if not anomalies:
+        log("[ANOMALY] 이상 종목 없음")
+        return
+
+    log(f"\n[ANOMALY] 탐지된 종목: {len(anomalies)}개")
+    for ticker, name, events in anomalies:
+        for ev in events:
+            log(
+                f"  ticker={ticker}  name={name}  date={ev['date']}  "
+                f"prev_close={ev['prev_close']:,.0f}  open={ev['open']:,.0f}  close={ev['close']:,.0f}  "
+                f"chg_close={ev['chg_close_pct']:+.2f}%  chg_open={ev['chg_open_pct']:+.2f}%"
+            )
+
+    if dry_run:
+        log(f"\n[DRY-RUN] {len(anomalies)} tickers require refresh. 실제 다운로드 미실행")
+        return
+
+    # Full Refresh: 대상 종목 daily_prices 전체 삭제 후 재수집
+    refresh_tickers = [(t, "") for t, _, _ in anomalies]   # market은 fetch_ohlcv 미사용
+
+    # market 정보 보충 (run_daily_prices 내부에서 사용 안 하지만 일관성 유지)
+    ticker_set = {t for t, _ in refresh_tickers}
+    ph = ",".join(f"'{t}'" for t in ticker_set)
+    market_rows = conn.execute(
+        f"SELECT ticker, market FROM stocks WHERE ticker IN ({ph})"
+    ).fetchall()
+    market_map = {t: m for t, m in market_rows}
+    refresh_tickers = [(t, market_map.get(t, "KP")) for t, _ in refresh_tickers]
+
+    log(f"\n[REFRESH] {len(refresh_tickers)}종목 daily_prices 삭제 후 전체 재수집")
+    for ticker, _ in refresh_tickers:
+        conn.execute("DELETE FROM daily_prices WHERE ticker = ?", [ticker])
+        log(f"  [DELETE] {ticker}")
+
+    run_daily_prices(conn, refresh_tickers, force_start=DEFAULT_START)
+    log("[ANOMALY] 완료")
+
+
 def main():
     global DB_PATH
     args = parse_args()
@@ -1032,6 +1177,14 @@ def main():
         sys.exit(1)
 
     conn = open_db()
+
+    # --anomaly-refresh 모드
+    if args.anomaly_refresh:
+        run_anomaly_refresh(conn, lookback_days=args.anomaly_days, dry_run=args.dry_run)
+        conn.close()
+        elapsed = time.time() - t0
+        log(f"완료  소요시간={elapsed/60:.1f}분")
+        return
 
     # --check 모드: DB 조회만 하고 종료
     if args.check:

@@ -1,4 +1,6 @@
 ﻿// Models/AppOptions.cs
+using Chaen;
+
 namespace Quant.Core.Models;
 
 /// <summary>
@@ -35,4 +37,35 @@ public class AppOptions
     public string LastGroup { get; set; } = string.Empty;
 
 
+    public Dictionary<string, string> ToDictionary()
+    {
+        return new()
+        {
+            ["auto_append_history"] = ChaenHelper.BoolToString(AutoAppendHistory),
+            ["query_filter_preferred"] = ChaenHelper.BoolToString(QueryFilterPreferred),
+            ["query_filter_covered"] = ChaenHelper.BoolToString(QueryFilterCovered),
+            ["query_filter_cheap"] = ChaenHelper.BoolToString(QueryFilterCheap),
+            ["exclude_spac"] = ChaenHelper.BoolToString(ExcludeSpac),
+            ["exclude_pref_stock"] = ChaenHelper.BoolToString(ExcludePrefStock),
+            ["exclude_halted"] = ChaenHelper.BoolToString(ExcludeHalted),
+            ["last_report_date"] = ChaenHelper.DateToString(LastReportDate),
+            ["report_pdf_folder"] = ReportPdfFolder ?? "",
+        };
+    }
+
+    public static AppOptions FromDictionary(IReadOnlyDictionary<string, string> dict)
+    {
+        return new AppOptions
+        {
+            AutoAppendHistory = ChaenHelper.GetBool(dict, "auto_append_history"),
+            QueryFilterPreferred = ChaenHelper.GetBool(dict, "query_filter_preferred"),
+            ExcludeHalted = ChaenHelper.GetBool(dict, "exclude_halted"),
+            QueryFilterCovered = ChaenHelper.GetBool(dict, "query_filter_covered"),
+            QueryFilterCheap = ChaenHelper.GetBool(dict, "query_filter_cheap"),
+            ExcludeSpac = ChaenHelper.GetBool(dict, "exclude_spac"),
+            ExcludePrefStock = ChaenHelper.GetBool(dict, "exclude_pref_stock"),
+            LastReportDate = dict.TryGetValue("last_report_date", out var s) && DateOnly.TryParse(s, out var d) ? d : null,
+            ReportPdfFolder = dict.TryGetValue("report_pdf_folder", out var folder) ? folder : "",
+        };
+    }
 }

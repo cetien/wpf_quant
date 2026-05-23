@@ -20,6 +20,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Data;
 using System.Windows.Media;
+using Quant.Core.Models;
 
 namespace Quant.UI.Views;
 
@@ -84,7 +85,7 @@ public partial class ChartView : UserControl
     private List<OhlcvRow> _allData = [];
     private int    _periodDays    = 365;
     private string _currentTicker = "";
-    private StockCache _currentCache;
+    private StockCache _currentCache = new();
 
     private InfoPanelBuilder? infoPanel = null;
     private InfoPanelBuilder? infoPanel2 = null;
@@ -388,21 +389,21 @@ public partial class ChartView : UserControl
         var ticker = TxtTickerCode.Text.Trim().ToUpper();
         if (string.IsNullOrEmpty(ticker)) return;
 
-        DbManager.Instance.LoadOptions().LastTicker = ticker;
+        App.Config().LastTicker = ticker;
         _currentTicker = ticker;
         _currentCache = _db.GetStockCache(ticker) ?? new StockCache { Ticker = ticker };
 
         try
         {
             // ── stocks 테이블에 없으면 신규등록 Popup 표시 ─────────────
-            if (!_db.StockExists(ticker))
+            if (!_db.ExistTicker("stocks", ticker))
             {
                 OpenRegisterPopup(ticker);
                 return;
             }
 
 
-            RatingCtrl.Rating = _db.GetStockInfo(ticker).rating;
+            RatingCtrl.Rating = _currentCache.Rating;// _db.GetStockInfo(ticker).rating;
             LoadInfo_ReturnRatio(ticker);
             LoadInfoPanel(ticker);
 
@@ -1557,7 +1558,16 @@ public partial class ChartView : UserControl
         BtnRegSave.IsEnabled = false;
         try
         {
-            _db.UpsertStock(_pendingRegister.Ticker, name, market, type, null, type == "ETF");
+            _db.UpsertStock(new Stock
+            {
+                Ticker = _pendingRegister.Ticker,
+                Name = name,
+                Market = market,
+                SecurityType = type,
+                UpdatedAt = DateTime.Now
+            });
+            //_db.UpsertStock(_pendingRegister.Ticker, name, market, type, null, type == "ETF");
+
             TxtStockName.Text = name;
             Helpers.StatusSuccess(StatusChanged, $"{_pendingRegister.Ticker} 등록 완료");
 

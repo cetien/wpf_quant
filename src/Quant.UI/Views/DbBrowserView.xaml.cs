@@ -37,8 +37,8 @@ public partial class DbBrowserView : UserControl
         BuildTableButtons();
         CheckDbConnection();
 
-        var ticker = DbManager.Instance.LoadOptions().LastTicker;
-        TxtCurrTicker.Text = $"{_db.GetStockName(ticker)}:{ticker}";
+        var ticker = App.Config().LastTicker;
+        TxtCurrTicker.Text = $"{_db.StockInfo(ticker)?.Name}:{ticker}";
         TxtWhere.Text = !string.IsNullOrWhiteSpace(ticker) ? $"ticker = '{ticker}'" : "1";
     }
      
@@ -192,7 +192,7 @@ WHERE deleted_at IS NULL";
     {
         if (sender is not Button btn || btn.Tag is not string table) return;
 
-        var ticker = DbManager.Instance.LoadOptions().LastTicker;
+        var ticker = App.Config().LastTicker;
         if (string.IsNullOrWhiteSpace(ticker) || !Helpers.TickerRegex.IsMatch(ticker)) return;
 
         string sql = $"DELETE FROM {table}";

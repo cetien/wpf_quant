@@ -1,7 +1,10 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
+
 using Quant.Core.Infrastructure;
+using Quant.Core.Models;
 using Quant.Core.Repositories;
 using Quant.UI.Views;
+
 using System.Windows;
 
 namespace Quant.UI;
@@ -9,6 +12,8 @@ namespace Quant.UI;
 public partial class App : Application
 {
     public static IServiceProvider Services { get; private set; } = null!;
+    public static DbManager DB => DbManager.Instance;
+    public static AppOptions Config() => DB.Options();
 
     protected override void OnStartup(StartupEventArgs e)
     {

@@ -12,7 +12,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "database", "database", "{C8
 		database\migrations\002_views.sql = database\migrations\002_views.sql
 		database\migrations\003_options.sql = database\migrations\003_options.sql
 		database\migrations\004_fix_autoincrement.sql = database\migrations\004_fix_autoincrement.sql
-		database\migrations\005_drop_fk_stock_group_map.sql = database\migrations\005_drop_fk_stock_group_map.sql
 	EndProjectSection
 EndProject
 Global

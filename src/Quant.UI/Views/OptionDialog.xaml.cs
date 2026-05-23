@@ -1,4 +1,4 @@
-using Quant.Core.Infrastructure;
+﻿using Quant.Core.Infrastructure;
 using Quant.Core.Models;
 using System.Windows;
 
@@ -18,7 +18,7 @@ public partial class OptionDialog : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        var opts = _db.LoadOptions();
+        var opts = _db.Options();
         ChkAutoAppend.IsChecked = opts.AutoAppendHistory;
         TxtPdfFolder.Text       = opts.ReportPdfFolder;
 		DB_Folder.Text = DbManager.DbPath;

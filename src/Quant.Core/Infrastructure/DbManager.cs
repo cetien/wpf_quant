@@ -1,4 +1,6 @@
 ﻿// Infrastructure/DbManager.cs
+using Chaen;
+
 using Dapper;
 
 using DuckDB.NET.Data;
@@ -12,61 +14,6 @@ using System.Text.RegularExpressions;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Quant.Core.Infrastructure;
-
-//TODO: DeleteStockAllData(): "DELETE FROM stocks" -> DuckDB.NET.Data.DuckDBException: 'Constraint Error: Violates foreign key constraint because key "ticker: 0072Z0" is still referenced by a foreign key in a different table. If this is an unexpected constraint violation, please refer to our foreign key limitations in the documentation'
-
-
-public sealed class StockCache
-{
-    public string Ticker { get; set; } = "";
-    public string Name { get; set; } = "";
-    public string Market { get; set; } = "";
-    public string SecurityType { get; set; } = "";
-    public int Rating { get; set; }
-
-    // security_type   TEXT        NOT NULL,   -- 'stock' | 'index' | 'ETF'
-    public bool IsETF => SecurityType == "ETF";
-    public bool IsStock => SecurityType == "stock";
-    public bool IsIndex => SecurityType == "index";
-
-    // market          TEXT        NOT NULL,-- CHECK (market IN ('KP', 'KQ', 'NYSE')),
-    public bool IsKOSPI => Market == "KP";
-    public bool IsKOSDAQ => Market == "KQ";
-    public bool IsNYSE => Market == "NYSE";
-
-    public DateOnly AsofDate { get; set; }
-
-    public double CurrentPrice { get; set; }
-
-    public double Ret1M { get; set; }
-    public double Ret3M { get; set; }
-    public double Ret6M { get; set; }
-    public double Ret1Y { get; set; }
-
-    public double Rs { get; set; }
-
-    public double Per { get; set; }
-    public double Pbr { get; set; }
-    public double Roe { get; set; }
-    public double Eps { get; set; }
-
-    public double Atr14 { get; set; }
-    public double AtrPercent { get; set; }
-
-    public double High52W { get; set; }
-    public double Low52W { get; set; }
-
-    public double VolumeAvg20D { get; set; }
-
-    public double DistanceFromHigh { get; set; }
-
-    public double Ma20 { get; set; }
-    public double Ma60 { get; set; }
-    public double Ma120 { get; set; }
-    public double VolumeRatio { get; set; }    // 현재 거래량 / 20일 평균 거래량
-    public double High60D { get; set; }        // 60거래일 고가
-    public double High120D { get; set; }       // 120거래일 고가
-}
 
 /// <summary>
 /// DB 접근의 유일한 진입점.
@@ -91,7 +38,7 @@ public sealed class StockCache
 //      메서드                         반환                  용도
 //      Query(sql)                      DataTable           DataGrid 직접 바인딩
 //      Execute(sql)                    int                 DDL 없는 DML(string sql 전용)
-//      Execute(sql, param)             int                 파라미터 바인딩 DML(Dapper)
+//      Execute(sql, param)             int                 Dapper 기반 DML (DuckDB 제약 주의)
 //      Scalar<T>(sql)                  T?                  COUNT / MAX 단일 값
 //      Query<T>(sql, param?)           IEnumerable<T>      타입 매핑(Repository용)
 //      QueryFirst<T>(sql, param?)      T?                  단일 행 타입 매핑
@@ -100,9 +47,10 @@ public sealed class StockCache
 //      DbManager.Instance              static DbManager    DI 미사용 환경용 Singleton
 
 //// ✅ DML — 네이티브 positional 사용
-//cmd.CommandText = "INSERT INTO t (a, b) VALUES ($1, $2)";
-//cmd.Parameters.Add(new DuckDBParameter { Value = val1 });
-//cmd.Parameters.Add(new DuckDBParameter { Value = val2 });
+// using var conn = db.OpenNativeConnection();
+// using var cmd = conn.CreateCommand();
+// cmd.CommandText = "INSERT INTO t (a) VALUES ($1)";
+// cmd.Parameters.Add(new DuckDBParameter { Value = val });
 
 //// ✅ SELECT — Dapper @Param 작동 (읽기 전용)
 //conn.Query<T>("SELECT * FROM t WHERE key = @Key", new { Key = k });
@@ -114,6 +62,7 @@ public sealed class StockCache
 
 /// </example>
 /// </summary>
+
 public sealed class DbManager
 {
     // ──────────────────────────────────────────────────────────
@@ -134,12 +83,12 @@ public sealed class DbManager
 
     private readonly object _optionsLock = new();
     private AppOptions? _optionsCache;
-    private static DbManager? _instance;
 
     /// <summary>
     /// DI 컨테이너 없이 직접 접근하는 전역 인스턴스.
     /// DI를 사용한다면 이 프로퍼티 대신 생성자 주입을 사용할 것.
     /// </summary>
+    private static DbManager? _instance;
     public static DbManager Instance => _instance ??= new DbManager();
 
     // ──────────────────────────────────────────────────────────
@@ -158,7 +107,7 @@ public sealed class DbManager
     //  연결 생성 (내부 전용)
     // ──────────────────────────────────────────────────────────
 
-    private DuckDBConnection OpenConnection()
+    private IDbConnection OpenConnection()
     {
         var conn = new DuckDBConnection($"Data Source={DbPath}");
         conn.Open();
@@ -169,12 +118,7 @@ public sealed class DbManager
     /// DuckDB 네이티브 파라미터($1,$2)가 필요한 DML용 연결 노출.
     /// 호출 측에서 반드시 using으로 닫을 것.
     /// </summary>
-    public DuckDBConnection OpenNativeConnection()
-    {
-        var conn = new DuckDBConnection($"Data Source={DbPath}");
-        conn.Open();
-        return conn;
-    }
+    public DuckDBConnection OpenNativeConnection() => (DuckDBConnection)OpenConnection();
 
     // ──────────────────────────────────────────────────────────
     //  스키마 초기화
@@ -197,35 +141,61 @@ public sealed class DbManager
     /// </summary>
     public DataTable Query(string sql)
     {
-        var dt = new DataTable();
         using var conn   = OpenConnection();
         using var cmd    = conn.CreateCommand();
         cmd.CommandText  = sql;
+
         using var reader = cmd.ExecuteReader();
+        var dt = new DataTable();
+        int fieldCount = reader.FieldCount;
 
         // 컬럼 타입을 DB 실제 타입으로 매핑 (숫자형 정렬 정확성을 위해)
-        var colTypes = new Type[reader.FieldCount];
-        for (int i = 0; i < reader.FieldCount; i++)
+        for (int i = 0; i < fieldCount; i++)
         {
-            var t = reader.GetFieldType(i);
+            var type = reader.GetFieldType(i);
+
             // DBNull-safe: nullable 숫자도 double?/long?로 보존
-            colTypes[i] = t == typeof(float) ? typeof(double) : t;  // float → double 통일
-            dt.Columns.Add(reader.GetName(i), colTypes[i]);
+            dt.Columns.Add(
+                reader.GetName(i),
+                type == typeof(float) ? typeof(double) : type); // float → double 통일
         }
+
+        var values = new object[fieldCount];
+        dt.BeginLoadData();
 
         while (reader.Read())
         {
+            reader.GetValues(values);
+
             var row = dt.NewRow();
-            for (int i = 0; i < reader.FieldCount; i++)
+            for (int i = 0; i < fieldCount; i++)
             {
-                if (reader.IsDBNull(i)) { row[i] = DBNull.Value; continue; }
-                var v = reader.GetValue(i);
-                // float → double 통일 (DataGrid 정렬 일관성)
-                row[i] = v is float f ? (double)f : v;
+                row[i] = values[i] is float f ? (double)f : values[i];
             }
             dt.Rows.Add(row);
         }
+
+        //while (reader.Read())
+        //{
+        //    var row = dt.NewRow();
+        //    for (int i = 0; i < fieldCount; i++)
+        //    {
+        //        if (reader.IsDBNull(i)) { row[i] = DBNull.Value; continue; }
+        //        var v = reader.GetValue(i);
+        //        // float → double 통일 (DataGrid 정렬 일관성)
+        //        row[i] = v is float f ? (double)f : v;
+        //    }
+        //    dt.Rows.Add(row);
+        //}
+
+        dt.EndLoadData();
         return dt;
+    }
+
+    public DataRow? QuerySingleRow(string sql)
+    {
+        var dt = Query(sql);
+        return dt.Rows.Count > 0 ? dt.Rows[0] : null;
     }
 
     /// <summary>
@@ -240,6 +210,38 @@ public sealed class DbManager
         if (result is null || result is DBNull) return default;
         //return (T)Convert.ChangeType(result, typeof(T));
 
+        var targetType =
+            Nullable.GetUnderlyingType(typeof(T))
+            ?? typeof(T);
+
+        return (T)Convert.ChangeType(result, targetType);
+    }
+
+    // ScalarDateOnly($"SELECT MAX({safeCol}) FROM {safe}")
+    // var lastDate = db.ScalarDateOnly("SELECT MAX(date) FROM daily_prices")
+    public DateOnly? ScalarDateOnly(string sql) => ChaenHelper.ParseDateOnly(Scalar<string>($"SELECT CAST(({sql}) AS VARCHAR)"));
+
+    // var exists = Scalar<long>("SELECT COUNT(*) FROM stocks WHERE ticker = $1", "005930");
+    public T? Scalar<T>(string sql, params object?[] values)
+    {
+        using var conn = OpenConnection();
+        using var cmd = conn.CreateCommand();
+
+        cmd.CommandText = sql;
+
+        foreach (var value in values)
+        {
+            cmd.Parameters.Add(
+                new DuckDBParameter
+                {
+                    Value = value ?? DBNull.Value
+                });
+        }
+
+        var result = cmd.ExecuteScalar();
+
+        if (result is null || result is DBNull)
+            return default;
 
         var targetType =
             Nullable.GetUnderlyingType(typeof(T))
@@ -259,6 +261,37 @@ public sealed class DbManager
         return cmd.ExecuteNonQuery();
     }
 
+    // Execute("DELETE FROM stocks WHERE ticker = $1", "005930");
+    // Execute(@"UPDATE stocks SET name = $1 WHERE ticker = $2", "삼성전자", "005930");
+    // Execute(@"INSERT INTO options(key, value) VALUES($1, $2)", "exclude_spac", "true");
+    public int Execute(string sql, params object?[] values)
+    {
+        using var conn = OpenConnection();
+        using var cmd = conn.CreateCommand();
+
+        cmd.CommandText = sql;
+
+        foreach (var value in values)
+        {
+            cmd.Parameters.Add(
+                new DuckDBParameter { Value = value ?? DBNull.Value });
+        }
+
+        return cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Dapper 기반 실행. 파라미터 바인딩이 필요한 INSERT/UPDATE용.
+    /// ⚠ DuckDB는 @Param 미지원. SELECT 전용 Dapper param만 사용할 것.
+    /// DML에 파라미터가 필요하면 OpenConnection() + DuckDBParameter($1,$2) 사용.
+    /// </summary>
+    [Obsolete("DuckDB는 Dapper @Param DML 미지원. 네이티브 DuckDBParameter 사용 권장.")]
+    public int ExecuteDapper(string sql, object param)
+    {
+        using var conn = OpenConnection();
+        return conn.Execute(sql, param);
+    }
+
     /// <summary>
     /// Dapper 기반 타입 매핑 쿼리. Repository·Service 계층용.
     /// ※ DuckDB는 @Param 바인딩 미지원 — 파라미터가 필요한 DML은 네이티브 cmd 사용.
@@ -276,18 +309,6 @@ public sealed class DbManager
     {
         using var conn = OpenConnection();
         return conn.QueryFirstOrDefault<T>(sql, param);
-    }
-
-    /// <summary>
-    /// Dapper 기반 실행. 파라미터 바인딩이 필요한 INSERT/UPDATE용.
-    /// ⚠ DuckDB는 @Param 미지원. SELECT 전용 Dapper param만 사용할 것.
-    /// DML에 파라미터가 필요하면 OpenConnection() + DuckDBParameter($1,$2) 사용.
-    /// </summary>
-    [Obsolete("DuckDB는 Dapper @Param DML 미지원. 네이티브 DuckDBParameter 사용 권장.")]
-    public int Execute(string sql, object param)
-    {
-        using var conn = OpenConnection();
-        return conn.Execute(sql, param);
     }
 
     // ══════════════════════════════════════════════════════════
@@ -316,6 +337,33 @@ public sealed class DbManager
         var safe = SanitizeIdentifier(table);
         return Scalar<long>($"SELECT COUNT(*) FROM {safe}");
     }
+    public long RowCount(string table, string where)
+    {
+        var safe = SanitizeIdentifier(table);
+        return Scalar<long>($"SELECT COUNT(*) FROM {safe} WHERE {where}");
+    }
+    public bool Exists(string table, string where)
+    {
+        var safe = SanitizeIdentifier(table);
+        return Scalar<bool>($"SELECT EXISTS(SELECT 1 FROM {safe} WHERE {where})");
+    }
+    public long DistinctCount(string table, string column)
+    {
+        var safe = SanitizeIdentifier(table);
+        var safeCol = SanitizeIdentifier(column);
+        return Scalar<long>($"SELECT COUNT(DISTINCT {safeCol}) FROM {safe}");
+    }
+
+    //public bool Exists(string table, string where) => RowCount(table, where) > 0;
+    //public bool ExistTicker(string table, string ticker) => RowCount(table, $"ticker = '{ticker}'") > 0;
+
+    //public long DistinctCount(string table, string column)
+    //{
+    //    var safe = SanitizeIdentifier(table);
+    //    var safeCol = SanitizeIdentifier(column);
+    //    return Scalar<long>($"SELECT COUNT(DISTINCT {safeCol}) FROM {safe}");
+    //}
+
 
     /// <summary>
     /// 지정 테이블의 date 컬럼 최신 날짜.
@@ -340,40 +388,92 @@ public sealed class DbManager
     //    if (result is null || result is DBNull) return null;
     //    return DateOnly.TryParse(result.ToString(), out var date) ? date : null;
     //}
-    public DateOnly? GetLastDate(
-        string table,
-        string dateCol = "date",
-        string? ticker = null)
+
+    // db.MaxDate("daily_prices", where: "ticker='005930'");
+    public DateOnly? MaxDate(string table, string dateCol = "date", string? where = null)
     {
-        var safe    = SanitizeIdentifier(table);
+        var safeTable = SanitizeIdentifier(table);
         var safeCol = SanitizeIdentifier(dateCol);
 
-        if (ticker is null)
-        {
-            // DuckDB DATE 타입은 IConvertible 미구현 → CAST로 string 경유
-            var raw = Scalar<string>(
-                $"SELECT CAST(MAX({safeCol}) AS VARCHAR) FROM {safe}");
+        string sql = $"SELECT CAST(MAX({safeCol}) AS VARCHAR) FROM {safeTable}";
 
-            return raw is not null && DateOnly.TryParse(raw, out var d) ? d : null;
-        }
+        if (!string.IsNullOrWhiteSpace(where))
+            sql += $" WHERE {where}";
 
-        using var conn = OpenConnection();
-        using var cmd  = conn.CreateCommand();
+        //string? raw =
+        //    ticker is null
+        //    ? Scalar<string>(
+        //        $"SELECT CAST(MAX({safeCol}) AS VARCHAR) FROM {safe}")
+        //    : Scalar<string>(
+        //        $"SELECT CAST(MAX({safeCol}) AS VARCHAR) FROM {safe} WHERE ticker = $1",
+        //        new DuckDBParameter { Value = ticker });
 
-        cmd.CommandText =
-            $"SELECT CAST(MAX({safeCol}) AS VARCHAR) FROM {safe} WHERE ticker = $1";
-
-        cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
-
-        var result = cmd.ExecuteScalar();
-
-        if (result is null || result is DBNull) return null;
-
-        return DateOnly.TryParse(result.ToString(), out var date) ? date : null;
+        return ChaenHelper.ParseDateOnly(Scalar<string>(sql));
     }
 
+
     // ──────────────────────────────────────────────────────────
-    //  Build Cache
+    // Quant-specific helpers
+    // ──────────────────────────────────────────────────────────
+    public bool ExistTicker(string table, string ticker) => Exists(table, where: $"ticker='{ticker}'");
+    public DateOnly? MaxDateForTicker(string table, string ticker) => MaxDate(table, where: $"ticker='{ticker}'");
+    public string SecurityTypeForTicker(string ticker) => Scalar<string>($"SELECT security_type FROM stocks WHERE ticker = '{ticker}'") ?? "stock";
+    public string MarketForTicker(string ticker) => Scalar<string>($"SELECT market FROM stocks WHERE ticker = '{ticker}'") ?? "KP";
+
+    /// <summary>
+    /// KRX 종목 여부 판별.
+    /// 1순위: DB stocks.market = 'KP' 또는 'KQ'
+    /// 2순위(미등록): 코드 패턴
+    ///   - \d{6}       → 일반 KRX (069500)
+    ///   - \d{4}[A-Z]\d → 신규 ETF (0091P0, 2023년 이후)
+    /// </summary>
+    public bool IsKrxTicker(string ticker)
+    {
+        var market = MarketForTicker(ticker);
+        if (market == "KP" || market == "KQ")
+            return true;
+
+        return System.Text.RegularExpressions.Regex.IsMatch(ticker, @"^\d{6}$") ||
+               System.Text.RegularExpressions.Regex.IsMatch(ticker, @"^\d{4}[A-Z]\d$");
+    }
+
+    /// <summary>stocks 마스터 전체 반환 (이력·마이그레이션 검증용).</summary>
+    /// Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
+    public List<Stock> StockList() => (List<Stock>)Query<Stock>("SELECT * FROM stocks ORDER BY ticker"); // IEnumerable<Stock>
+    public List<StockGroup> GroupList() => (List<StockGroup>)Query<StockGroup>("SELECT * FROM groups ORDER BY name"); // IEnumerable<StockGroup>
+    public List<StockGroupMap> GroupMapList() => (List<StockGroupMap>)Query<StockGroupMap>("SELECT * FROM stock_group_map ORDER BY ticker"); // IEnumerable<StockGroupMap>
+
+    // ──────────────────────────────────────────────────────────
+    /// <summary>data_update_log 기록.</summary>
+    // ──────────────────────────────────────────────────────────
+    public void LogUpdate(string? ticker, DateOnly? date, string source, string status, string? errorMsg = null)
+    {
+        Execute(@"
+            INSERT INTO data_update_log (ticker, date, source, status, error_msg, run_at)
+            VALUES ($1, $2, $3, $4, $5, now())",
+            ticker ?? (object)DBNull.Value,
+            date is null ? DBNull.Value : date.Value.ToString("yyyy-MM-dd"),
+            source,
+            status,
+            errorMsg ?? (object)DBNull.Value);
+
+        //using var conn = OpenConnection();
+        //using var cmd = conn.CreateCommand();
+        //cmd.CommandText = @"
+        //    INSERT INTO data_update_log (ticker, date, source, status, error_msg, run_at)
+        //    VALUES ($1, $2, $3, $4, $5, now())";
+        //cmd.Parameters.Add(new DuckDBParameter { Value = ticker ?? (object)DBNull.Value });
+        //cmd.Parameters.Add(new DuckDBParameter { Value = date is null ? DBNull.Value : date.Value.ToString("yyyy-MM-dd") });
+        //cmd.Parameters.Add(new DuckDBParameter { Value = source });
+        //cmd.Parameters.Add(new DuckDBParameter { Value = status });
+        //cmd.Parameters.Add(new DuckDBParameter { Value = errorMsg ?? (object)DBNull.Value });
+        //cmd.ExecuteNonQuery();
+    }
+
+    public void LogUpdate(string? ticker, DateOnly? date, string source, Exception ex) => LogUpdate(ticker, date, source, "Exception", ex.Message);
+
+    // ──────────────────────────────────────────────────────────
+    //  StockCache
     // ──────────────────────────────────────────────────────────
     //-- rebuild: staleness check
     //--      SELECT MAX(date) FROM daily_prices
@@ -385,11 +485,11 @@ public sealed class DbManager
         if (!TableExists("stock_cache"))
             return;
 
-        var latestPriceDate = GetLastDate("daily_prices");
+        var latestPriceDate = MaxDate("daily_prices");
         if (latestPriceDate is null)
             return;
 
-        var cacheDate = GetLastDate("stock_cache", "asof_date");
+        var cacheDate = MaxDate("stock_cache", dateCol: "asof_date");
         if (cacheDate is null || cacheDate < latestPriceDate)
         {
             try
@@ -398,10 +498,7 @@ public sealed class DbManager
             }
             catch (Exception ex)
             {
-                LogUpdate(null, latestPriceDate,
-                    "stock_cache",
-                    "failed",
-                    ex.Message);
+                LogUpdate(null, latestPriceDate, "stock_cache", ex);
             }
         }
     }
@@ -773,14 +870,6 @@ LEFT JOIN latest_tp lt
     /*
 몇 가지 설명:
 
-rs는 임시로 ret_3m 넣어둠
-    실제론:
-        KOSPI return
-        stock return
-        relative strength 계산 필요
-atr_14
-    absolute ATR
-    필요하면 % ATR로 바꾸는 게 더 실무적
 latest_fundamentals
     최신 report_date 기준
     실제론 announce_date 기준 join이 더 정확할 수 있음
@@ -838,51 +927,12 @@ final_select AS (
 
     */
 
-
-    // ──────────────────────────────────────────────────────────
-    //  Data helpers
-    // ──────────────────────────────────────────────────────────
-    /// <summary>ticker → 종목명. 없으면 ticker 반환.</summary>
-    public (string name, int rating, string market, bool isActive) GetStockInfo(string ticker)
-    {
-        using var conn = OpenConnection();
-        using var cmd  = conn.CreateCommand();
-        cmd.CommandText = "SELECT name, rating, market, is_active FROM stocks WHERE ticker = $1";
-        cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
-        using var reader = cmd.ExecuteReader();
-        if (!reader.Read()) return (ticker, 0, "", false);
-
-        var name = reader.IsDBNull(0) ? ticker : reader.GetValue(0)?.ToString() ?? ticker;
-        var rating = reader.IsDBNull(1) ? 0 : Math.Clamp(Convert.ToInt32(reader.GetValue(1)), 0, 10);
-        var market = reader.IsDBNull(2) ? "" : reader.GetValue(2)?.ToString() ?? "";
-        var isActive = !reader.IsDBNull(3) && Convert.ToBoolean(reader.GetValue(3));
-        return (name, rating, market, isActive);
-    }
-    public string GetStockName(string ticker) => GetStockInfo(ticker).name;
-
-    public bool SetStockRating(int rating, string ticker) => SetRating("stocks", rating, $"ticker = '{ticker}'");
-    public bool SetGroupRating(int rating, int group_id) => SetRating("groups", rating, $"group_id = {group_id}");
-    private bool SetRating(string table, int rating, string where)
-    {
-        try
-        {
-            var safeTable = SanitizeIdentifier(table);
-            using var conn = OpenConnection();
-            using var cmd  = conn.CreateCommand();
-            cmd.CommandText = $"UPDATE {safeTable} SET rating=$1, updated_at=CURRENT_TIMESTAMP WHERE {where}";
-            cmd.Parameters.Add(new DuckDBParameter { Value = rating });
-            cmd.ExecuteNonQuery();
-            return true;
-        }
-        catch { return false; }
-    }
-
     public StockCache? GetStockCache(string ticker)
     {
         using var conn = OpenConnection();
-        using var cmd  = conn.CreateCommand();
+        using var cmd = conn.CreateCommand();
         cmd.CommandText = @"
-            SELECT c.*, s.name, s.rating, s.market, s.security_type
+            SELECT c.*, s.name, s.rating, s.market, s.security_type, s.is_active
             FROM stock_cache c
             JOIN stocks s ON c.ticker = s.ticker
             WHERE c.ticker = $1";
@@ -894,36 +944,83 @@ final_select AS (
 
         return new StockCache
         {
-            Ticker           = reader["ticker"]?.ToString() ?? "",
-            Name             = reader["name"]?.ToString() ?? "",
-            SecurityType     = reader["security_type"]?.ToString() ?? "",
-            Market           = reader["market"]?.ToString() ?? "",
-            Rating           = (int)Safe(reader["rating"]),
-            AsofDate         = DateOnly.TryParse(reader["asof_date"]?.ToString(), out var d) ? d : default,
-            CurrentPrice     = Safe(reader["current_price"]),
-            Ret1M            = Safe(reader["ret_1m"]),
-            Ret3M            = Safe(reader["ret_3m"]),
-            Ret6M            = Safe(reader["ret_6m"]),
-            Ret1Y            = Safe(reader["ret_1y"]),
-            Rs               = Safe(reader["rs"]),
-            Per              = Safe(reader["per"]),        // LEFT JOIN → nullable
-            Pbr              = Safe(reader["pbr"]),        // LEFT JOIN → nullable
-            Roe              = Safe(reader["roe"]),        // LEFT JOIN → nullable
-            Eps              = Safe(reader["eps"]),        // LEFT JOIN → nullable
-            Atr14            = Safe(reader["atr_14"]),     // LEFT JOIN → nullable
-            AtrPercent       = Safe(reader["atr_percent"]),
-            High52W          = Safe(reader["high_52w"]),
-            Low52W           = Safe(reader["low_52w"]),
-            VolumeAvg20D     = Safe(reader["volume_avg_20d"]),
+            Ticker = reader["ticker"]?.ToString() ?? "",
+            Name = reader["name"]?.ToString() ?? "",
+            SecurityType = reader["security_type"]?.ToString() ?? "",
+            Market = reader["market"]?.ToString() ?? "",
+            Rating = (int)Safe(reader["rating"]),
+            IsActive = reader["is_active"] is not DBNull && Convert.ToBoolean(reader["is_active"]),
+            AsofDate = DateOnly.TryParse(reader["asof_date"]?.ToString(), out var d) ? d : default,
+            CurrentPrice = Safe(reader["current_price"]),
+            Ret1M = Safe(reader["ret_1m"]),
+            Ret3M = Safe(reader["ret_3m"]),
+            Ret6M = Safe(reader["ret_6m"]),
+            Ret1Y = Safe(reader["ret_1y"]),
+            Rs = Safe(reader["rs"]),
+            Per = Safe(reader["per"]),        // LEFT JOIN → nullable
+            Pbr = Safe(reader["pbr"]),        // LEFT JOIN → nullable
+            Roe = Safe(reader["roe"]),        // LEFT JOIN → nullable
+            Eps = Safe(reader["eps"]),        // LEFT JOIN → nullable
+            Atr14 = Safe(reader["atr_14"]),     // LEFT JOIN → nullable
+            AtrPercent = Safe(reader["atr_percent"]),
+            High52W = Safe(reader["high_52w"]),
+            Low52W = Safe(reader["low_52w"]),
+            VolumeAvg20D = Safe(reader["volume_avg_20d"]),
             DistanceFromHigh = Safe(reader["distance_from_high"]),
-            Ma20             = Safe(reader["ma20"]),
-            Ma60             = Safe(reader["ma60"]),
-            Ma120            = Safe(reader["ma120"]),
-            VolumeRatio      = Safe(reader["volume_ratio"]),
-            High60D          = Safe(reader["high_60d"]),
-            High120D         = Safe(reader["high_120d"]),
+            Ma20 = Safe(reader["ma20"]),
+            Ma60 = Safe(reader["ma60"]),
+            Ma120 = Safe(reader["ma120"]),
+            VolumeRatio = Safe(reader["volume_ratio"]),
+            High60D = Safe(reader["high_60d"]),
+            High120D = Safe(reader["high_120d"]),
         };
     }
+    public Stock? StockInfo(string ticker) => GetStockCache(ticker);
+    //public string StockName(string ticker) => StockInfo(ticker)?.Name ?? "";
+
+    // ──────────────────────────────────────────────────────────
+    //  Data helpers
+    // ──────────────────────────────────────────────────────────
+    // <summary>ticker → 종목명. 없으면 ticker 반환.</summary>
+    //public (string name, int rating, string market, bool isActive) GetStockInfo(string ticker)
+    //{
+    //    using var conn = OpenConnection();
+    //    using var cmd  = conn.CreateCommand();
+    //    cmd.CommandText = "SELECT name, rating, market, is_active FROM stocks WHERE ticker = $1";
+    //    cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
+    //    using var reader = cmd.ExecuteReader();
+    //    if (!reader.Read()) return (ticker, 0, "", false);
+
+    //    var name = reader.IsDBNull(0) ? ticker : reader.GetValue(0)?.ToString() ?? ticker;
+    //    var rating = reader.IsDBNull(1) ? 0 : Math.Clamp(Convert.ToInt32(reader.GetValue(1)), 0, 10);
+    //    var market = reader.IsDBNull(2) ? "" : reader.GetValue(2)?.ToString() ?? "";
+    //    var isActive = !reader.IsDBNull(3) && Convert.ToBoolean(reader.GetValue(3));
+    //    return (name, rating, market, isActive);
+    //}
+    //public string GetStockName(string ticker) => GetStockInfo(ticker).name;
+
+    // ──────────────────────────────────────────────────────────
+    //  Set Rating helpers
+    // ──────────────────────────────────────────────────────────
+    public bool SetStockRating(int rating, string ticker) => SetRating("stocks", "ticker", ticker, rating);
+    public bool SetGroupRating(int rating, int group_id) => SetRating("groups", "group_id", group_id.ToString(), rating);
+    private bool SetRating(string table, string key, string id, int rating)
+    {
+        try
+        {
+            var safeTable = SanitizeIdentifier(table);
+            var safeKey = SanitizeIdentifier(key);
+            using var conn = OpenConnection();
+            using var cmd  = conn.CreateCommand();
+            cmd.CommandText = $"UPDATE {safeTable} SET rating=$1, updated_at=CURRENT_TIMESTAMP WHERE {safeKey} = $2";
+            cmd.Parameters.Add(new DuckDBParameter { Value = rating });
+            cmd.Parameters.Add(new DuckDBParameter { Value = id });
+            cmd.ExecuteNonQuery();
+            return true;
+        }
+        catch { return false; }
+    }
+
     //public (double current, double ret1m, double ret3m, double ret6m, double ret1y) LoadPrice_(string ticker)
     //{
     //    try
@@ -1013,43 +1110,106 @@ final_select AS (
     //        "SELECT ticker, sector FROM v_stock_primary_sector WHERE sector IS NOT NULL");
     //    return rows.ToDictionary(r => r.Ticker, r => r.Sector);
     //}
+    ///
 
+
+    // ──────────────────────────────────────────────────────────
+    //  Upsert Stock
     // ──────────────────────────────────────────────────────────
     /// <summary>stocks 마스터 upsert (market='KP', security_type='stock' 기본값).</summary>
-    public void UpsertHistory(string ticker, string name)
+    public void UpsertStock(string ticker, string name)
     {
-        using var conn = OpenConnection();
-        using var cmd  = conn.CreateCommand();
-        cmd.CommandText = @"
-            INSERT INTO stocks (ticker, name, market, security_type, updated_at)
-            VALUES ($1, $2, 'KP', 'stock', now())
-            ON CONFLICT (ticker) DO UPDATE SET
-                name = excluded.name, updated_at = now()";
-        cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
-        cmd.Parameters.Add(new DuckDBParameter { Value = name });
-        cmd.ExecuteNonQuery();
+        //using var conn = OpenConnection();
+        //using var cmd  = conn.CreateCommand();
+        //cmd.CommandText = @"
+        //    INSERT INTO stocks (ticker, name, market, security_type, updated_at)
+        //    VALUES ($1, $2, 'KP', 'stock', now())
+        //    ON CONFLICT (ticker) DO UPDATE SET
+        //        name = excluded.name, updated_at = now()";
+        //cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
+        //cmd.Parameters.Add(new DuckDBParameter { Value = name });
+        //cmd.ExecuteNonQuery();
+
+        var stock = new Stock
+        {
+            Ticker = ticker,
+            Name = name,
+            Market = "KP",
+            SecurityType = "stock",
+            UpdatedAt = DateTime.Now
+        };
+
+        UpsertStock(stock);
     }
 
-    /// <summary>stocks 마스터 전체 반환 (이력·마이그레이션 검증용).</summary>
-    public IEnumerable<Stock> GetHistory()
-        => Query<Stock>("SELECT * FROM stocks ORDER BY ticker");
-
-    // ──────────────────────────────────────────────────────────
-    /// <summary>data_update_log 기록.</summary>
-    public void LogUpdate(string? ticker, DateOnly? date, string source, string status, string? errorMsg = null)
+    public void UpsertStock(Stock stock)
     {
         using var conn = OpenConnection();
-        using var cmd  = conn.CreateCommand();
+        using var cmd = conn.CreateCommand();
+
         cmd.CommandText = @"
-            INSERT INTO data_update_log (ticker, date, source, status, error_msg, run_at)
-            VALUES ($1, $2, $3, $4, $5, now())";
-        cmd.Parameters.Add(new DuckDBParameter { Value = ticker   ?? (object)DBNull.Value });
-        cmd.Parameters.Add(new DuckDBParameter { Value = date     is null ? DBNull.Value : date.Value.ToString("yyyy-MM-dd") });
-        cmd.Parameters.Add(new DuckDBParameter { Value = source });
-        cmd.Parameters.Add(new DuckDBParameter { Value = status });
-        cmd.Parameters.Add(new DuckDBParameter { Value = errorMsg ?? (object)DBNull.Value });
+        INSERT INTO stocks
+        (
+            ticker,
+            name,
+            market,
+            security_type,
+            listed_date,
+            rating,
+            is_active,
+            updated_at
+        )
+        VALUES
+        (
+            $1,$2,$3,$4,$5,$6,$7,$8
+        )
+        ON CONFLICT (ticker)
+        DO UPDATE SET
+            name          = excluded.name,
+            market        = excluded.market,
+            security_type = excluded.security_type,
+            listed_date   = excluded.listed_date,
+            rating        = excluded.rating,
+            is_active     = excluded.is_active,
+            updated_at    = excluded.updated_at";
+
+        cmd.Parameters.Add(new DuckDBParameter { Value = stock.Ticker });
+        cmd.Parameters.Add(new DuckDBParameter { Value = stock.Name });
+        cmd.Parameters.Add(new DuckDBParameter { Value = stock.Market });
+        cmd.Parameters.Add(new DuckDBParameter { Value = stock.SecurityType });
+        cmd.Parameters.Add(new DuckDBParameter { Value = (object?)stock.ListedDate ?? DBNull.Value });
+        cmd.Parameters.Add(new DuckDBParameter { Value = stock.Rating });
+        cmd.Parameters.Add(new DuckDBParameter { Value = stock.IsActive });
+        cmd.Parameters.Add(new DuckDBParameter { Value = stock.UpdatedAt });
+
         cmd.ExecuteNonQuery();
     }
+    /// <summary>
+    /// stocks 테이블 upsert (전체 컬럼 지정 버전).
+    /// market: 'KP' | 'KQ' | 'NYSE' 등
+    /// securityType: 'stock' | 'ETF' | 'index'
+    /// </summary>
+    //public void UpsertStock(string ticker, string name, string market,
+    //                        string securityType, string? sector, bool isEtf)
+    //{
+    //    using var conn = OpenNativeConnection();
+    //    using var cmd = conn.CreateCommand();
+    //    // sector 컬럼이 없으면 무시 (스키마에 따라 조정)
+    //    cmd.CommandText = @"
+    //        INSERT INTO stocks (ticker, name, market, security_type, is_active, updated_at)
+    //        VALUES ($1, $2, $3, $4, TRUE, now())
+    //        ON CONFLICT (ticker) DO UPDATE SET
+    //            name          = excluded.name,
+    //            market        = excluded.market,
+    //            security_type = excluded.security_type,
+    //            is_active     = TRUE,
+    //            updated_at    = now()";
+    //    cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
+    //    cmd.Parameters.Add(new DuckDBParameter { Value = name });
+    //    cmd.Parameters.Add(new DuckDBParameter { Value = market });
+    //    cmd.Parameters.Add(new DuckDBParameter { Value = securityType });
+    //    cmd.ExecuteNonQuery();
+    //}
 
     // ──────────────────────────────────────────────────────────
     //  Options helpers
@@ -1058,7 +1218,7 @@ final_select AS (
     /// <summary>
     /// 캐시된 옵션을 초기화하여 다음 호출 시 DB에서 새로 읽도록 한다.
     /// </summary>
-    public void RefreshOptions()
+    public void InvalidateOptions()
     {
         lock (_optionsLock) { _optionsCache = null; }
     }
@@ -1067,110 +1227,124 @@ final_select AS (
     /// options 테이블 전체를 읽어 AppOptions 객체로 반환.
     /// 테이블이 없거나 키가 없으면 기본값 사용.
     /// </summary>
-    public AppOptions LoadOptions()
+    public AppOptions Options()
     {
+        Dictionary<string, string> LoadOptionDictionary() => Query<(string Key, string Value)>(
+            "SELECT key, value FROM options")
+            .ToDictionary(x => x.Key, x => x.Value);
+
         lock (_optionsLock)
         {
-            if (_optionsCache != null) return _optionsCache;
-
-            var opts = new AppOptions();
-        try
-        {
-            var dt = Query("SELECT key, value FROM options");
-            var map = dt.Rows.Cast<DataRow>()
-                         .ToDictionary(
-                             r => r[0]?.ToString() ?? "",
-                             r => r[1]?.ToString() ?? "");
-
-            if (map.TryGetValue("auto_append_history", out var v1))
-                opts.AutoAppendHistory = v1 == "true";
-            if (map.TryGetValue("report_pdf_folder", out var v2))
-                opts.ReportPdfFolder = v2;
-            if (map.TryGetValue("query_filter_preferred", out var v3))
-                opts.QueryFilterPreferred = v3 == "true";
-            if (map.TryGetValue("query_filter_covered", out var v4))
-                opts.QueryFilterCovered = v4 == "true";
-            if (map.TryGetValue("query_filter_cheap", out var v5))
-                opts.QueryFilterCheap = v5 == "true";
-            if (map.TryGetValue("exclude_spac", out var v6))
-                opts.ExcludeSpac = v6 != "false";
-            if (map.TryGetValue("exclude_pref_stock", out var v7))
-                opts.ExcludePrefStock = v7 != "false";
-            if (map.TryGetValue("exclude_halted", out var v8))
-                opts.ExcludeHalted = v8 != "false";
+            if (_optionsCache == null)
+                _optionsCache = AppOptions.FromDictionary(LoadOptionDictionary());
         }
-        catch { /* options 테이블 미생성 시 기본값 반환 */ }
-
-            _optionsCache = opts;
-            return opts;
-        }
+        return _optionsCache;
     }
+            //var opts = new AppOptions();
+            //_optionsCache = opts;
+
+            //try
+            //{
+            //    var dt = Query("SELECT key, value FROM options");
+            //    var map = dt.Rows.Cast<DataRow>()
+            //                 .ToDictionary(
+            //                     r => r[0]?.ToString() ?? "",
+            //                     r => r[1]?.ToString() ?? "");
+
+            //    if (map.TryGetValue("auto_append_history", out var v1))
+            //        opts.AutoAppendHistory = v1 == "true";
+            //    if (map.TryGetValue("report_pdf_folder", out var v2))
+            //        opts.ReportPdfFolder = v2;
+            //    if (map.TryGetValue("query_filter_preferred", out var v3))
+            //        opts.QueryFilterPreferred = v3 == "true";
+            //    if (map.TryGetValue("query_filter_covered", out var v4))
+            //        opts.QueryFilterCovered = v4 == "true";
+            //    if (map.TryGetValue("query_filter_cheap", out var v5))
+            //        opts.QueryFilterCheap = v5 == "true";
+            //    if (map.TryGetValue("exclude_spac", out var v6))
+            //        opts.ExcludeSpac = v6 != "false";
+            //    if (map.TryGetValue("exclude_pref_stock", out var v7))
+            //        opts.ExcludePrefStock = v7 != "false";
+            //    if (map.TryGetValue("exclude_halted", out var v8))
+            //        opts.ExcludeHalted = v8 != "false";
+            //}
+            //catch { /* options 테이블 미생성 시 기본값 반환 */
+            //}
+            //return opts;
+    //    }
+    //}
 
     /// <summary>
     /// AppOptions를 options 테이블에 upsert.
     /// </summary>
     public void SaveOptions(AppOptions opts)
     {
-        UpsertOption("auto_append_history", opts.AutoAppendHistory ? "true" : "false");
-        UpsertOption("report_pdf_folder",   opts.ReportPdfFolder ?? "");
-        UpsertOption("query_filter_preferred", opts.QueryFilterPreferred ? "true" : "false");
-        UpsertOption("query_filter_covered",   opts.QueryFilterCovered ? "true" : "false");
-        UpsertOption("query_filter_cheap",     opts.QueryFilterCheap ? "true" : "false");
-        UpsertOption("exclude_spac",           opts.ExcludeSpac ? "true" : "false");
-        UpsertOption("exclude_pref_stock",     opts.ExcludePrefStock ? "true" : "false");
-        UpsertOption("exclude_halted",           opts.ExcludeHalted ? "true" : "false");
-        lock (_optionsLock) { _optionsCache = opts; }
+        //lock (_optionsLock)
+        //    _optionsCache = null;
+
+        using var conn = OpenConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+            INSERT INTO options (key, value, updated_at)
+            VALUES ($1, $2, now())
+            ON CONFLICT (key) DO UPDATE SET
+                value      = excluded.value,
+                updated_at = now()";
+
+        var pKey = new DuckDBParameter("key", "");
+        var pValue = new DuckDBParameter("value", "");
+
+        cmd.Parameters.Add(pKey);
+        cmd.Parameters.Add(pValue);
+
+        foreach (var (key, value) in opts.ToDictionary())
+        {
+            pKey.Value = key;
+            pValue.Value = value;
+            cmd.ExecuteNonQuery();
+        }
+
+        //Save("auto_append_history", opts.AutoAppendHistory ? "true" : "false");
+        //Save("report_pdf_folder", opts.ReportPdfFolder ?? "");
+        //Save("query_filter_preferred", opts.QueryFilterPreferred ? "true" : "false");
+        //Save("query_filter_covered", opts.QueryFilterCovered ? "true" : "false");
+        //Save("query_filter_cheap", opts.QueryFilterCheap ? "true" : "false");
+        //Save("exclude_spac", opts.ExcludeSpac ? "true" : "false");
+        //Save("exclude_pref_stock", opts.ExcludePrefStock ? "true" : "false");
+        //Save("exclude_halted", opts.ExcludeHalted ? "true" : "false");
+
+        lock (_optionsLock)
+            _optionsCache = opts;
     }
+    //private void SaveOption(DuckDBCommand cmd, string key, string value) 
+    //{
+    //    cmd.Parameters.Add(new DuckDBParameter { Value = key });
+    //    cmd.Parameters.Add(new DuckDBParameter { Value = value });
+
+    //    cmd.ExecuteNonQuery();
+    //}
 
     // ──────────────────────────────────────────────────────────
     //  Stock 등록 / 삭제
     // ──────────────────────────────────────────────────────────
 
     /// <summary>stocks 테이블에 ticker가 존재하는지 확인.</summary>
-    public bool StockExists(string ticker)
-    {
-        using var conn = OpenNativeConnection();
-        using var cmd  = conn.CreateCommand();
-        cmd.CommandText = "SELECT COUNT(*) FROM stocks WHERE ticker = $1";
-        cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
-        var result = cmd.ExecuteScalar();
-        return result is not null && result is not DBNull && Convert.ToInt64(result) > 0;
-    }
+    //public bool _StockExists(string ticker)
+    //{
+    //    using var conn = OpenNativeConnection();
+    //    using var cmd  = conn.CreateCommand();
+    //    cmd.CommandText = "SELECT COUNT(*) FROM stocks WHERE ticker = $1";
+    //    cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
+    //    var result = cmd.ExecuteScalar();
+    //    return result is not null && result is not DBNull && Convert.ToInt64(result) > 0;
+    //}
 
-    /// <summary>
-    /// stocks 테이블 upsert (전체 컬럼 지정 버전).
-    /// market: 'KP' | 'KQ' | 'NYSE' 등
-    /// securityType: 'stock' | 'ETF' | 'index'
-    /// </summary>
-    public void UpsertStock(string ticker, string name, string market,
-                            string securityType, string? sector, bool isEtf)
-    {
-        using var conn = OpenNativeConnection();
-        using var cmd  = conn.CreateCommand();
-        // sector 컬럼이 없으면 무시 (스키마에 따라 조정)
-        cmd.CommandText = @"
-            INSERT INTO stocks (ticker, name, market, security_type, is_active, updated_at)
-            VALUES ($1, $2, $3, $4, TRUE, now())
-            ON CONFLICT (ticker) DO UPDATE SET
-                name          = excluded.name,
-                market        = excluded.market,
-                security_type = excluded.security_type,
-                is_active     = TRUE,
-                updated_at    = now()";
-        cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
-        cmd.Parameters.Add(new DuckDBParameter { Value = name });
-        cmd.Parameters.Add(new DuckDBParameter { Value = market });
-        cmd.Parameters.Add(new DuckDBParameter { Value = securityType });
-        cmd.ExecuteNonQuery();
-    }
+
 
     public void DeletePriceData(string ticker)
     {
-        using var conn = OpenNativeConnection();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = "DELETE FROM daily_prices     WHERE ticker = $1";
-        cmd.Parameters.Add(new DuckDBParameter { Value = ticker });
-        cmd.ExecuteNonQuery();
+        Execute("DELETE FROM stock_cache WHERE ticker = $1", ticker);
+        Execute("DELETE FROM daily_prices WHERE ticker = $1", ticker);
     }
 
     /// <summary>
@@ -1182,12 +1356,13 @@ final_select AS (
     /// </summary>
     public void DeleteStockAllData(string ticker)
     {
+        DeletePriceData(ticker);
         foreach (var sql in new[]
         {
-            "DELETE FROM stock_cache      WHERE ticker = $1",
+            //"DELETE FROM stock_cache      WHERE ticker = $1",
             "DELETE FROM supply           WHERE ticker = $1",
             "DELETE FROM fundamentals     WHERE ticker = $1",
-            "DELETE FROM daily_prices     WHERE ticker = $1",
+            //"DELETE FROM daily_prices     WHERE ticker = $1",
             "DELETE FROM stock_group_map  WHERE ticker = $1",
             "DELETE FROM stocks           WHERE ticker = $1",
         })
@@ -1200,22 +1375,7 @@ final_select AS (
         }
     }
 
-    private void UpsertOption(string key, string value)
-    {
-        lock (_optionsLock) { _optionsCache = null; }
 
-        using var conn = OpenConnection();
-        using var cmd  = conn.CreateCommand();
-        cmd.CommandText = @"
-            INSERT INTO options (key, value, updated_at)
-            VALUES ($1, $2, now())
-            ON CONFLICT (key) DO UPDATE SET
-                value      = excluded.value,
-                updated_at = now()";
-        cmd.Parameters.Add(new DuckDBParameter { Value = key });
-        cmd.Parameters.Add(new DuckDBParameter { Value = value });
-        cmd.ExecuteNonQuery();
-    }
 
     // ──────────────────────────────────────────────────────────
     //  Group list SQL
@@ -1274,7 +1434,7 @@ final_select AS (
     /// </summary>
     public string BuildStockExcludeFilter(string alias = "s", string? cacheAlias = null)
     {
-        var opts = LoadOptions();
+        var opts = Options();
         var clauses = new List<string>();
         if (opts.ExcludeSpac)
             clauses.Add($"{alias}.name NOT LIKE '%스팩%'");
