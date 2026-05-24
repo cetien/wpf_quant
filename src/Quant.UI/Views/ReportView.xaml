@@ -72,20 +72,37 @@
                       Style="{StaticResource QuantDataGrid}"
                       IsReadOnly="True"
                       SelectionChanged="Grid_CompanyClick"
-                      MouseDoubleClick="Grid_CompanyDoubleClick"/>
+                      MouseDoubleClick="Grid_CompanyDoubleClick"
+                      MouseRightButtonUp="GridCompany_RightClick"/>
             <DataGrid x:Name="GridDate" Grid.Column="1"
                       Style="{StaticResource QuantDataGrid}"
                       IsReadOnly="True"
                       SelectionChanged="Grid_DateClick"/>
             <DataGrid x:Name="GridReport" Grid.Column="2"
                       Style="{StaticResource QuantDataGrid}"
-                      AutoGenerateColumns="False"
-                      MouseDoubleClick="Grid_ReportClick">
+                      AutoGenerateColumns="False" IsReadOnly="False"
+                      MouseDoubleClick="Grid_ReportClick"
+                      CellEditEnding="GridReport_CellEditEnding">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="date"   Binding="{Binding date}"   Width="90" IsReadOnly="True"/>
                     <DataGridTextColumn Header="ticker" Binding="{Binding ticker}" Width="100" IsReadOnly="True"/>
                     <DataGridTextColumn Header="group"  Binding="{Binding group}"  Width="100" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="TP"     Binding="{Binding target_price, Converter={StaticResource FmtN0}}" Width="70" IsReadOnly="True"/>
+                    <DataGridTemplateColumn Header="TP" Width="70">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding target_price, StringFormat={}{0:N0}}"
+                                           VerticalAlignment="Center" HorizontalAlignment="Right" Margin="4,0"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate>
+                                <TextBox Text="{Binding target_price, UpdateSourceTrigger=LostFocus}"
+                                         Background="#313244" Foreground="#CDD6F4"
+                                         BorderThickness="0" VerticalContentAlignment="Center"
+                                         HorizontalContentAlignment="Right" GotFocus="TextBox_GotFocus"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
                     <DataGridTextColumn Header="st"     Binding="{Binding analyze_status}" Width="46" IsReadOnly="True"/>
                     <DataGridTextColumn Header="title"  Binding="{Binding title}"  Width="*" IsReadOnly="True"/>
                     <DataGridTextColumn Header="writer" Binding="{Binding writer}" Width="100" IsReadOnly="True"/>

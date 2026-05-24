@@ -328,11 +328,92 @@ public partial class ReportView : UserControl
 
 	private void Grid_ReportClick(object sender, MouseButtonEventArgs e)
     {
+        // TP 컬럼 더블클릭 시 편집 모드 진입 — PDF 열기 방지
+        if (GridReport.CurrentColumn is DataGridTemplateColumn tc &&
+            tc.Header?.ToString() == "TP") return;
+
         if (GridReport.SelectedItem is not DataRowView row) return;
         var filepath = row["filepath"]?.ToString();
         var (ok, message) = Helpers.OpenWithChrome(filepath);
         Helpers.Status(StatusChanged, message, ok ? StatusColors.Info : StatusColors.Error);
     }
+
+	private void GridReport_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+	{
+		if (e.EditAction != DataGridEditAction.Commit) return;
+		if (e.Row.Item is not DataRowView row) return;
+
+		// 바인딩 소스 업데이트가 완료된 후 실행 (Background 우선순위)
+		Dispatcher.BeginInvoke(new Action(() =>
+		{
+			try
+			{
+				using var conn = _db.OpenNativeConnection();
+				using var cmd  = conn.CreateCommand();
+				cmd.CommandText = "UPDATE pdf_reports SET target_price = $1, analyze_status = 'done' WHERE id = $2";
+				cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = Convert.ToDouble(row["target_price"]) });
+				cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = Convert.ToInt64(row["id"]) });
+				cmd.ExecuteNonQuery();
+
+				Helpers.StatusSuccess(StatusChanged, $"목표주가 저장: {row["ticker"]} → {row["target_price"]:N0}");
+			}
+			catch (Exception ex)
+			{
+				Helpers.StatusException(StatusChanged, ex, "TP 저장 오류");
+			}
+		}), System.Windows.Threading.DispatcherPriority.Background);
+	}
+
+	private void TextBox_GotFocus(object sender, RoutedEventArgs e)
+	{
+		if (sender is TextBox tb)
+			tb.Dispatcher.BeginInvoke(new Action(() => tb.SelectAll()));
+	}
+
+	private void GridCompany_RightClick(object sender, MouseButtonEventArgs e)
+	{
+		// 클릭된 셀의 시각적 트리를 거슬러 올라가 DataGridRow 탐색
+		var dep = (System.Windows.DependencyObject)e.OriginalSource;
+		while (dep is not null and not DataGridRow)
+			dep = System.Windows.Media.VisualTreeHelper.GetParent(dep);
+
+		if (dep is not DataGridRow clickedRow) return;
+
+		// 선택 먼저 변경한 뒤 메뉴 생성
+		GridCompany.SelectedItem = clickedRow.Item;
+
+		if (GridCompany.SelectedItem is not DataRowView row) return;
+		var ticker = row["ticker"]?.ToString() ?? "";
+		if (ticker == "All") return;
+
+		var menu = MenuBuilder.Build(MenuCategory.Ticker | MenuCategory.Db, ExecuteAction, ticker);
+		menu.PlacementTarget = (System.Windows.UIElement)sender;
+		menu.IsOpen = true;
+		e.Handled = true;
+	}
+
+	private void ExecuteAction(MenuAction action)
+	{
+		if (GridCompany.SelectedItem is not DataRowView row) return;
+		var ticker = row["ticker"]?.ToString() ?? "";
+
+		switch (action)
+		{
+			case MenuAction.DrawChart:
+				// TODO: watchlist에 ticker 추가
+				Helpers.StatusSuccess(StatusChanged, $"Draw Chart: {ticker}");
+				break;
+
+			case MenuAction.FindGroup:
+				// TODO: ticker 삭제 확인 후 DB 처리
+				Helpers.StatusWarning(StatusChanged, $"Find Group: {ticker}");
+				break;
+
+			default:
+				Helpers.StatusWarning(StatusChanged, $"미구현: {action}");
+				break;
+		}
+	}
 
 	private void ButtonShowAll_Click(object sender, RoutedEventArgs e)
 	{
