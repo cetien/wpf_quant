@@ -1,6 +1,11 @@
-﻿using System.Diagnostics;
+﻿using System.Data;
+using System.Diagnostics;
+using System.Reflection.Emit;
 using System.Text.RegularExpressions;
+using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 
 namespace Quant.UI;
 
@@ -26,23 +31,47 @@ namespace Quant.UI;
 //   MenuBuilder.Build(MenuCategory.Ticker | MenuCategory.Db, ExecuteAction)
 
 
+//<DataGrid local:PopupMenuProps.TargetColumn="ticker"
+//          local:PopupMenuProps.MenuCategory="Ticker,Db"
+//          MouseRightButtonUp="OnGridRightClick" ... />
+public static class PopupMenuProps
+{
+    public static readonly DependencyProperty TargetColumnProperty =
+        DependencyProperty.RegisterAttached("TargetColumn", typeof(string), typeof(PopupMenuProps), new PropertyMetadata(string.Empty));
+
+    public static readonly DependencyProperty MenuCategoryProperty =
+        DependencyProperty.RegisterAttached("MenuCategory", typeof(MenuCategory), typeof(PopupMenuProps), new PropertyMetadata(default(MenuCategory)));
+
+    public static void SetTargetColumn(DependencyObject element, string value) => element.SetValue(TargetColumnProperty, value);
+    public static string GetTargetColumn(DependencyObject element) => (string)element.GetValue(TargetColumnProperty);
+
+    public static void SetMenuCategory(DependencyObject element, MenuCategory value) => element.SetValue(MenuCategoryProperty, value);
+    public static MenuCategory GetMenuCategory(DependencyObject element) => (MenuCategory)element.GetValue(MenuCategoryProperty);
+}
+
+
 [Flags]
 public enum MenuCategory
 {
     None   = 0,
     Ticker = 1 << 0,   // 종목 관련 메뉴
     Group  = 1 << 1,   // 그룹 관련 메뉴
-    Db     = 1 << 2,   // DB 관련 메뉴
+    Report = 1 << 2,   // 보고서 관련 메뉴
+    Db = 1 << 3,   // DB 관련 메뉴
 }
 
 public enum MenuAction
 {
     DrawChart,
     FindGroup,
+    WebInfo,
 
     NewGroup,
     GroupInfo,
     DeleteGroup,
+
+    OpenReport,
+    DeleteReport,
 
     Db_QueryInfo,
     Db_DeletePrices,
@@ -51,7 +80,7 @@ public enum MenuAction
     Db_RemoveTicker,
 }
 
-public static class MenuBuilder
+public static class ContextMenuBuilder
 {
     // HasContext = true 인 항목은 context 문자열이 있으면 ": {context}" 를 헤더에 덧붙임
     private record MenuItemDef(string Header, MenuCategory Category, MenuAction Action,
@@ -61,10 +90,14 @@ public static class MenuBuilder
     [
         new("Draw Chart",    MenuCategory.Ticker, MenuAction.DrawChart,    HasContext: true),
         new("Find Group", MenuCategory.Ticker, MenuAction.FindGroup, HasContext: true),
+        new("Web Info", MenuCategory.Ticker, MenuAction.WebInfo, HasContext: true),
 
         new("New Group",     MenuCategory.Group,  MenuAction.NewGroup),
         new("Group Info",  MenuCategory.Group,  MenuAction.GroupInfo,  HasContext: true),
         new("DeleteGroup",  MenuCategory.Group,  MenuAction.DeleteGroup,  HasContext: true),
+
+        new("Open Report",  MenuCategory.Report,  MenuAction.OpenReport),
+        new("Delete Report",  MenuCategory.Report,  MenuAction.DeleteReport),
 
         new("Query Info",     MenuCategory.Db,     MenuAction.Db_QueryInfo,  HasContext: true),
         new("DEL prices",     MenuCategory.Db,     MenuAction.Db_DeletePrices,  HasContext: true),
@@ -82,7 +115,7 @@ public static class MenuBuilder
     /// HasContext 항목의 헤더에 덧붙일 문자열 (선택).
     /// 여러 값은 호출부에서 조합: $"{name} ({code})"
     /// </param>
-    public static ContextMenu Build(MenuCategory category, Action<MenuAction> onAction,
+    public static ContextMenu Build(MenuCategory category, Action<MenuAction, string?> onAction,
                                     string? context = null)
     {
         var menu = new ContextMenu();
@@ -102,7 +135,7 @@ public static class MenuBuilder
 
             var action = def.Action;        // 클로저 캡처용 지역 변수
             var mi = new MenuItem { Header = header };
-            mi.Click += (_, _) => onAction(action);
+            mi.Click += (_, _) => onAction(action, context);
             menu.Items.Add(mi);
 
             prev = def;
@@ -111,3 +144,92 @@ public static class MenuBuilder
         return menu;
     }
 }
+
+public static class ContextMenuHelper
+{
+    //<DataGrid local:PopupMenuProps.TargetColumn="ticker"
+    //          local:PopupMenuProps.MenuCategory="Ticker,Db"
+    //          MouseRightButtonUp="OnGridRightClick" ... />
+    public static void ShowGridMenu(object sender, MouseButtonEventArgs e, Action<MenuAction, string, object> executeAction)
+    {
+        if (sender is not DataGrid grid) return;
+
+        // 1. 대상 컬럼명 추출 ("ticker" 또는 "group_id")
+        string targetColumn = PopupMenuProps.GetTargetColumn(grid);
+        MenuCategory category = PopupMenuProps.GetMenuCategory(grid); 
+        if (string.IsNullOrEmpty(targetColumn)) return;
+
+        // 2. 클릭된 Row 탐색 및 선택 변경
+        var row = Helpers.FindParent<DataGridRow>(e.OriginalSource as DependencyObject);
+        if (row == null) return;
+
+        grid.SelectedItem = row.Item;
+        if (grid.SelectedItem is not DataRowView drv) return;
+
+        // 3. 동적 키 데이터 추출: 예) ticker 컬럼의 종목명 또는 group_id 컬럼의 그룹명
+        string keyValue = drv[targetColumn]?.ToString() ?? "";
+        if (string.IsNullOrEmpty(keyValue) || keyValue.StartsWith("-")) return;
+
+        // 4. 메뉴 생성 및 출력
+        var menu = ContextMenuBuilder.Build(category, (action, ctx) => executeAction(action, ctx ?? "", sender), keyValue);
+        if (menu == null) return;
+
+        menu.PlacementTarget = grid;
+        menu.IsOpen = true;
+        e.Handled = true;
+    }
+
+}
+
+
+/*
+  
+PopupMenuBuilder.Create(MyGrid)
+    .Add("차트", OpenChart)
+    .Add("뉴스", OpenNews)
+    .Separator()
+    .Add("삭제", DeleteItem)
+    .Show();
+
+
+public class PopupMenuBuilder
+{
+    private readonly ContextMenu _menu = new();
+
+    private PopupMenuBuilder(UIElement target)
+    {
+        _menu.PlacementTarget = target;
+    }
+
+    public static PopupMenuBuilder Create(UIElement target)
+        => new(target);
+
+    public PopupMenuBuilder Add(
+        string header,
+        Action action)
+    {
+        var item = new MenuItem
+        {
+            Header = header
+        };
+
+        item.Click += (_, _) => action();
+
+        _menu.Items.Add(item);
+
+        return this;
+    }
+
+    public PopupMenuBuilder Separator()
+    {
+        _menu.Items.Add(new Separator());
+        return this;
+    }
+
+    public void Show()
+    {
+        _menu.IsOpen = true;
+    }
+}
+
+ */

@@ -83,6 +83,8 @@ public sealed class DbManager
 
     private readonly object _optionsLock = new();
     private AppOptions? _optionsCache;
+    private readonly object _stockCacheLock = new();
+    private List<StockItem>? _stockItemCache;
 
     /// <summary>
     /// DI 컨테이너 없이 직접 접근하는 전역 인스턴스.
@@ -296,7 +298,7 @@ public sealed class DbManager
     /// Dapper 기반 타입 매핑 쿼리. Repository·Service 계층용.
     /// ※ DuckDB는 @Param 바인딩 미지원 — 파라미터가 필요한 DML은 네이티브 cmd 사용.
     /// </summary>
-    public IEnumerable<T> Query<T>(string sql, object? param = null)
+    public List<T> Query<T>(string sql, object? param = null)
     {
         using var conn = OpenConnection();
         return conn.Query<T>(sql, param).ToList(); // connection 닫히기 전 ToList()
@@ -439,9 +441,35 @@ public sealed class DbManager
 
     /// <summary>stocks 마스터 전체 반환 (이력·마이그레이션 검증용).</summary>
     /// Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
-    public List<Stock> StockList() => (List<Stock>)Query<Stock>("SELECT * FROM stocks ORDER BY ticker"); // IEnumerable<Stock>
-    public List<StockGroup> GroupList() => (List<StockGroup>)Query<StockGroup>("SELECT * FROM groups ORDER BY name"); // IEnumerable<StockGroup>
-    public List<StockGroupMap> GroupMapList() => (List<StockGroupMap>)Query<StockGroupMap>("SELECT * FROM stock_group_map ORDER BY ticker"); // IEnumerable<StockGroupMap>
+    public List<Stock> StockList() => Query<Stock>("SELECT * FROM stocks ORDER BY ticker");
+    public List<StockGroup> GroupList() => Query<StockGroup>("SELECT * FROM groups ORDER BY name");
+    public List<StockGroupMap> GroupMapList() => Query<StockGroupMap>("SELECT * FROM stock_group_map ORDER BY ticker");
+
+    // for StockPickerControl
+    /*
+        _allStocks
+            .Where(x =>
+                x.Name.Contains(keyword,
+                    StringComparison.OrdinalIgnoreCase)
+                ||
+                x.Ticker.StartsWith(keyword))
+            .Take(30)    
+    */
+    public IReadOnlyList<StockItem> StockItemList()
+    {
+        lock (_stockCacheLock)
+        {
+            if (_stockItemCache == null)
+            {
+                _stockItemCache = Query<StockItem>("SELECT ticker, name FROM stocks ORDER BY ticker");
+            }
+            // 외부에서 목록을 수정하더라도 캐시가 오염되지 않도록 새 리스트로 복사하여 반환합니다.
+            return new List<StockItem>(_stockItemCache);
+        }
+    }
+
+    //public string Name2Ticker(string name) => Scalar<string>($"SELECT ticker FROM stocks WHERE name = '{name}'") ?? "";
+    public string Name2Ticker(string name) => StockItemList().FirstOrDefault(s => s.Name == name)?.Ticker ?? "";
 
     // ──────────────────────────────────────────────────────────
     /// <summary>data_update_log 기록.</summary>
@@ -1144,6 +1172,7 @@ final_select AS (
 
     public void UpsertStock(Stock stock)
     {
+        lock (_stockCacheLock) _stockItemCache = null;
         using var conn = OpenConnection();
         using var cmd = conn.CreateCommand();
 
@@ -1240,43 +1269,50 @@ final_select AS (
         }
         return _optionsCache;
     }
-            //var opts = new AppOptions();
-            //_optionsCache = opts;
+    //var opts = new AppOptions();
+    //_optionsCache = opts;
 
-            //try
-            //{
-            //    var dt = Query("SELECT key, value FROM options");
-            //    var map = dt.Rows.Cast<DataRow>()
-            //                 .ToDictionary(
-            //                     r => r[0]?.ToString() ?? "",
-            //                     r => r[1]?.ToString() ?? "");
+    //try
+    //{
+    //    var dt = Query("SELECT key, value FROM options");
+    //    var map = dt.Rows.Cast<DataRow>()
+    //                 .ToDictionary(
+    //                     r => r[0]?.ToString() ?? "",
+    //                     r => r[1]?.ToString() ?? "");
 
-            //    if (map.TryGetValue("auto_append_history", out var v1))
-            //        opts.AutoAppendHistory = v1 == "true";
-            //    if (map.TryGetValue("report_pdf_folder", out var v2))
-            //        opts.ReportPdfFolder = v2;
-            //    if (map.TryGetValue("query_filter_preferred", out var v3))
-            //        opts.QueryFilterPreferred = v3 == "true";
-            //    if (map.TryGetValue("query_filter_covered", out var v4))
-            //        opts.QueryFilterCovered = v4 == "true";
-            //    if (map.TryGetValue("query_filter_cheap", out var v5))
-            //        opts.QueryFilterCheap = v5 == "true";
-            //    if (map.TryGetValue("exclude_spac", out var v6))
-            //        opts.ExcludeSpac = v6 != "false";
-            //    if (map.TryGetValue("exclude_pref_stock", out var v7))
-            //        opts.ExcludePrefStock = v7 != "false";
-            //    if (map.TryGetValue("exclude_halted", out var v8))
-            //        opts.ExcludeHalted = v8 != "false";
-            //}
-            //catch { /* options 테이블 미생성 시 기본값 반환 */
-            //}
-            //return opts;
+    //    if (map.TryGetValue("auto_append_history", out var v1))
+    //        opts.AutoAppendHistory = v1 == "true";
+    //    if (map.TryGetValue("report_pdf_folder", out var v2))
+    //        opts.ReportPdfFolder = v2;
+    //    if (map.TryGetValue("query_filter_preferred", out var v3))
+    //        opts.QueryFilterPreferred = v3 == "true";
+    //    if (map.TryGetValue("query_filter_covered", out var v4))
+    //        opts.QueryFilterCovered = v4 == "true";
+    //    if (map.TryGetValue("query_filter_cheap", out var v5))
+    //        opts.QueryFilterCheap = v5 == "true";
+    //    if (map.TryGetValue("exclude_spac", out var v6))
+    //        opts.ExcludeSpac = v6 != "false";
+    //    if (map.TryGetValue("exclude_pref_stock", out var v7))
+    //        opts.ExcludePrefStock = v7 != "false";
+    //    if (map.TryGetValue("exclude_halted", out var v8))
+    //        opts.ExcludeHalted = v8 != "false";
+    //}
+    //catch { /* options 테이블 미생성 시 기본값 반환 */
+    //}
+    //return opts;
     //    }
     //}
 
     /// <summary>
     /// AppOptions를 options 테이블에 upsert.
     /// </summary>
+    
+    private static string _cmd_InsertOption = @"
+        INSERT INTO options (key, value, updated_at)
+                VALUES ($1, $2, now())
+                ON CONFLICT (key) DO UPDATE SET
+                    value      = excluded.value,
+                    updated_at = now()";
     public void SaveOptions(AppOptions opts)
     {
         //lock (_optionsLock)
@@ -1284,12 +1320,7 @@ final_select AS (
 
         using var conn = OpenConnection();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = @"
-            INSERT INTO options (key, value, updated_at)
-            VALUES ($1, $2, now())
-            ON CONFLICT (key) DO UPDATE SET
-                value      = excluded.value,
-                updated_at = now()";
+        cmd.CommandText = _cmd_InsertOption;
 
         var pKey = new DuckDBParameter("key", "");
         var pValue = new DuckDBParameter("value", "");
@@ -1323,6 +1354,15 @@ final_select AS (
 
     //    cmd.ExecuteNonQuery();
     //}
+    public void SaveOption(string key, string value)
+    {
+        using var conn = OpenConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = _cmd_InsertOption;
+        cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = key });
+        cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = value });
+        cmd.ExecuteNonQuery();
+    }
 
     // ──────────────────────────────────────────────────────────
     //  Stock 등록 / 삭제
@@ -1356,6 +1396,7 @@ final_select AS (
     /// </summary>
     public void DeleteStockAllData(string ticker)
     {
+        lock (_stockCacheLock) _stockItemCache = null;
         DeletePriceData(ticker);
         foreach (var sql in new[]
         {

@@ -34,13 +34,14 @@
             <Border Grid.Row="0" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1">
                 <Grid Margin="10,0">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock x:Name="TxtStockName" Text="삼성전자" FontFamily="Consolas" Foreground="#F1DE10" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <!--
                         <TextBox x:Name="TxtTickerCode" Width="80" Height="26"
                              Background="#313244" Foreground="#CDD6F4"
                              BorderBrush="#45475A" BorderThickness="1"
                              FontFamily="Consolas" FontSize="12" Padding="4,2"
                              VerticalContentAlignment="Center" Text="005930"
-                             KeyDown="TxtTickerCode_KeyDown"/>
+                             KeyDown="TxtTickerCode_KeyDown"
+                             GotFocus="TextBox_GotFocus"/> -->
                         <Button Content="Load" Width="48" Height="26" Margin="4,0,16,0"
                             Background="#89B4FA" Foreground="#1E1E2E"
                             BorderThickness="0" FontWeight="Bold" FontSize="11"
@@ -58,6 +59,53 @@
                             Style="{StaticResource IconBtn}"
                             Foreground="#F38BA8" 
                             Click="BtnDeleteStock_Click" ToolTip="종목 영구제거 (SPAC 등)"/>
+
+
+                        
+                        <Grid>
+                            <TextBox x:Name="TxtStockSearch" Width="120" Height="26" Margin="8,0,0,0"
+                                 TextChanged="TxtStockSearch_TextChanged"
+                                 PreviewKeyDown="TxtStockSearch_PreviewKeyDown"
+                                 GotFocus="TextBox_GotFocus"/>
+
+                            <Popup x:Name="PopupSearch"
+                               PlacementTarget="{Binding ElementName=TxtStockSearch}"
+                               Placement="Bottom"
+                               StaysOpen="False">
+
+                                <Border BorderBrush="#45475A"
+                                        BorderThickness="1"
+                                        Background="#252536">
+
+                                    <ListBox x:Name="ListSearchResult"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             Foreground="#CDD6F4"
+                                             PreviewMouseLeftButtonUp="ListSearchResult_PreviewMouseLeftButtonUp"
+                                             KeyDown="ListSearchResult_KeyDown">
+
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="6,2">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="80"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <TextBlock Text="{Binding Ticker}" Foreground="#89B4FA" 
+                                                               FontWeight="SemiBold" FontFamily="Consolas"/>
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding Name}" Margin="10,0,0,0"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+
+                                    </ListBox>
+
+                                </Border>
+
+                            </Popup>
+                        </Grid>
                     </StackPanel>
                 </Grid>
             </Border>

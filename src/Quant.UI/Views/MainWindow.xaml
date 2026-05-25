@@ -201,7 +201,7 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock x:Name="TxtMsg" Grid.Column="0" Text="준비"
+                <TextBlock x:Name="TxtStatusMsg" Grid.Column="0" Text="준비"
                            FontSize="10" FontFamily="Consolas"
                            Foreground="#6C7086" VerticalAlignment="Center"/>
                 <TextBlock x:Name="TxtElapsed" Grid.Column="1"

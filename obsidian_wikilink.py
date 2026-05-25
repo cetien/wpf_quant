@@ -173,6 +173,10 @@ def process_path(root: Path, pattern: re.Pattern, dry_run: bool):
             print(f"[SKIP] 읽기 오류 {fpath}: {e}")
             continue
 
+        # YAML Front Matter가 이미 있는 경우 skip
+        if original.startswith("---") and re.match(r"^---\s*\n.*?\n---\s*(\n|$)", original, re.DOTALL):
+            continue
+
         modified, count = replace_in_text(original, pattern)
 
         if modified != original:

@@ -85,6 +85,7 @@ public partial class ChartView : UserControl
     private List<OhlcvRow> _allData = [];
     private int    _periodDays    = 365;
     private string _currentTicker = "";
+    private bool   _isInternalTextChange = false;
     private StockCache _currentCache = new();
 
     private InfoPanelBuilder? infoPanel = null;
@@ -386,11 +387,11 @@ public partial class ChartView : UserControl
 
     private void LoadChart()
     {
-        var ticker = TxtTickerCode.Text.Trim().ToUpper();
+        var ticker = _currentTicker.ToUpper();
         if (string.IsNullOrEmpty(ticker)) return;
 
         App.Config().LastTicker = ticker;
-        _currentTicker = ticker;
+        // _currentTicker는 이미 호출부(LoadTicker 등)에서 설정됨
         _currentCache = _db.GetStockCache(ticker) ?? new StockCache { Ticker = ticker };
 
         try
@@ -908,7 +909,7 @@ public partial class ChartView : UserControl
         {
             var sql = $"""
                 SELECT id, date, title, target_price, writer, filepath
-                FROM pdf_reports WHERE ticker='{TxtStockName.Text}'
+                FROM pdf_reports WHERE ticker='{_currentTicker}'
                 ORDER BY date DESC LIMIT 5000
                 """;
             var dtReports = _db.Query(sql);
@@ -1179,15 +1180,53 @@ public partial class ChartView : UserControl
     // ══════════════════════════════════════════════════════════
     //  외부 호출
     // ══════════════════════════════════════════════════════════
-    public void LoadTicker(string ticker, string name)
+    //public void LoadTicker(string ticker, string name)
+    public void LoadTicker(string tickerOrName, string? name = null)
     {
-        TxtTickerCode.Text = ticker.ToUpper();
-        TxtStockName.Text  = name;
+        // name 삭제 예정.
+        // ticker: code or name
+        //  -> SearchStocks() 에서 code로 검색하여 _currentTicker에 저장
+
+       if (string.IsNullOrWhiteSpace(tickerOrName)) return;
+
+        // 1. SearchStocks를 사용하여 입력된 값이 코드인지 명칭인지 판별하고 최적의 종목을 찾습니다.
+        var list = SearchStocks(tickerOrName);
+        var match = list.FirstOrDefault();
+
+        if (match != null)
+        {
+            // 2. 검색 결과가 있으면 해당 종목의 정식 코드와 이름을 사용
+            _currentTicker = match.Ticker;
+            
+            _isInternalTextChange = true;
+            try
+            {
+                TxtStockSearch.Text = match.Name;
+            }
+            finally
+            {
+                _isInternalTextChange = false;
+            }
+        }
+        else
+        {
+            // 3. DB에 없는 신규 종목 등의 경우 입력값을 그대로 유지
+            _currentTicker = tickerOrName.ToUpper();
+            if (!string.IsNullOrEmpty(name))
+            {
+                _isInternalTextChange = true;
+                try { TxtStockSearch.Text = name; }
+                finally { _isInternalTextChange = false; }
+            }
+        }
+
+        // 4. 차트 로드
         LoadChart();
     }
 
-    private void BtnLoad_Click(object sender, RoutedEventArgs e) => LoadChart();
-    private void TxtTickerCode_KeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Return) LoadChart(); }
+    private void BtnLoad_Click(object sender, RoutedEventArgs e) => LoadTicker(TxtStockSearch.Text);
+//    private void BtnLoad_Click(object sender, RoutedEventArgs e) => LoadChart();
+//    private void TxtTickerCode_KeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Return) LoadChart(); }
 
     private void BtnPeriod_Click(object sender, RoutedEventArgs e)
     {
@@ -1198,7 +1237,7 @@ public partial class ChartView : UserControl
     }
 
     private void BtnExternalLink_Click(object sender, RoutedEventArgs e) =>
-        Helpers.OpenExternalLink(TxtTickerCode.Text);
+        Helpers.OpenExternalLink(_currentTicker);
 
     // ══════════════════════════════════════════════════════════
     //  Crosshair — 차트 영역 전체(Row 3~6)에 가로/세로 교차선 표시
@@ -1410,7 +1449,7 @@ public partial class ChartView : UserControl
 
     private async void BtnDownloadData_Click(object sender, RoutedEventArgs e)
     {
-        var ticker = TxtTickerCode.Text.Trim().ToUpper();
+        var ticker = _currentTicker;
         if (string.IsNullOrEmpty(ticker)) return;
         if (sender is Button btn) btn.IsEnabled = false;
         try
@@ -1568,14 +1607,14 @@ public partial class ChartView : UserControl
             });
             //_db.UpsertStock(_pendingRegister.Ticker, name, market, type, null, type == "ETF");
 
-            TxtStockName.Text = name;
+            //TxtStockName.Text = name;
             Helpers.StatusSuccess(StatusChanged, $"{_pendingRegister.Ticker} 등록 완료");
 
             RegisterOverlay.Visibility = Visibility.Collapsed;
             _pendingRegister = null;
 
             // 등록 후 자동으로 주가 다운로드 시도
-            var inserted = await DownloadPrice(TxtTickerCode.Text.Trim().ToUpper());
+            var inserted = await DownloadPrice(_currentTicker);
 
             //var ticker  = TxtTickerCode.Text.Trim().ToUpper();
             //var svc     = new PriceDownloadService(_db);
@@ -1599,10 +1638,10 @@ public partial class ChartView : UserControl
 
     private void BtnDeleteStock_Click(object sender, RoutedEventArgs e)
     {
-        var ticker = TxtTickerCode.Text.Trim().ToUpper();
+        var ticker = _currentTicker;
         if (string.IsNullOrEmpty(ticker)) return;
 
-        var name = TxtStockName.Text;
+        var name = _currentCache.Name;
         var result = MessageBox.Show(
             $"종목 [{ticker}] {name}의 모든 데이터를 영구제거합니다.\n\n" +
             $"• stock_cache\n• supply\n• fundamentals\n• daily_prices\n• stock_group_map\n• stocks\n\n" +
@@ -1622,7 +1661,7 @@ public partial class ChartView : UserControl
             _allData.Clear();
             _renderData = [];
             Series.Clear(); VolSeries.Clear(); MacdSeries.Clear(); RsiSeries.Clear();
-            TxtStockName.Text = "-";
+            TxtStockSearch.Text = "";
             TxtChartPriceInfo.Text = "";
             TxtChartDataLoadingInfo.Text = "";
             SupplyMetrics.Clear();
@@ -1641,9 +1680,9 @@ public partial class ChartView : UserControl
 
     private async void BtnDeletePrice_Click( object sender, EventArgs e )
     {
-        var ticker = TxtTickerCode.Text.Trim().ToUpper();
+        var ticker = _currentTicker;
         if (string.IsNullOrEmpty(ticker)) return;
-        var name = TxtStockName.Text;
+        var name = _currentCache.Name;
         var result = MessageBox.Show(
             $"종목 [{ticker}] {name}의 PriceInfo(daily_prices)를 제거합니다.\n\n" +
             $"• daily_prices 테이블에서 해당 ticker의 모든 행 삭제\n\n" +
@@ -1728,6 +1767,128 @@ public partial class ChartView : UserControl
         if (sender is TextBox tb)
         {
             tb.Dispatcher.BeginInvoke(new Action(() => tb.SelectAll()));
+        }
+    }
+
+
+
+    /*
+StockPickerControl
+ ├─ TextBox
+ ├─ Popup
+ │   └─ ListBox
+ ├─ 최근조회
+ ├─ 관심종목
+ └─ 자동완성     *
+
+
+_allStocks
+    .Where(x =>
+        x.Name.Contains(keyword,
+            StringComparison.OrdinalIgnoreCase)
+        ||
+        x.Ticker.StartsWith(keyword))
+    .Take(30)
+
+     */
+    private void SelectStock()
+    {
+        if (ListSearchResult.SelectedItem is not StockItem item)
+            return;
+
+        PopupSearch.IsOpen = false;
+        LoadTicker(item.Ticker, item.Name);
+    }
+
+    public List<StockItem> SearchStocks(string keyword)
+    {
+        keyword = keyword.Trim();
+
+        return _db.StockItemList()
+            .Select(x => new
+            {
+                Item = x,
+                Score =
+                    x.Ticker.Equals(keyword, StringComparison.OrdinalIgnoreCase) ? 100 :
+                    x.Name.Equals(keyword, StringComparison.OrdinalIgnoreCase) ? 90 :
+                    x.Ticker.StartsWith(keyword, StringComparison.OrdinalIgnoreCase) ? 80 :
+                    x.Name.StartsWith(keyword, StringComparison.OrdinalIgnoreCase) ? 70 :
+                    x.Ticker.Contains(keyword, StringComparison.OrdinalIgnoreCase) ? 60 :
+                    x.Name.Contains(keyword, StringComparison.OrdinalIgnoreCase) ? 50 :
+                    0
+            })
+            .Where(x => x.Score > 0)
+            .OrderByDescending(x => x.Score)
+            .ThenBy(x => x.Item.Name)
+            .Take(30)
+            .Select(x => x.Item)
+            .ToList();
+    }
+
+    private void TxtStockSearch_TextChanged(
+        object sender,
+        TextChangedEventArgs e)
+    {
+        if (_isInternalTextChange) return;
+
+        string keyword = TxtStockSearch.Text.Trim();
+
+        if (keyword.Length < 1)
+        {
+            PopupSearch.IsOpen = false;
+            return;
+        }
+
+        var list = SearchStocks(keyword);
+
+        ListSearchResult.ItemsSource = list;
+
+        PopupSearch.IsOpen = list.Count > 0;
+    }
+
+    private void TxtStockSearch_PreviewKeyDown(
+        object sender,
+        KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case Key.Down:
+
+                if (ListSearchResult.Items.Count > 0)
+                {
+                    ListSearchResult.Focus();
+
+                    ListSearchResult.SelectedIndex = 0;
+                }
+
+                e.Handled = true;
+                break;
+
+            case Key.Enter:
+                if (ListSearchResult.SelectedItem is StockItem)
+                {
+                    SelectStock();
+                }
+                else
+                {
+                    LoadTicker(TxtStockSearch.Text);
+                    PopupSearch.IsOpen = false;
+                }
+                e.Handled = true;
+                break;
+        }
+    }
+
+    private void ListSearchResult_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        SelectStock();
+    }
+
+    private void ListSearchResult_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            SelectStock();
         }
     }
 }

@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Media;
 
 namespace Quant.UI;
 
@@ -131,5 +132,22 @@ public static class Helpers
         if (active is null) return;
         HighlightButton(active);
     }
+
+    //----------------------------------------------------
+    // 일반적인 WPF 아이템 컨트롤에 모두 대응 가능한 확장 메서드 구조
+    // ListBox의 경우: FindParent<ListBoxItem>(e.OriginalSource as DependencyObject)
+    // TreeView의 경우: FindParent<TreeViewItem>(e.OriginalSource as DependencyObject)
+    // DataGrid의 경우: FindParent<DataGridRow>(e.OriginalSource as DependencyObject)
+    public static T? FindParent<T>(DependencyObject? child) where T : DependencyObject
+    {
+        while (child != null)
+        {
+            if (child is T result) return result;
+            child = VisualTreeHelper.GetParent(child);
+        }
+        return null;
+    }
+
+
 }
 

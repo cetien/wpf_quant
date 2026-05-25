@@ -1,6 +1,7 @@
 ﻿<UserControl x:Class="Quant.UI.Views.ReportView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Quant.UI"
              Background="#1E1E2E">
     <UserControl.Resources>
     </UserControl.Resources>
@@ -71,17 +72,25 @@
             <DataGrid x:Name="GridCompany" Grid.Column="0"
                       Style="{StaticResource QuantDataGrid}"
                       IsReadOnly="True"
+                      local:PopupMenuProps.TargetColumn="ticker"
+                      local:PopupMenuProps.MenuCategory="Ticker,Db"
                       SelectionChanged="Grid_CompanyClick"
-                      MouseDoubleClick="Grid_CompanyDoubleClick"
-                      MouseRightButtonUp="GridCompany_RightClick"/>
+                      MouseRightButtonUp="OnGridRightClick"/>
             <DataGrid x:Name="GridDate" Grid.Column="1"
                       Style="{StaticResource QuantDataGrid}"
                       IsReadOnly="True"
+                      local:PopupMenuProps.TargetColumn="date"
+                      local:PopupMenuProps.MenuCategory="Report"
+                      MouseRightButtonUp="OnGridRightClick"
                       SelectionChanged="Grid_DateClick"/>
             <DataGrid x:Name="GridReport" Grid.Column="2"
                       Style="{StaticResource QuantDataGrid}"
                       AutoGenerateColumns="False" IsReadOnly="False"
-                      MouseDoubleClick="Grid_ReportClick"
+                      local:PopupMenuProps.TargetColumn="ticker"
+                      local:PopupMenuProps.MenuCategory="Ticker,Report,Db"
+                      SelectionChanged="Grid_ReportClick"
+                      MouseRightButtonUp="OnGridRightClick"
+                      MouseDoubleClick="Grid_ReportDoubleClick"
                       CellEditEnding="GridReport_CellEditEnding">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="date"   Binding="{Binding date}"   Width="90" IsReadOnly="True"/>
@@ -106,26 +115,8 @@
                     <DataGridTextColumn Header="st"     Binding="{Binding analyze_status}" Width="46" IsReadOnly="True"/>
                     <DataGridTextColumn Header="title"  Binding="{Binding title}"  Width="*" IsReadOnly="True"/>
                     <DataGridTextColumn Header="writer" Binding="{Binding writer}" Width="100" IsReadOnly="True"/>
-                    <DataGridTemplateColumn Header="" Width="36" CanUserSort="False" CanUserResize="False">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <Button Content="🗑" FontSize="13"
-                                        Background="Transparent" BorderThickness="0"
-                                        Cursor="Hand" ToolTip="삭제"
-                                        Foreground="#F38BA8"
-                                        HorizontalAlignment="Center"
-                                        Tag="{Binding}"
-                                        Click="BtnDelete_Click"/>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
         </Grid>
-
-        <!-- 상태바 -->
-        <Border Grid.Row="2" Background="#252536" Padding="10,0">
-            <TextBlock x:Name="TxtStatus" Text="" FontSize="10" FontFamily="Consolas" Foreground="#6C7086" VerticalAlignment="Center"/>
-        </Border>
     </Grid>
 </UserControl>

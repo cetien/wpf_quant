@@ -1,13 +1,27 @@
-using Quant.Core.Infrastructure;
+﻿using Quant.Core.Infrastructure;
+
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 
 namespace Quant.UI.Views;
 
-public partial class MainWindow : Window
+public interface IMainActions
+{
+    DbManager Db { get; }
+
+    void ShowChart(string ticker, string name);
+    void StatusInfo(string text);
+    void StatusSuccess(string text);
+    void StatusException(Exception ex, string text);
+    void ActionHandler(MenuAction action, string? context);
+}
+
+public partial class MainWindow : Window, IMainActions
 {
     private readonly DbManager _db = DbManager.Instance; // 전체에서 유일한 Instance 참조
+    public DbManager Db => _db;
 
     private DbBrowserView?     _dbBrowserView;
     private ChartView?         _chartView;
@@ -35,15 +49,15 @@ public partial class MainWindow : Window
         ShowDashboard();
 
         // stock_cache 갱신을 백그라운드에서 실행 — UI 블로킹 방지
-        SetStatus("stock_cache 확인 중...", StatusColors.Muted);
+        StatusInfo("stock_cache 확인 중...");
         try
         {
             await Task.Run(() => _db.EnsureStockCache());
-            SetStatus("준비 완료", StatusColors.Success);
+            StatusSuccess("준비 완료");
         }
         catch (Exception ex)
         {
-            SetStatus($"stock_cache 오류: {ex.Message}", StatusColors.Error);
+            StatusException(ex, "stock_cache 오류");
         }
     }
 
@@ -56,7 +70,7 @@ public partial class MainWindow : Window
         ShowChart();
         if (MainContent.Content is ChartView cv)
             cv.LoadTicker(symbol, label);
-        SetStatus($"인디케이터: {label}({symbol})", "#CDD6F4");
+        StatusInfo($"인디케이터: {label}({symbol})");
     }
 
     private void MenuSidePanel_Click(object sender, RoutedEventArgs e)
@@ -74,15 +88,15 @@ public partial class MainWindow : Window
     private void MenuDbBrowser_Click(object sender, RoutedEventArgs e)     => ShowDbBrowser();
     private async void MenuRebuildStockCache_Click(object sender, RoutedEventArgs e)
     {
-        SetStatus("stock_cache 재구성 중...", StatusColors.Muted);
+        StatusInfo("stock_cache 재구성 중...");
         try
         {
             await Task.Run(() => _db.RebuildStockCache());
-            SetStatus("stock_cache 재구성 완료", StatusColors.Success);
+            StatusSuccess("stock_cache 재구성 완료");
         }
         catch (Exception ex)
         {
-            SetStatus($"stock_cache 재구성 실패: {ex.Message}", StatusColors.Error);
+            StatusException(ex, "stock_cache 재구성 실패");
         }
     }
 
@@ -105,7 +119,7 @@ public partial class MainWindow : Window
         if (_chartView is null)
         {
             _chartView = new ChartView(_db);
-            _chartView.StatusChanged += SetStatus;
+            _chartView.StatusChanged += Status;
         }
         SwitchView(_chartView, BtnChart, "Chart");
         if (!string.IsNullOrEmpty(ticker))
@@ -117,7 +131,7 @@ public partial class MainWindow : Window
         if (_searchView is null)
         {
             _searchView = new SearchView(_db);
-            _searchView.StatusChanged  += SetStatus;
+            _searchView.StatusChanged  += Status;
             _searchView.StockSelected += (ticker, name) => ShowChart(ticker, name);
         }
         SwitchView(_searchView, BtnSearch, "Search");
@@ -128,7 +142,7 @@ public partial class MainWindow : Window
         if (_dbBrowserView is null)
         {
             _dbBrowserView = new DbBrowserView(_db);
-            _dbBrowserView.StatusChanged  += SetStatus;
+            _dbBrowserView.StatusChanged  += Status;
             _dbBrowserView.ElapsedChanged += ms => TxtElapsed.Text = ms;
         }
         SwitchView(_dbBrowserView, BtnDbBrowser, "DB Browser");
@@ -138,9 +152,9 @@ public partial class MainWindow : Window
     {
         if (_reportView is null)
         {
-            _reportView = new ReportView(_db);
-            _reportView.StatusChanged      += SetStatus;
-            _reportView.TickerDoubleClicked += (ticker, name) => ShowChart(ticker, name);
+            _reportView = new ReportView(this);
+            //_reportView.StatusChanged      += Status;
+            //_reportView.TickerDoubleClicked += (ticker, name) => ShowChart(ticker, name);
         }
         SwitchView(_reportView, BtnReport, "Report");
     }
@@ -150,7 +164,7 @@ public partial class MainWindow : Window
         if (_editGroupView is null)
         {
             _editGroupView = new EditGroupView(_db);
-            _editGroupView.StatusChanged      += SetStatus;
+            _editGroupView.StatusChanged      += Status;
             _editGroupView.TickerDoubleClicked += (ticker, name) => ShowChart(ticker, name);
         }
         SwitchView(_editGroupView, BtnGroup, "Edit Group");
@@ -161,7 +175,7 @@ public partial class MainWindow : Window
         if (_editWatchlistView is null)
         {
             _editWatchlistView = new EditWatchlistView(_db);
-            _editWatchlistView.StatusChanged += SetStatus;
+            _editWatchlistView.StatusChanged += Status;
         }
         SwitchView(_editWatchlistView, null, "Edit Watchlist");
     }
@@ -189,11 +203,23 @@ public partial class MainWindow : Window
         }
     }
 
-    private void SetStatus(string msg, string hex)
-    { 
-        TxtMsg.Text       = msg;
-        TxtMsg.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+    public void Status(string message, string colorHex)
+    {
+        TxtStatusMsg.Text = message;
+        TxtStatusMsg.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colorHex));
     }
+    public void StatusSuccess(string message) => Status(message, StatusColors.Success);
+    public void StatusInfo(string message) => Status(message, StatusColors.Info);
+    public void StatusError(string message) => Status(message, StatusColors.Error);
+    public void StatusWarning(string message) => Status(message, StatusColors.Warning);
+    public void StatusException(Exception ex, string message) => StatusError($"{message}: {ex.Message}");
+
+
+    //private void SetStatus(string msg, string hex)
+    //{ 
+    //    TxtStatusMsg.Text       = msg;
+    //    TxtStatusMsg.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+    //}
 
     private static string ShortenPath(string path)
     {
@@ -202,4 +228,72 @@ public partial class MainWindow : Window
             ? "%LOCALAPPDATA%" + path[local.Length..]
             : path;
     }
+
+    void IMainActions.ShowChart(string ticker, string name)
+    {
+        ShowChart(ticker, name);
+    }
+
+    public void SetStatus(string text)
+    {
+        throw new NotImplementedException();
+    }
+
+
+
+    // ══════════════════════════════════════════════════════════
+    //  Menu actions
+    // ══════════════════════════════════════════════════════════
+    public void ActionHandler(MenuAction action, string? context)
+    {
+        if (string.IsNullOrEmpty(context)) return;
+
+        switch (action)
+        {
+            // 1. 화면 전환 및 네비게이션 액션
+            case MenuAction.DrawChart:
+                // MainWindow가 구독 중인 이벤트를 호출하여 차트 뷰로 이동합니다.
+                //TickerDoubleClicked?.Invoke(context, context);
+                ShowChart(context, context);
+                return;
+
+            case MenuAction.FindGroup:
+                StatusWarning($"Find Group: {context}");
+                return;
+
+            case MenuAction.WebInfo:
+                Helpers.OpenExternalLink(context);
+                return;
+
+            // 2. DB 관리 액션 (공통 로직으로 분리)
+            case MenuAction.Db_DeletePrices:
+            case MenuAction.Db_RemoveTicker:
+                HandleDbMenuAction(action, context);
+                return;
+        }
+        StatusInfo("no action defined");
+    }
+
+    private void HandleDbMenuAction(MenuAction action, string ticker)
+    {
+        return; // for safe now - remove after testing
+
+        if (MessageBox.Show($"[{ticker}]의 데이터를 삭제하시겠습니까?", "삭제 확인",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+
+        try
+        {
+            if (action == MenuAction.Db_RemoveTicker) _db.DeleteStockAllData(ticker);
+            else if (action == MenuAction.Db_DeletePrices) _db.DeletePriceData(ticker);
+
+            StatusSuccess($"{action} 완료: {ticker}");
+            //LoadGrids(); // 변경 사항 반영을 위해 그리드 새로고침
+        }
+        catch (Exception ex)
+        {
+            StatusException(ex, "DB 작업 실패");
+        }
+    }
+
+
 }

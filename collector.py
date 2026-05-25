@@ -894,13 +894,14 @@ def sync_stocks_master(conn):
     df = pd.DataFrame(rows)
     live_tickers = set(df["ticker"])
 
-    # upsert: 이름 갱신, 신규 추가 (rating·is_active 기본값 유지)
+    # upsert: 이름 갱신, 신규 추가 및 활성화 상태 복구
     for _, r in df.iterrows():
         conn.execute("""
             INSERT INTO stocks (ticker, name, market, security_type, updated_at)
             VALUES (?, ?, ?, 'stock', now())
             ON CONFLICT (ticker) DO UPDATE SET
                 name       = excluded.name,
+                is_active  = TRUE,
                 updated_at = now()
         """, [r["ticker"], r["name"], r["market"]])
 

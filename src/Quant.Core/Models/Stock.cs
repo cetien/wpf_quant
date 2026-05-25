@@ -13,6 +13,12 @@ public class Stock
     public DateTime UpdatedAt { get; set; }
 }
 
+public class StockItem
+{
+    public string Ticker { get; set; } = "";
+    public string Name { get; set; } = "";
+}
+
 // Models/Group.cs
 public class StockGroup
 {
