@@ -806,18 +806,20 @@ latest_fundamentals AS (
     WHERE rn = 1
 ),
 report_counts AS (
-    SELECT s.ticker, COUNT(*) as report_count
+    -- pdf_reports.ticker = 종목코드(code) 기준 — stocks JOIN 불필요
+    SELECT p.ticker, COUNT(*) AS report_count
     FROM pdf_reports p
-    JOIN stocks s ON p.ticker = s.name
-    GROUP BY s.ticker
+    WHERE p.ticker IS NOT NULL
+    GROUP BY p.ticker
 ),
 latest_tp AS (
     SELECT ticker, target_price
     FROM (
-        SELECT s.ticker, p.target_price, ROW_NUMBER() OVER (PARTITION BY s.ticker ORDER BY p.date DESC) as rn
+        SELECT p.ticker, p.target_price,
+               ROW_NUMBER() OVER (PARTITION BY p.ticker ORDER BY p.date DESC) AS rn
         FROM pdf_reports p
-        JOIN stocks s ON p.ticker = s.name
         WHERE p.target_price IS NOT NULL AND p.target_price > 0
+          AND p.ticker IS NOT NULL
     )
     WHERE rn = 1
 )

@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 
@@ -11,14 +11,14 @@ public partial class LeftSidePanel : UserControl
     // ──────────────────────────────────────────────────────────
     //  외부 이벤트 (MainWindow에서 구독)
     // ──────────────────────────────────────────────────────────
-    /// <summary>인디케이터 클릭 시 발행 (symbol, label)</summary>
-    public event Action<string, string>? IndicatorSelected;
+    /// <summary>인디케이터 클릭 시 발행 (symbol)</summary>
+    public event Action<string>? IndicatorSelected;
 
-    /// <summary>그룹 선택 시 발행 (group_id, name)</summary>
-    public event Action<int, string>?    GroupSelected;
+    /// <summary>그룹 선택 시 발행 (group_id)</summary>
+    public event Action<int>?    GroupSelected;
 
-	/// <summary>종목 선택 시 발행 (ticker, name)</summary>
-	public event Action<string, string>? StockSelected;
+	/// <summary>종목 선택 시 발행 (ticker)</summary>
+	public event Action<string>? StockSelected;
 
     // ──────────────────────────────────────────────────────────
     public LeftSidePanel()
@@ -29,9 +29,9 @@ public partial class LeftSidePanel : UserControl
         DataContext = _vm;
 
         // VM 이벤트를 Control 이벤트로 포워딩
-        _vm.GroupSelected     += (id, name) => GroupSelected?.Invoke(id, name);
-        _vm.StockSelected     += (ticker, name) => StockSelected?.Invoke(ticker, name);
-        _vm.IndicatorSelected += (symbol, label) => IndicatorSelected?.Invoke(symbol, label);
+        _vm.GroupSelected     += (id) => GroupSelected?.Invoke(id);
+        _vm.StockSelected     += (ticker) => StockSelected?.Invoke(ticker);
+        _vm.IndicatorSelected += (symbol) => IndicatorSelected?.Invoke(symbol);
 
         Loaded += OnLoaded;
     }

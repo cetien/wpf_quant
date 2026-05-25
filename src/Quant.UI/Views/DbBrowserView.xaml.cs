@@ -9,7 +9,7 @@ using System.Text.RegularExpressions;
 
 namespace Quant.UI.Views;
 
-public partial class DbBrowserView : UserControl
+public partial class DbBrowserView : UserControl, INavigationAware
 {
     private static readonly string[] KnownTables =
     [
@@ -35,13 +35,21 @@ public partial class DbBrowserView : UserControl
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         BuildTableButtons();
+    }
+
+    public void OnNavigatedTo(string id)
+    {
         CheckDbConnection();
 
-        var ticker = App.Config().LastTicker;
-        TxtCurrTicker.Text = $"{_db.StockInfo(ticker)?.Name}:{ticker}";
-        TxtWhere.Text = !string.IsNullOrWhiteSpace(ticker) ? $"ticker = '{ticker}'" : "1";
+        //var ticker = App.Config().LastTicker;
+        TxtCurrTicker.Text = $"{_db.StockInfo(id)?.Name}:{id}";
+        TxtWhere.Text = !string.IsNullOrWhiteSpace(id) ? $"ticker = '{id}'" : "1";
+
+        _currentTable = "daily_prices";
+        BuildSqlSample(_currentTable, "SELECT");
+        RunQuery(TxtSql.Text);
     }
-     
+
     private void BuildTableButtons()
     {
         TableList.Children.Clear();

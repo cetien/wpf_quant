@@ -77,7 +77,7 @@
             </MenuItem>
             <MenuItem Header="_Tool">
                 <MenuItem Header="Edit Group"     Click="MenuEditGroup_Click"/>
-                <MenuItem Header="Edit Watchlist" Click="MenuEditWatchlist_Click"/>
+                <!-- <MenuItem Header="Edit Watchlist" Click="MenuEditWatchlist_Click"/>                          -->
             </MenuItem>
             <MenuItem Header="_Data">
                 <MenuItem Header="Rebuild StockCache" Click="MenuRebuildStockCache_Click"/>

@@ -174,9 +174,9 @@ public partial class LeftSidePanelViewModel : ObservableObject
     [ObservableProperty] private bool   _isBusy     = false;
 
     // ── 이벤트 ───────────────────────────────────────────────
-    public event Action<string, string>? StockSelected;
-    public event Action<int, string>?    GroupSelected;
-    public event Action<string, string>? IndicatorSelected;
+    public event Action<string>? StockSelected;
+    public event Action<int>?    GroupSelected;
+    public event Action<string>? IndicatorSelected;
 
     // ═════════════════════════════════════════════════════════
     public LeftSidePanelViewModel()
@@ -216,7 +216,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
     }
 
     public void SelectIndicator(GlobalIndicatorItem item)
-        => IndicatorSelected?.Invoke(item.Symbol, item.Label);
+        => IndicatorSelected?.Invoke(item.Symbol);
 
     [RelayCommand]
     public async Task DownloadIndicatorsAsync()
@@ -417,7 +417,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
         ClearStocks();
         if (value is null) return;
         SelectedGroupInfo = value.Name;
-        GroupSelected?.Invoke(value.GroupId, value.Name);
+        GroupSelected?.Invoke(value.GroupId);
         LoadStocksForGroup(value.GroupId);
     }
 
@@ -486,7 +486,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
 
     partial void OnSelectedStockChanged(StockRow? value)
     {
-        if (value is not null) StockSelected?.Invoke(value.Ticker, value.Name);
+        if (value is not null) StockSelected?.Invoke(value.Ticker);//, value.Name);
     }
 
     partial void OnShowSectorChanged(bool value)     => LoadGroups();

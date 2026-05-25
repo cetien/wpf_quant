@@ -148,6 +148,11 @@ public static class Helpers
         return null;
     }
 
+    public static void SetColumnAlign(DataGrid grid, int columnIndex, TextAlignment alignment)
+    {
+        if (grid.Columns.Count > columnIndex && grid.Columns[columnIndex] is DataGridTextColumn col)
+            col.ElementStyle = new Style(typeof(TextBlock)) { Setters = { new Setter(TextBlock.TextAlignmentProperty, alignment) } };
+    }
 
 }
 

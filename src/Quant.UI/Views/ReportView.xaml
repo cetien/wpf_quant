@@ -71,31 +71,35 @@
 
             <DataGrid x:Name="GridCompany" Grid.Column="0"
                       Style="{StaticResource QuantDataGrid}"
-                      IsReadOnly="True"
-                      local:PopupMenuProps.TargetColumn="ticker"
+                      local:PopupMenuProps.TextColumn="name"
+                      local:PopupMenuProps.IdColumn="id"
                       local:PopupMenuProps.MenuCategory="Ticker,Db"
+                      AutoGeneratingColumn="OnGridAutoGeneratingColumn"
                       SelectionChanged="Grid_CompanyClick"
                       MouseRightButtonUp="OnGridRightClick"/>
             <DataGrid x:Name="GridDate" Grid.Column="1"
                       Style="{StaticResource QuantDataGrid}"
-                      IsReadOnly="True"
-                      local:PopupMenuProps.TargetColumn="date"
+                      local:PopupMenuProps.TextColumn="date"
+                      local:PopupMenuProps.IdColumn="date"
                       local:PopupMenuProps.MenuCategory="Report"
+                      AutoGeneratingColumn="OnGridAutoGeneratingColumn"
                       MouseRightButtonUp="OnGridRightClick"
                       SelectionChanged="Grid_DateClick"/>
             <DataGrid x:Name="GridReport" Grid.Column="2"
                       Style="{StaticResource QuantDataGrid}"
                       AutoGenerateColumns="False" IsReadOnly="False"
-                      local:PopupMenuProps.TargetColumn="ticker"
+                      local:PopupMenuProps.TextColumn="name"
+                      local:PopupMenuProps.IdColumn="ticker"
                       local:PopupMenuProps.MenuCategory="Ticker,Report,Db"
                       SelectionChanged="Grid_ReportClick"
                       MouseRightButtonUp="OnGridRightClick"
                       MouseDoubleClick="Grid_ReportDoubleClick"
                       CellEditEnding="GridReport_CellEditEnding">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="date"   Binding="{Binding date}"   Width="90" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="ticker" Binding="{Binding ticker}" Width="100" IsReadOnly="True"/>
-                    <DataGridTextColumn Header="group"  Binding="{Binding group}"  Width="100" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="date"       Binding="{Binding date, StringFormat=\{0:yyyy-MM-dd\}}"       Width="70"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="ticker"       Binding="{Binding ticker}"      Width="50"  IsReadOnly="True"/>
+                    <DataGridTextColumn Header="name"       Binding="{Binding name}"  Width="100" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="group"      Binding="{Binding group}"       Width="100" IsReadOnly="True"/>
                     <DataGridTemplateColumn Header="TP" Width="70">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>

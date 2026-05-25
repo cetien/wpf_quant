@@ -36,14 +36,20 @@ namespace Quant.UI;
 //          MouseRightButtonUp="OnGridRightClick" ... />
 public static class PopupMenuProps
 {
-    public static readonly DependencyProperty TargetColumnProperty =
-        DependencyProperty.RegisterAttached("TargetColumn", typeof(string), typeof(PopupMenuProps), new PropertyMetadata(string.Empty));
+    public static readonly DependencyProperty TextColumnProperty =
+        DependencyProperty.RegisterAttached("TextColumn", typeof(string), typeof(PopupMenuProps), new PropertyMetadata(string.Empty));
+
+    public static readonly DependencyProperty IdColumnProperty =
+        DependencyProperty.RegisterAttached("IdColumn", typeof(string), typeof(PopupMenuProps), new PropertyMetadata(string.Empty));
 
     public static readonly DependencyProperty MenuCategoryProperty =
         DependencyProperty.RegisterAttached("MenuCategory", typeof(MenuCategory), typeof(PopupMenuProps), new PropertyMetadata(default(MenuCategory)));
 
-    public static void SetTargetColumn(DependencyObject element, string value) => element.SetValue(TargetColumnProperty, value);
-    public static string GetTargetColumn(DependencyObject element) => (string)element.GetValue(TargetColumnProperty);
+    public static void SetTextColumn(DependencyObject element, string value) => element.SetValue(TextColumnProperty, value);
+    public static string GetTextColumn(DependencyObject element) => (string)element.GetValue(TextColumnProperty);
+
+    public static void SetIdColumn(DependencyObject element, string value) => element.SetValue(IdColumnProperty, value);
+    public static string GetIdColumn(DependencyObject element) => (string)element.GetValue(IdColumnProperty);
 
     public static void SetMenuCategory(DependencyObject element, MenuCategory value) => element.SetValue(MenuCategoryProperty, value);
     public static MenuCategory GetMenuCategory(DependencyObject element) => (MenuCategory)element.GetValue(MenuCategoryProperty);
@@ -80,7 +86,7 @@ public enum MenuAction
     Db_RemoveTicker,
 }
 
-public static class ContextMenuBuilder
+public static class ContextMenuHelper// ContextMenuBuilder
 {
     // HasContext = true 인 항목은 context 문자열이 있으면 ": {context}" 를 헤더에 덧붙임
     private record MenuItemDef(string Header, MenuCategory Category, MenuAction Action,
@@ -115,8 +121,7 @@ public static class ContextMenuBuilder
     /// HasContext 항목의 헤더에 덧붙일 문자열 (선택).
     /// 여러 값은 호출부에서 조합: $"{name} ({code})"
     /// </param>
-    public static ContextMenu Build(MenuCategory category, Action<MenuAction, string?> onAction,
-                                    string? context = null)
+    public static ContextMenu Build(MenuCategory category, string textValue, string idValue, Action<MenuAction, string?> onAction)
     {
         var menu = new ContextMenu();
 
@@ -129,13 +134,14 @@ public static class ContextMenuBuilder
             if (prev is not null && prev.Category != def.Category)
                 menu.Items.Add(new Separator());
 
-            var header = (def.HasContext && context is not null)
-                ? $"{def.Header}: {context}"
+            //var header = def.Header;
+            var header = (def.HasContext && textValue is not null)
+                ? $"{def.Header}: {textValue}"
                 : def.Header;
 
             var action = def.Action;        // 클로저 캡처용 지역 변수
             var mi = new MenuItem { Header = header };
-            mi.Click += (_, _) => onAction(action, context);
+            mi.Click += (_, _) => onAction(action, idValue);
             menu.Items.Add(mi);
 
             prev = def;
@@ -143,10 +149,10 @@ public static class ContextMenuBuilder
 
         return menu;
     }
-}
+//}
 
-public static class ContextMenuHelper
-{
+//public static class ContextMenuHelper
+//{
     //<DataGrid local:PopupMenuProps.TargetColumn="ticker"
     //          local:PopupMenuProps.MenuCategory="Ticker,Db"
     //          MouseRightButtonUp="OnGridRightClick" ... />
@@ -154,24 +160,27 @@ public static class ContextMenuHelper
     {
         if (sender is not DataGrid grid) return;
 
-        // 1. 대상 컬럼명 추출 ("ticker" 또는 "group_id")
-        string targetColumn = PopupMenuProps.GetTargetColumn(grid);
-        MenuCategory category = PopupMenuProps.GetMenuCategory(grid); 
-        if (string.IsNullOrEmpty(targetColumn)) return;
+        // 1. Property at XAML 탐색: MenuCategory, TargetColumn
+        MenuCategory category = PopupMenuProps.GetMenuCategory(grid);   // Ticker, Group, Report, Db
+        string textColumn = PopupMenuProps.GetTextColumn(grid);     // "name"
+        string idColumn = PopupMenuProps.GetIdColumn(grid);         // ticker or group_id
+        //if (string.IsNullOrEmpty(textColumn) || string.IsNullOrEmpty(idColumn)) return;
 
-        // 2. 클릭된 Row 탐색 및 선택 변경
+        // 2. find Row -> select Row
         var row = Helpers.FindParent<DataGridRow>(e.OriginalSource as DependencyObject);
         if (row == null) return;
 
         grid.SelectedItem = row.Item;
-        if (grid.SelectedItem is not DataRowView drv) return;
+        if (grid.SelectedItem is not DataRowView rowView) return;
 
-        // 3. 동적 키 데이터 추출: 예) ticker 컬럼의 종목명 또는 group_id 컬럼의 그룹명
-        string keyValue = drv[targetColumn]?.ToString() ?? "";
-        if (string.IsNullOrEmpty(keyValue) || keyValue.StartsWith("-")) return;
+        // 3. Grid[currentRow][targetColumn] value
+        string textValue = rowView[textColumn]?.ToString() ?? "";   // "SK Hynix"
+        string idValue = rowView[idColumn]?.ToString() ?? "";       // '000660'
+        if (string.IsNullOrEmpty(idValue)) return;
+        //if (string.IsNullOrEmpty(keyValue) || keyValue.StartsWith("-")) return;
 
         // 4. 메뉴 생성 및 출력
-        var menu = ContextMenuBuilder.Build(category, (action, ctx) => executeAction(action, ctx ?? "", sender), keyValue);
+        var menu =  Build(category, textValue, idValue, (action, ctx) => executeAction(action, ctx ?? "", sender));
         if (menu == null) return;
 
         menu.PlacementTarget = grid;

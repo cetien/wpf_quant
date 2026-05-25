@@ -114,6 +114,8 @@ public partial class ChartView : UserControl
         InitializeComponent();
         DataContext = this;
         InitAxes();
+
+        TxtStockSearch.Text = "IDX_KOSPI";
         Loaded += (_, _) =>
         {
             infoPanel = new InfoPanelBuilder(Panel_StockInfo);

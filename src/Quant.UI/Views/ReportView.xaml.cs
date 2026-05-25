@@ -26,8 +26,8 @@ public partial class ReportView : UserControl
 
     public ReportView(IMainActions main)
     {
-        _main = main;   
-        _db = main.Db;
+        _main = main;
+        _db = App.DB;// main.Db;
         InitializeComponent();
         Loaded += (_, _) => OnOpen();
     }
@@ -38,6 +38,7 @@ public partial class ReportView : UserControl
 
     private void OnOpen()
     {
+        //MigrateTickerNamesToCode();   // 기존 DB 데이터: name → code 1회 변환
         Ingest();
         LoadGrids();
     }
@@ -47,13 +48,23 @@ public partial class ReportView : UserControl
     // ══════════════════════════════════════════════════════════
     private void Ingest()
     {
+        // ──────────────────────────────────────────────────────────
+        //  MD5 해시 (중복 방지용, 보안 목적 아님)
+        // ──────────────────────────────────────────────────────────
+        static string ComputeHash(string path)
+        {
+            using var fs = File.OpenRead(path);
+            using var md5 = MD5.Create();
+            return Convert.ToHexString(md5.ComputeHash(fs)).ToLowerInvariant();
+        }
+
         var folder = App.Config().ReportPdfFolder;
         //var opts   = _db.LoadOptions();
         //var folder = opts.ReportPdfFolder;
 
         if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
         {
-            _main.StatusInfo("report_pdf_folder 미설정 — Options에서 폴더를 지정하세요");
+            _main.StatusWarning("report_pdf_folder 미설정 — Options에서 폴더를 지정하세요");
             return;
         }
 
@@ -80,12 +91,17 @@ public partial class ReportView : UserControl
             // ② 파일명 파싱 실패 → skip
             var parsed = ParseFilename(Path.GetFileNameWithoutExtension(path));
             if (parsed is null) continue;
-            var (fileDate, ticker, title, writer) = parsed.Value;
+            var (fileDate, commpany, title, writer) = parsed.Value;
 
             // ③ 날짜 기준 skip
             if (fileDate < lastDate) continue;
 
-            // ④ 신규 파일만 해시 계산 + upsert
+            // ④ 파일명의 종목명(commpany)을 종목코드(code)로 변환
+            //    stocks 테이블에 없는 이름이면 원본 이름 그대로 저장
+            var code = _db.Name2Ticker(commpany);
+            var ticker = string.IsNullOrEmpty(code) ? commpany : code;
+
+            // ⑤ 신규 파일만 해시 계산 + upsert
             var hash = ComputeHash(path);
             UpsertReport(fileDate, ticker, title, writer, path, hash);
             upserted++;
@@ -101,9 +117,35 @@ public partial class ReportView : UserControl
     }
 
     // ──────────────────────────────────────────────────────────
+    //  기존 DB 데이터 마이그레이션: ticker(name) → ticker(code) 1회 변환
+    //  이미 6자리 숫자 코드인 행은 skip
+    // ──────────────────────────────────────────────────────────
+    private void MigrateTickerNamesToCode()
+    {
+        var rows = _db.Query("SELECT id, ticker FROM pdf_reports WHERE ticker IS NOT NULL");
+        int migrated = 0;
+        foreach (DataRow row in rows.Rows)
+        {
+            if (!long.TryParse(row["id"]?.ToString(), out var id)) continue;
+            var ticker = row["ticker"]?.ToString() ?? "";
+
+            // 이미 6자리 숫자 코드 형식이면 skip
+            if (System.Text.RegularExpressions.Regex.IsMatch(ticker, @"^\d{6}$")) continue;
+
+            var code = _db.Name2Ticker(ticker);
+            if (string.IsNullOrEmpty(code)) continue;   // 미등록 종목 → 그대로 유지
+
+            _db.Execute("UPDATE pdf_reports SET ticker = $1 WHERE id = $2", code, id);
+            migrated++;
+        }
+        if (migrated > 0)
+            _main.StatusSuccess($"[마이그레이션] ticker name→code 변환: {migrated}건");
+    }
+
+    // ──────────────────────────────────────────────────────────
     //  파일명 파싱: YYYYMMDD_종목명_리포트제목_작성자.pdf
     // ──────────────────────────────────────────────────────────
-    private static (DateOnly date, string ticker, string title, string writer)?
+    private static (DateOnly date, string commpany, string title, string writer)?
         ParseFilename(string stem)
     {
         var parts = stem.Split('_');
@@ -112,23 +154,12 @@ public partial class ReportView : UserControl
                 System.Globalization.CultureInfo.InvariantCulture,
                 System.Globalization.DateTimeStyles.None, out var date)) return null;
 
-        var ticker = parts[1].Trim();
+        var commpany = parts[1].Trim();
         var writer = parts[^1].Trim();
         var title = string.Join("_", parts[2..^1]).Trim();
 
-        if (string.IsNullOrEmpty(ticker)) return null;
-
-        return (date, ticker, title, writer);
-    }
-
-    // ──────────────────────────────────────────────────────────
-    //  MD5 해시 (중복 방지용, 보안 목적 아님)
-    // ──────────────────────────────────────────────────────────
-    private static string ComputeHash(string path)
-    {
-        using var fs = File.OpenRead(path);
-        using var md5 = MD5.Create();
-        return Convert.ToHexString(md5.ComputeHash(fs)).ToLowerInvariant();
+        if (string.IsNullOrEmpty(commpany)) return null;
+        return (date, commpany, title, writer);
     }
 
     // ──────────────────────────────────────────────────────────
@@ -178,10 +209,11 @@ public partial class ReportView : UserControl
         try
         {
             _allReports = _db.Query(
-                "SELECT r.id, r.date, r.ticker, s.sector AS \"group\", r.title, r.writer, r.filepath, " +
+                "SELECT r.id, r.date, r.ticker, s.name AS name, s.sector AS \"group\", r.title, r.writer, r.filepath, " +
                 "r.target_price, r.analyze_status " +
                 "FROM pdf_reports r " +
-                "LEFT JOIN v_stock_primary_sector s ON s.name = r.ticker " +
+                //"LEFT JOIN stocks s ON s.ticker = r.ticker " +
+                "LEFT JOIN v_stock_primary_sector s ON s.ticker = r.ticker " +
                 "ORDER BY r.date DESC, r.ticker ASC LIMIT 5000");
 
             ApplyFilter(null, null);
@@ -201,38 +233,42 @@ public partial class ReportView : UserControl
     // ──────────────────────────────────────────────────────────
     private void RefreshAddtionalFilterGrid()
     {
-        void FillGrid_GroupedBy(string column, DataGrid grid)
+        void FillGrid_GroupedBy(DataGrid grid, string textColumn, string idColumn)
         {
             var dt = new DataTable();
-            dt.Columns.Add(column, typeof(string));
+            dt.Columns.Add(textColumn, typeof(string));
             dt.Columns.Add("cnt", typeof(int));
+            dt.Columns.Add("id", typeof(string)); // 내부 식별용 컬럼
 
-            dt.Rows.Add(TitleForNoFilter, _allReports.Rows.Count);
+            dt.Rows.Add(TitleForNoFilter, _allReports.Rows.Count, "");  // 1행: -All
             var grouped = _allReports.AsEnumerable()
-                .GroupBy(r => r[column]?.ToString() ?? "")
-                .OrderByDescending(g => g.Count())
-                .ThenBy(g => g.Key);
+                .GroupBy(r => r[textColumn]?.ToString() ?? "")
+                .Select(g => new {
+                    Display = g.Key,
+                    Count = g.Count(),
+                    Id = !string.IsNullOrEmpty(idColumn) ? g.First()[idColumn]?.ToString() ?? "" : g.Key
+                })
+                .OrderByDescending(g => g.Count)
+                .ThenBy(g => g.Display);
 
             foreach (var g in grouped)
-                dt.Rows.Add(g.Key, g.Count());
+                dt.Rows.Add(g.Display, g.Count, g.Id);
 
             grid.ItemsSource = dt.DefaultView;
             grid.SelectedIndex = 0;
+            Helpers.SetColumnAlign(grid, 1, TextAlignment.Right);
         }
 
-        FillGrid_GroupedBy("ticker", GridCompany);
-        FillGrid_GroupedBy("date", GridDate);
+        FillGrid_GroupedBy(GridCompany, "name", "ticker");
+        FillGrid_GroupedBy(GridDate, "date", "date");
         if (GridDate.ItemsSource is DataView dateView)
             dateView.Sort = "date DESC";
+    }
 
-        var rightAlignStyle = new Style(typeof(TextBlock));
-        rightAlignStyle.Setters.Add(new Setter(TextBlock.TextAlignmentProperty, TextAlignment.Right));
-
-        if (GridCompany.Columns.Count > 1 && GridCompany.Columns[1] is DataGridTextColumn companyCol2)
-            companyCol2.ElementStyle = rightAlignStyle;
-
-        if (GridDate.Columns.Count > 1 && GridDate.Columns[1] is DataGridTextColumn dateCol2)
-            dateCol2.ElementStyle = rightAlignStyle;
+    // id 컬럼이 화면에 자동 생성되는 것을 방지
+    private void OnGridAutoGeneratingColumn(object sender, DataGridAutoGeneratingColumnEventArgs e)
+    {
+        if (e.PropertyName == "id") e.Cancel = true;
     }
 
     // ──────────────────────────────────────────────────────────
@@ -267,7 +303,7 @@ public partial class ReportView : UserControl
     private void Grid_CompanyClick(object sender, SelectionChangedEventArgs e)
     {
         if (GridCompany.SelectedItem is not DataRowView row) return;
-        ApplyFilter("ticker", row["ticker"]?.ToString());
+        ApplyFilter("name", row["name"]?.ToString());
     }
     private void Grid_DateClick(object sender, SelectionChangedEventArgs e)
     {
@@ -278,8 +314,8 @@ public partial class ReportView : UserControl
     private void Grid_ReportClick(object sender, SelectionChangedEventArgs e)
     {
         if (GridReport.SelectedItem is not DataRowView row) return;
-        var name = row["ticker"];
-        var ticker = _db.Name2Ticker(name?.ToString() ?? "") ?? "";
+        var ticker = row["ticker"]?.ToString() ?? "";
+        var name   = row["name"]?.ToString() ?? ticker;
         _main.StatusInfo($"{row["id"]}. {name} ({ticker}) {row["filepath"] ?? ""}");
     }
     private void Grid_ReportDoubleClick(object sender, MouseButtonEventArgs e)
@@ -341,7 +377,6 @@ public partial class ReportView : UserControl
     private void ExecuteAction(MenuAction action, string? context, object source)
     {
         if (source is not DataGrid grid || grid.SelectedItem is not DataRowView rowView) return;
-        if (string.IsNullOrEmpty(context) || context == TitleForNoFilter) return;
 
         switch (action)
         {
@@ -367,9 +402,15 @@ public partial class ReportView : UserControl
                         MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
                     try
                     {
+_main.StatusInfo($"no action: delete file: {date}");
+return;
+
                         int affected = _db.Execute("DELETE FROM pdf_reports WHERE date = $1", date);
                         _main.StatusSuccess($"삭제 완료: {affected}건");
                         LoadGrids(); // 변경 사항 반영을 위해 그리드 새로고침
+
+                        //TODO: 파일 삭제
+                        //TODO: 파일 삭제는 별도의 스크립트로 일괄 처리 권장 (파일 경로가 DB에 저장되어 있지만 실제 파일이 존재하지 않는 경우가 많음)
                     }
                     catch (Exception ex)
                     {
@@ -378,6 +419,8 @@ public partial class ReportView : UserControl
                 }
                 return;
         }
+
+        if (string.IsNullOrEmpty(context) || context == TitleForNoFilter) return;
         _main.ActionHandler(action, context);
     }
 
@@ -394,6 +437,9 @@ public partial class ReportView : UserControl
             $"삭제하시겠습니까?\n\n{title}\n\n• DB 레코드 삭제\n• 파일 삭제: {filepath}",
             "삭제 확인", MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (confirm != MessageBoxResult.Yes) return;
+
+_main.StatusInfo($"no action: delete file: {filepath}");
+return;
 
         // ── DB DELETE ──
         try

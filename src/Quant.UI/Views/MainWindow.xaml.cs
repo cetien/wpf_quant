@@ -1,4 +1,6 @@
-﻿using Quant.Core.Infrastructure;
+﻿using HandyControl.Data;
+
+using Quant.Core.Infrastructure;
 
 using System.Windows;
 using System.Windows.Controls;
@@ -7,14 +9,27 @@ using System.Windows.Media;
 
 namespace Quant.UI.Views;
 
+public interface INavigationAware
+{
+    void OnNavigatedTo(string id);
+}
+
 public interface IMainActions
 {
     DbManager Db { get; }
 
-    void ShowChart(string ticker, string name);
+    // switch view:
+    void ShowChart(string ticker);
+    void ShowDbBrowser(string ticker);
+
+    // status update:
     void StatusInfo(string text);
     void StatusSuccess(string text);
+    void StatusWarning(string text);
+    void StatusError(string text);
     void StatusException(Exception ex, string text);
+
+    // 메뉴 액션 핸들러: 
     void ActionHandler(MenuAction action, string? context);
 }
 
@@ -27,11 +42,11 @@ public partial class MainWindow : Window, IMainActions
     private ChartView?         _chartView;
     private ReportView?        _reportView;
     private EditGroupView?     _editGroupView;
-    private EditWatchlistView? _editWatchlistView;
+    //private EditWatchlistView? _editWatchlistView;
     private PlaceholderView?   _dashboardView;
     private SearchView?        _searchView;
 
-    private Button[] _toolButtons = [];
+    //private Button[] _toolButtons = [];
     private bool     _sidePanelVisible = true;
     private Button[] _allToolButtons  = [];
 
@@ -44,8 +59,10 @@ public partial class MainWindow : Window, IMainActions
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         TxtDbPath.Text  = ShortenPath(DbManager.DbPath);
-        _toolButtons    = [BtnDashboard, BtnChart, BtnSearch, BtnDbBrowser];
-        _allToolButtons = [BtnDashboard, BtnChart, BtnSearch, BtnDbBrowser, BtnGroup, BtnReport];
+        //_toolButtons    = [BtnDashboard, BtnChart, BtnSearch, BtnDbBrowser];
+        _allToolButtons = [BtnDashboard, BtnChart, BtnGroup, BtnSearch, BtnDbBrowser, BtnReport];
+
+        App.Config().LastTicker = "IDX_KOSPI";
         ShowDashboard();
 
         // stock_cache 갱신을 백그라운드에서 실행 — UI 블로킹 방지
@@ -61,16 +78,16 @@ public partial class MainWindow : Window, IMainActions
         }
     }
 
-    private void SidePanel_StockSelected(string ticker, string name) => ShowChart(ticker, name);
+    private void SidePanel_StockSelected(string ticker) => ShowChart(ticker);
 
-    private void SidePanel_GroupSelected(int groupId, string name) { }
+    private void SidePanel_GroupSelected(int groupId) { }
 
-    private void SidePanel_IndicatorSelected(string symbol, string label)
+    private void SidePanel_IndicatorSelected(string symbol)
     {
-        ShowChart();
+        ShowChart(symbol);
         if (MainContent.Content is ChartView cv)
-            cv.LoadTicker(symbol, label);
-        StatusInfo($"인디케이터: {label}({symbol})");
+            cv.LoadTicker(symbol);
+        StatusInfo($"인디케이터: {symbol}");
     }
 
     private void MenuSidePanel_Click(object sender, RoutedEventArgs e)
@@ -84,8 +101,8 @@ public partial class MainWindow : Window, IMainActions
     private void MenuOptions_Click(object sender, RoutedEventArgs e)       => new OptionDialog { Owner = this }.ShowDialog();
     private void MenuReport_Click(object sender, RoutedEventArgs e)        => ShowReport();
     private void MenuEditGroup_Click(object sender, RoutedEventArgs e)     => ShowEditGroup();
-    private void MenuEditWatchlist_Click(object sender, RoutedEventArgs e) => ShowEditWatchlist();
-    private void MenuDbBrowser_Click(object sender, RoutedEventArgs e)     => ShowDbBrowser();
+    //private void MenuEditWatchlist_Click(object sender, RoutedEventArgs e) => ShowEditWatchlist();
+    private void MenuDbBrowser_Click(object sender, RoutedEventArgs e)     => ShowDbBrowser(App.Config().LastTicker);
     private async void MenuRebuildStockCache_Click(object sender, RoutedEventArgs e)
     {
         StatusInfo("stock_cache 재구성 중...");
@@ -101,29 +118,29 @@ public partial class MainWindow : Window, IMainActions
     }
 
     private void BtnDashboard_Click(object sender, RoutedEventArgs e) => ShowDashboard();
-    private void BtnChart_Click(object sender, RoutedEventArgs e)     => ShowChart();
+    private void BtnChart_Click(object sender, RoutedEventArgs e)     => ShowChart("");
     private void BtnSearch_Click(object sender, RoutedEventArgs e)    => ShowSearch();
-    private void BtnDbBrowser_Click(object sender, RoutedEventArgs e) => ShowDbBrowser();
+    private void BtnDbBrowser_Click(object sender, RoutedEventArgs e) => ShowDbBrowser(App.Config().LastTicker);
     private void BtnGroup_Click(object sender, RoutedEventArgs e)    => ShowEditGroup();
     private void BtnReport_Click(object sender, RoutedEventArgs e)   => ShowReport();
 
     private void ShowDashboard()
     {
         _dashboardView ??= new PlaceholderView("⊞", "Dashboard");
-        SwitchView(_dashboardView, BtnDashboard, "Dashboard");
+        SwitchView(_dashboardView, "Dashboard", BtnDashboard);
     }
 
-    private void ShowChart() => ShowChart(null, null);
-    private void ShowChart(string? ticker, string? name = null)
+    //private void ShowChart() => ShowChart(null, null);
+    public void ShowChart(string? ticker)
     {
         if (_chartView is null)
         {
             _chartView = new ChartView(_db);
             _chartView.StatusChanged += Status;
         }
-        SwitchView(_chartView, BtnChart, "Chart");
+        SwitchView(_chartView, "Chart", BtnChart);
         if (!string.IsNullOrEmpty(ticker))
-            _chartView.LoadTicker(ticker, name ?? ticker);
+            _chartView.LoadTicker(ticker);
     }
 
     private void ShowSearch()
@@ -132,20 +149,20 @@ public partial class MainWindow : Window, IMainActions
         {
             _searchView = new SearchView(_db);
             _searchView.StatusChanged  += Status;
-            _searchView.StockSelected += (ticker, name) => ShowChart(ticker, name);
+            //_searchView.StockSelected += (ticker, name) => ShowChart(ticker, name);
         }
-        SwitchView(_searchView, BtnSearch, "Search");
+        SwitchView(_searchView, "Search", BtnSearch);
     }
 
-    private void ShowDbBrowser()
+    public void ShowDbBrowser(string? ticker)
     {
         if (_dbBrowserView is null)
         {
             _dbBrowserView = new DbBrowserView(_db);
-            _dbBrowserView.StatusChanged  += Status;
+            //_dbBrowserView.StatusChanged  += Status;
             _dbBrowserView.ElapsedChanged += ms => TxtElapsed.Text = ms;
         }
-        SwitchView(_dbBrowserView, BtnDbBrowser, "DB Browser");
+        SwitchView(_dbBrowserView, ticker, BtnDbBrowser);
     }
 
     private void ShowReport()
@@ -156,7 +173,7 @@ public partial class MainWindow : Window, IMainActions
             //_reportView.StatusChanged      += Status;
             //_reportView.TickerDoubleClicked += (ticker, name) => ShowChart(ticker, name);
         }
-        SwitchView(_reportView, BtnReport, "Report");
+        SwitchView(_reportView, "Report", BtnReport);
     }
 
     private void ShowEditGroup()
@@ -165,27 +182,29 @@ public partial class MainWindow : Window, IMainActions
         {
             _editGroupView = new EditGroupView(_db);
             _editGroupView.StatusChanged      += Status;
-            _editGroupView.TickerDoubleClicked += (ticker, name) => ShowChart(ticker, name);
+            //_editGroupView.TickerDoubleClicked += (ticker, name) => ShowChart(ticker, name);
         }
-        SwitchView(_editGroupView, BtnGroup, "Edit Group");
+        SwitchView(_editGroupView, "EditGroup", BtnGroup);
     }
 
-    private void ShowEditWatchlist()
-    {
-        if (_editWatchlistView is null)
-        {
-            _editWatchlistView = new EditWatchlistView(_db);
-            _editWatchlistView.StatusChanged += Status;
-        }
-        SwitchView(_editWatchlistView, null, "Edit Watchlist");
-    }
+    //private void ShowEditWatchlist()
+    //{
+    //    if (_editWatchlistView is null)
+    //    {
+    //        _editWatchlistView = new EditWatchlistView(_db);
+    //        _editWatchlistView.StatusChanged += Status;
+    //    }
+    //    SwitchView(_editWatchlistView, null, "Edit Watchlist");
+    //}
 
-    private void SwitchView(object view, Button? activeBtn, string label)
+    private void SwitchView(object view, string id, Button? activeBtn)
     {
         MainContent.Content = view;
-        TxtStatus.Text      = label;
+        TxtStatus.Text = "";// label;
         TxtElapsed.Text     = "";
         HighlightToolButton(activeBtn);
+
+        if (view is INavigationAware navAwareView) { navAwareView.OnNavigatedTo(id); }
     }
 
     private void HighlightToolButton(Button? active)
@@ -229,15 +248,15 @@ public partial class MainWindow : Window, IMainActions
             : path;
     }
 
-    void IMainActions.ShowChart(string ticker, string name)
-    {
-        ShowChart(ticker, name);
-    }
+    //void IMainActions.ShowChart(string ticker)
+    //{
+    //    ShowChart(ticker);
+    //}
 
-    public void SetStatus(string text)
-    {
-        throw new NotImplementedException();
-    }
+    //public void SetStatus(string text)
+    //{
+    //    throw new NotImplementedException();
+    //}
 
 
 
@@ -250,11 +269,11 @@ public partial class MainWindow : Window, IMainActions
 
         switch (action)
         {
-            // 1. 화면 전환 및 네비게이션 액션
+            // 1. for Ticker
             case MenuAction.DrawChart:
                 // MainWindow가 구독 중인 이벤트를 호출하여 차트 뷰로 이동합니다.
                 //TickerDoubleClicked?.Invoke(context, context);
-                ShowChart(context, context);
+                ShowChart(context);
                 return;
 
             case MenuAction.FindGroup:
@@ -265,17 +284,31 @@ public partial class MainWindow : Window, IMainActions
                 Helpers.OpenExternalLink(context);
                 return;
 
-            // 2. DB 관리 액션 (공통 로직으로 분리)
+            // 2. for Group
+            case MenuAction.NewGroup:
+            case MenuAction.GroupInfo:
+            case MenuAction.DeleteGroup:
+                StatusInfo($"no action defined: Group: action={action}, context={context}");
+                return;
+
+            // 3. for DB
+            case MenuAction.Db_QueryInfo:
+                ShowDbBrowser(context);
+                return;
+
             case MenuAction.Db_DeletePrices:
+            case MenuAction.Db_DeleteSupply:
+            case MenuAction.Db_DeleteFundamentals:
             case MenuAction.Db_RemoveTicker:
                 HandleDbMenuAction(action, context);
                 return;
         }
-        StatusInfo("no action defined");
+        StatusInfo($"no action defined: action={action}, context={context}");
     }
 
     private void HandleDbMenuAction(MenuAction action, string ticker)
     {
+        StatusInfo($"no action defined: HandleDbMenuAction={action}, ticker={ticker}");
         return; // for safe now - remove after testing
 
         if (MessageBox.Show($"[{ticker}]의 데이터를 삭제하시겠습니까?", "삭제 확인",
