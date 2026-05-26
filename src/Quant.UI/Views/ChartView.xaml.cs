@@ -916,31 +916,16 @@ public partial class ChartView : UserControl
                 """;
             var dtReports = _db.Query(sql);
             GridReport.ItemsSource = dtReports.DefaultView;
-
-            // 리포트 목록(최신순)에서 가장 첫 번째로 발견되는 유효한 목표주가를 찾아 상승여력을 계산합니다.
-            double targetPrice = 0;
-            foreach (DataRow row in dtReports.Rows)
-            {
-                if (row["target_price"] != DBNull.Value && double.TryParse(row["target_price"].ToString(), out var tp) && tp > 0)
-                {
-                    targetPrice = tp;
-                    break;
-                }
-            }
-
-            if (targetPrice > 0 && _currentCache.CurrentPrice > 0)
-            {
-                // 상승여력(Upside) = (목표가 / 현재가 - 1) * 100
-                var upside = (targetPrice / _currentCache.CurrentPrice - 1) * 100;
-                Upside.Text = upside.ToString("+0.00;-0.00;0") + "%";
-            }
-            else
-            {
-                Upside.Text = "-";
-            }
-
         }
         catch { GridReport.ItemsSource = null; }
+
+        // Upside: stock_cache.target_price 기준 (pdf_reports + stock_tp 합산 최신값)
+        RefreshUpside();
+
+        // TP textbox pre-populate
+        TxtTargetPrice.Text = _currentCache.TargetPrice > 0
+            ? _currentCache.TargetPrice.ToString("N0")
+            : "";
 
         // ── GridGroup: v_active_group_map ─────────────────────
         try
@@ -1769,6 +1754,70 @@ public partial class ChartView : UserControl
         if (sender is TextBox tb)
         {
             tb.Dispatcher.BeginInvoke(new Action(() => tb.SelectAll()));
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  목표주가 수동 입력 (stock_tp 테이블)
+    //  PDF 없이 웹·뉴스 등으로 파악한 목표주가를 직접 입력.
+    //  저장 → RebuildStockCache() → Upside 즉시 갱신.
+    // ══════════════════════════════════════════════════════════
+    private void BtnSetTP_Click(object sender, RoutedEventArgs e) => SaveTargetPrice();
+
+    private void TxtTargetPrice_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            SaveTargetPrice();
+            e.Handled = true;
+        }
+    }
+
+    private void SaveTargetPrice()
+    {
+        var ticker = _currentTicker;
+        if (string.IsNullOrEmpty(ticker)) return;
+
+        // 콤마 제거 후 파싱 (예: "75,000" → 75000)
+        var text = TxtTargetPrice.Text.Trim().Replace(",", "");
+        if (!double.TryParse(text, out var price) || price <= 0)
+        {
+            Helpers.StatusWarning(StatusChanged, "유효한 목표주가를 입력하세요 (양수)");
+            return;
+        }
+
+        try
+        {
+            _db.SetTargetPrice(ticker, price);          // stock_tp upsert
+            _db.RebuildStockCache();                    // cache 갱신
+            _currentCache = _db.GetStockCache(ticker) ?? _currentCache;
+
+            RefreshUpside();
+
+            // 표시값을 N0 포맷으로 정규화
+            TxtTargetPrice.Text = price.ToString("N0");
+
+            Helpers.StatusSuccess(StatusChanged,
+                $"{ticker}  목표주가 저장: {price:N0}  →  upside {Upside.Text}");
+        }
+        catch (Exception ex)
+        {
+            Helpers.StatusException(StatusChanged, ex, "목표주가 저장 오류");
+        }
+    }
+
+    /// <summary>_currentCache.TargetPrice 기준으로 Upside TextBlock 갱신.</summary>
+    private void RefreshUpside()
+    {
+        var tp = _currentCache.TargetPrice;
+        if (tp > 0 && _currentCache.CurrentPrice > 0)
+        {
+            var upside = (tp / _currentCache.CurrentPrice - 1) * 100;
+            Upside.Text = upside.ToString("+0.00;-0.00;0") + "%";
+        }
+        else
+        {
+            Upside.Text = "-";
         }
     }
 

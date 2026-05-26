@@ -282,6 +282,72 @@ public sealed class DbManager
         return cmd.ExecuteNonQuery();
     }
 
+    /*
+     * 
+문제 원인: Dapper는 내부적으로 SQL Server나 MySQL 같은 DB에 맞춰 @ParamName 형태의 명명된 파라미터를 생성하고 매핑합니다.
+        하지만 DuckDB는 내부적으로 파라미터를 처리할 때 고유의 규칙($1, $2 같은 위치 기반 또는 $param 형식)을 요구하며,
+        특히 데이터를 수정하는 DML(INSERT, UPDATE, DELETE) 작업에서 Dapper의 자동 매핑 방식과 충돌을 일으킵니다.
+현상: ExecuteDapper("INSERT INTO ... VALUES (@Value)", new { Value = 10 }) 구조로 실행하면
+        DuckDB가 @Value를 인식하지 못해 구문 에러가 발생하거나 파라미터 바인딩이 실패합니다.
+
+결론: 따라서 데이터 수정(DML)을 할 때는 Dapper의 편의 기능을 포기하고,
+        DuckDB의 네이티브(Native) ADO.NET 공급자 기능(DuckDBParameter)을 직접 제어해야만 합니다.
+
+❌ 잘못된 사용 예시 (쓰지 말아야 할 방식)
+
+// [⚠️ 에러 발생] DML(INSERT)에 Dapper 파라미터(@)를 사용함
+var sql = "INSERT INTO Users (Id, Name) VALUES (@Id, @Name)";
+_repo.ExecuteDapper(sql, new { Id = 1, Name = "Alice" });
+
+⭕ 올바른 사용 예시 1: 데이터 조회 (SELECT)
+주석에서 "SELECT 전용 Dapper param만 사용할 것"이라고 명시했으므로, 조회 쿼리에서는 Dapper를 기존처럼 사용할 수 있습니다.
+    (단, DuckDB 문법에 맞춰 $계정 형태로 매핑하는 것이 안전합니다.)
+
+// SELECT 쿼리는 Dapper를 활용하여 안전하게 조회 가능
+public IEnumerable<User> GetUsers(string name)
+{
+    using var conn = OpenConnection();
+    // DuckDB의 이름 기반 파라미터($name) 규칙을 활용하여 Dapper로 조회
+    return conn.Query<User>("SELECT * FROM Users WHERE Name = $name", new { name });
+}
+
+⭕ 올바른 사용 예시 2: 데이터 변경 (INSERT, UPDATE, DELETE)
+주석에서 "OpenConnection() + DuckDBParameter($1,$2) 사용"을 권장한 방식입니다.
+    조금 번거롭더라도 아래와 같이 순수 ADO.NET 형태로 작성해야 합니다.
+
+public void InsertUser(int id, string name)
+{
+    // 1. 네이티브 커넥션 오픈
+    using var conn = OpenConnection(); 
+    
+    // 2. DuckDB용 커맨드 생성
+    using var cmd = conn.CreateCommand();
+    
+    // 3. DuckDB 규칙($1, $2 또는 $id, $name)에 맞게 SQL 작성
+    cmd.CommandText = "INSERT INTO Users (Id, Name) VALUES ($id, $name)";
+
+    // 4. DuckDBParameter를 사용하여 직접 바인딩
+    var paramId = new DuckDBParameter("$id", id);
+    var paramName = new DuckDBParameter("$name", name);
+    
+    cmd.Parameters.Add(paramId);
+    cmd.Parameters.Add(paramName);
+
+    // 5. 실행
+    cmd.ExecuteNonQuery();
+}
+
+※ DuckDB 버전 및 환경에 따라 $1, $2 같은 인덱스 기반 위치 파라미터를 요구할 수도 있습니다.
+    만약 $id 형태가 작동하지 않는다면 SQL을 VALUES ($1, $2)로 적고 파라미터 이름을 각각 "$1", "$2"로 지정하시면 됩니다.
+
+💡 요약
+데이터를 가져올 때(SELECT): 기존 Dapper 방식대로 익명 객체(new { ... })를 넘겨서 편하게 쓴다.
+
+데이터를 바꿀 때(CUD): ExecuteDapper를 절대 쓰지 말고, conn.CreateCommand()를 열어
+    DuckDBParameter를 하나씩 수동으로 등록해서 실행한다.
+
+     */
+
     /// <summary>
     /// Dapper 기반 실행. 파라미터 바인딩이 필요한 INSERT/UPDATE용.
     /// ⚠ DuckDB는 @Param 미지원. SELECT 전용 Dapper param만 사용할 것.
@@ -417,6 +483,27 @@ public sealed class DbManager
     // ──────────────────────────────────────────────────────────
     // Quant-specific helpers
     // ──────────────────────────────────────────────────────────
+    /// <summary>
+    /// stock_tp 에 목표주가 upsert.
+    /// PDF 없이 웹/수동으로 파악한 목표주가 저장 → RebuildStockCache() 로 반영.
+    /// </summary>
+    public void SetTargetPrice(string ticker, double price,
+                               string source = "manual",
+                               DateOnly? date = null,
+                               string? url = null)    // 출처 URL (나중에 UI 연동)
+    {
+        var d = (date ?? DateOnly.FromDateTime(DateTime.Today)).ToString("yyyy-MM-dd");
+        Execute(@"
+            INSERT INTO stock_tp (ticker, date, target_price, source, note)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (ticker, date, source)
+            DO UPDATE SET
+                target_price = excluded.target_price,
+                note         = excluded.note",
+            ticker, d, price, source,
+            url ?? (object)DBNull.Value);
+    }
+
     public bool ExistTicker(string table, string ticker) => Exists(table, where: $"ticker='{ticker}'");
     public DateOnly? MaxDateForTicker(string table, string ticker) => MaxDate(table, where: $"ticker='{ticker}'");
     public string SecurityTypeForTicker(string ticker) => Scalar<string>($"SELECT security_type FROM stocks WHERE ticker = '{ticker}'") ?? "stock";
@@ -813,14 +900,23 @@ report_counts AS (
     GROUP BY p.ticker
 ),
 latest_tp AS (
+    -- pdf_reports + stock_tp 양쪽을 합쳐 가장 최신 날짜의 목표주가 1건 선택
     SELECT ticker, target_price
     FROM (
-        SELECT p.ticker, p.target_price,
-               ROW_NUMBER() OVER (PARTITION BY p.ticker ORDER BY p.date DESC) AS rn
-        FROM pdf_reports p
-        WHERE p.target_price IS NOT NULL AND p.target_price > 0
-          AND p.ticker IS NOT NULL
-    )
+        SELECT ticker, target_price,
+               ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) AS rn
+        FROM (
+            SELECT p.ticker, p.target_price, p.date
+            FROM pdf_reports p
+            WHERE p.target_price IS NOT NULL AND p.target_price > 0
+              AND p.ticker IS NOT NULL
+
+            UNION ALL
+
+            SELECT t.ticker, t.target_price, t.date
+            FROM stock_tp t
+        ) combined
+    ) ranked
     WHERE rn = 1
 )
 
@@ -1003,6 +1099,8 @@ final_select AS (
             VolumeRatio = Safe(reader["volume_ratio"]),
             High60D = Safe(reader["high_60d"]),
             High120D = Safe(reader["high_120d"]),
+            ReportCount = reader["report_count"] is DBNull || reader["report_count"] is null ? 0 : Convert.ToInt32(reader["report_count"]),
+            TargetPrice = Safe(reader["target_price"]),
         };
     }
     public Stock? StockInfo(string ticker) => GetStockCache(ticker);

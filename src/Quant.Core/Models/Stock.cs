@@ -87,4 +87,7 @@ public class StockCache : Stock
     public double High60D { get; set; }
     public double High120D { get; set; }
     public new DateTime UpdatedAt { get; set; }
+
+    public int ReportCount { get; set; }
+    public double TargetPrice { get; set; }   // pdf_reports + stock_tp 최신값
 }

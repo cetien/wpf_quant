@@ -64,7 +64,7 @@
                         
                         <Grid>
                             <TextBox x:Name="TxtStockSearch" Width="120" Height="26" Margin="8,0,0,0"
-                                 TextChanged="TxtStockSearch_TextChanged" 
+                                 TextChanged="TxtStockSearch_TextChanged"
                                  PreviewKeyDown="TxtStockSearch_PreviewKeyDown"
                                  GotFocus="TextBox_GotFocus"/>
 
@@ -92,7 +92,7 @@
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
 
-                                                    <TextBlock Text="{Binding Ticker}" Foreground="#89B4FA" 
+                                                    <TextBlock Text="{Binding Ticker}" Foreground="#89B4FA"
                                                                FontWeight="SemiBold" FontFamily="Consolas"/>
                                                     <TextBlock Grid.Column="1"
                                                                Text="{Binding Name}" Margin="10,0,0,0"/>
@@ -106,6 +106,22 @@
 
                             </Popup>
                         </Grid>
+
+                        <!-- TP 수동 입력 (PDF 없는 경우 대안) -->
+                        <TextBox x:Name="TxtTargetPrice"
+                             Width="76" Height="26" Margin="6,0,0,0"
+                             Background="#313244" Foreground="#F9E2AF"
+                             BorderBrush="#45475A" BorderThickness="1"
+                             FontFamily="Consolas" FontSize="11" Padding="4,2"
+                             VerticalContentAlignment="Center"
+                             ToolTip="목표주가 수동 입력 (Enter 또는 TP 버튼)"
+                             GotFocus="TextBox_GotFocus"
+                             KeyDown="TxtTargetPrice_KeyDown"/>
+                        <Button x:Name="BtnSetTP" Content="TP" Width="34" Height="26" Margin="2,0,0,0"
+                            Background="#A6E3A1" Foreground="#1E1E2E"
+                            BorderThickness="0" FontWeight="Bold" FontSize="11"
+                            Cursor="Hand" Click="BtnSetTP_Click"
+                            ToolTip="목표주가 저장 → stock_tp 기록 + cache 갱신"/>
                     </StackPanel>
                 </Grid>
             </Border>
