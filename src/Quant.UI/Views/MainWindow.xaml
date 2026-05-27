@@ -165,6 +165,15 @@
                                        Foreground="#6C7086" FontFamily="Consolas" Margin="0,2,0,0"/>
                         </StackPanel>
                     </Button>
+                    <Button x:Name="BtnTargetPrice" Style="{StaticResource ToolBarButton}"
+                            Click="BtnTargetPrice_Click" ToolTip="Target Price">
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="🎯" FontSize="15" HorizontalAlignment="Center"
+                                       Foreground="#6C7086" FontFamily="Segoe UI Emoji"/>
+                            <TextBlock Text="TP" FontSize="8" HorizontalAlignment="Center"
+                                       Foreground="#6C7086" FontFamily="Consolas" Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
             </DockPanel>
         </Border>

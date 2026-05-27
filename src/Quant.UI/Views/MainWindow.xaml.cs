@@ -45,6 +45,7 @@ public partial class MainWindow : Window, IMainActions
     //private EditWatchlistView? _editWatchlistView;
     private PlaceholderView?   _dashboardView;
     private SearchView?        _searchView;
+    private TargetPriceView?   _targetPriceView;
 
     //private Button[] _toolButtons = [];
     private bool     _sidePanelVisible = true;
@@ -60,7 +61,7 @@ public partial class MainWindow : Window, IMainActions
     {
         TxtDbPath.Text  = ShortenPath(DbManager.DbPath);
         //_toolButtons    = [BtnDashboard, BtnChart, BtnSearch, BtnDbBrowser];
-        _allToolButtons = [BtnDashboard, BtnChart, BtnGroup, BtnSearch, BtnDbBrowser, BtnReport];
+        _allToolButtons = [BtnDashboard, BtnChart, BtnGroup, BtnSearch, BtnDbBrowser, BtnReport, BtnTargetPrice];
 
         App.Config().LastTicker = "IDX_KOSPI";
         ShowDashboard();
@@ -117,12 +118,13 @@ public partial class MainWindow : Window, IMainActions
         }
     }
 
-    private void BtnDashboard_Click(object sender, RoutedEventArgs e) => ShowDashboard();
-    private void BtnChart_Click(object sender, RoutedEventArgs e)     => ShowChart("");
-    private void BtnSearch_Click(object sender, RoutedEventArgs e)    => ShowSearch();
-    private void BtnDbBrowser_Click(object sender, RoutedEventArgs e) => ShowDbBrowser(App.Config().LastTicker);
-    private void BtnGroup_Click(object sender, RoutedEventArgs e)    => ShowEditGroup();
-    private void BtnReport_Click(object sender, RoutedEventArgs e)   => ShowReport();
+    private void BtnDashboard_Click(object sender, RoutedEventArgs e)    => ShowDashboard();
+    private void BtnChart_Click(object sender, RoutedEventArgs e)        => ShowChart("");
+    private void BtnSearch_Click(object sender, RoutedEventArgs e)       => ShowSearch();
+    private void BtnDbBrowser_Click(object sender, RoutedEventArgs e)    => ShowDbBrowser(App.Config().LastTicker);
+    private void BtnGroup_Click(object sender, RoutedEventArgs e)        => ShowEditGroup();
+    private void BtnReport_Click(object sender, RoutedEventArgs e)       => ShowReport();
+    private void BtnTargetPrice_Click(object sender, RoutedEventArgs e)  => ShowTargetPrice();
 
     private void ShowDashboard()
     {
@@ -185,6 +187,17 @@ public partial class MainWindow : Window, IMainActions
             //_editGroupView.TickerDoubleClicked += (ticker, name) => ShowChart(ticker, name);
         }
         SwitchView(_editGroupView, "EditGroup", BtnGroup);
+    }
+
+    public void ShowTargetPrice(string? ticker = null)
+    {
+        if (_targetPriceView is null)
+            _targetPriceView = new TargetPriceView(_db);
+
+        SwitchView(_targetPriceView, "TargetPrice", BtnTargetPrice);
+
+        if (!string.IsNullOrEmpty(ticker))
+            _targetPriceView.LoadTicker(ticker);
     }
 
     //private void ShowEditWatchlist()
