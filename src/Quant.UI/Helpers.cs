@@ -1,4 +1,4 @@
-﻿using System.Data;
+﻿﻿using System.Data;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -36,13 +36,15 @@ public sealed class DbNullDoubleConverter : IValueConverter
 
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        if (value is null || value == DBNull.Value) return "-";
+        if (value is null || value == DBNull.Value) return ""; // 실제 NULL은 빈칸으로
 
         double d;
         if (value is double dbl)       d = dbl;
         else if (value is float f)     d = f;
         else if (value is decimal dec) d = (double)dec;
-        else if (!double.TryParse(value.ToString(), NumberStyles.Any, culture, out d)) return "-";
+        else if (!double.TryParse(value.ToString(), NumberStyles.Any, culture, out d)) return "";
+
+        if (double.IsNaN(d)) return "-"; // 특정 작성자 등 제외된 경우는 '-'
 
         var fmt = parameter as string ?? "F2";
 
@@ -155,4 +157,3 @@ public static class Helpers
     }
 
 }
-

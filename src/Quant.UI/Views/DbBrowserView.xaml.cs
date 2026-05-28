@@ -17,6 +17,7 @@ public partial class DbBrowserView : UserControl, INavigationAware
         "fundamentals", "daily_prices", "stock_cache", "supply",
         "watchlists", "watchlist_items", "pdf_reports",
         "data_update_log", "trading_calendar", "options",
+        "stock_tp", "target_price_stocks", "target_price_monthly",
         "v_sectors", "v_themes", "v_active_group_map", "v_stock_primary_sector"
     ];
 

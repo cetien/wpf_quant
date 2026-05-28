@@ -9,7 +9,7 @@ pdf_analyzer.py - 증권사 PDF 목표주가 추출기 (Phase 1)
         # 전체 재분석 (done/failed 포함)
 
     python pdf_analyzer.py --only-missing-tp
-        # target_price가 없는 건만 재분석
+        # target_price가 없는 건만 재분석 --- done이지만 tp 추출 실패한 건 재시도 가능
 
     python pdf_analyzer.py --id 1542
         # 특정 pdf_reports.id 1건만 처리
@@ -28,6 +28,9 @@ pdf_analyzer.py - 증권사 PDF 목표주가 추출기 (Phase 1)
 
 
 pip install pymupdf
+
+
+pool.... D:/Trabajo/ai/quant/data/pdf
 
 ============================================================
 """
@@ -308,7 +311,11 @@ def load_pending(
     if report_id is not None:
         where = f"WHERE id = {report_id}"
     elif only_missing_tp:
+        # target_price가 없는 항목을 찾되, 
+        # force가 아니면 이미 실패/스킵/완료(검증완료)된 것은 제외
         where = "WHERE target_price IS NULL"
+        if not force:
+            where += " AND analyze_status NOT IN ('failed', 'skip', 'done')"
     else:
         where = "" if force else "WHERE analyze_status = 'pending'"
 
@@ -373,9 +380,15 @@ def run_analyzer(
         if text is None:
             update_result(conn, id_, None, "failed")
             failed += 1
+            if i % BATCH_LOG == 0 or i == len(rows):
+                log(f"  진행: {i}/{len(rows)}  done={done}  skip={skipped}  fail={failed}  tp추출={found_tp}")
+            continue
         elif text.strip() == "":
             update_result(conn, id_, None, "skip")
             skipped += 1
+            if i % BATCH_LOG == 0 or i == len(rows):
+                log(f"  진행: {i}/{len(rows)}  done={done}  skip={skipped}  fail={failed}  tp추출={found_tp}")
+            continue
         else:
             tp = parse_target_price(text)
             # [mirae] 전용 로직 비활성화 (기능 디버깅을 위해 코드는 유지)
@@ -407,7 +420,8 @@ def run_check(conn: duckdb.DuckDBPyConnection):
         SELECT
             analyze_status,
             COUNT(*) AS cnt,
-            COUNT(target_price) AS has_tp
+            COUNT(target_price) AS has_tp,
+            COUNT(*) - COUNT(target_price) AS no_tp
         FROM pdf_reports
         GROUP BY analyze_status
         ORDER BY analyze_status
@@ -416,8 +430,15 @@ def run_check(conn: duckdb.DuckDBPyConnection):
 
     total = conn.execute("SELECT COUNT(*) FROM pdf_reports").fetchone()[0]
     log(f"=== pdf_reports 분석 현황 (총 {total}건) ===")
-    for status, cnt, has_tp in rows:
-        log(f"  {(status or 'NULL'):10s}  {cnt:5d}건  목표주가 있음: {has_tp}건")
+    for status, cnt, has_tp, no_tp in rows:
+        status_str = (status or 'NULL').lower()
+        log(f"  {status_str:10s} : {cnt:5d}건 (TP 있음: {has_tp:4d} / TP 없음: {no_tp:4d})")
+
+    # 실질적 분석 가능 대상 요약 (TP NULL & 유효 상태)
+    candidates = conn.execute(
+        "SELECT COUNT(*) FROM pdf_reports WHERE target_price IS NULL AND analyze_status NOT IN ('failed', 'skip', 'done')"
+    ).fetchone()[0]
+    log(f"\n  => 실질적 분석 대상 (TP NULL & 유효): {candidates}건")
 
 
 def parse_args():

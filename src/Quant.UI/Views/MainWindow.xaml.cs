@@ -79,7 +79,14 @@ public partial class MainWindow : Window, IMainActions
         }
     }
 
-    private void SidePanel_StockSelected(string ticker) => ShowChart(ticker);
+    private void SidePanel_StockSelected(string ticker) //=> ShowChart(ticker);
+    {
+        App.Config().LastTicker = ticker;
+
+        TxtStatus.Text = $"종목: {ticker}";// label;
+        if (MainContent.Content is INavigationAware navAwareView) { navAwareView.OnNavigatedTo(ticker); }
+
+    }
 
     private void SidePanel_GroupSelected(int groupId) { }
 
@@ -100,7 +107,7 @@ public partial class MainWindow : Window, IMainActions
 
     private void MenuExit_Click(object sender, RoutedEventArgs e)          => Close();
     private void MenuOptions_Click(object sender, RoutedEventArgs e)       => new OptionDialog { Owner = this }.ShowDialog();
-    private void MenuReport_Click(object sender, RoutedEventArgs e)        => ShowReport();
+    private void MenuReport_Click(object sender, RoutedEventArgs e)        => ShowReport(App.Config().LastTicker);
     private void MenuEditGroup_Click(object sender, RoutedEventArgs e)     => ShowEditGroup();
     //private void MenuEditWatchlist_Click(object sender, RoutedEventArgs e) => ShowEditWatchlist();
     private void MenuDbBrowser_Click(object sender, RoutedEventArgs e)     => ShowDbBrowser(App.Config().LastTicker);
@@ -123,7 +130,7 @@ public partial class MainWindow : Window, IMainActions
     private void BtnSearch_Click(object sender, RoutedEventArgs e)       => ShowSearch();
     private void BtnDbBrowser_Click(object sender, RoutedEventArgs e)    => ShowDbBrowser(App.Config().LastTicker);
     private void BtnGroup_Click(object sender, RoutedEventArgs e)        => ShowEditGroup();
-    private void BtnReport_Click(object sender, RoutedEventArgs e)       => ShowReport();
+    private void BtnReport_Click(object sender, RoutedEventArgs e)       => ShowReport(App.Config().LastTicker);
     private void BtnTargetPrice_Click(object sender, RoutedEventArgs e)  => ShowTargetPrice();
 
     private void ShowDashboard()
@@ -167,7 +174,7 @@ public partial class MainWindow : Window, IMainActions
         SwitchView(_dbBrowserView, ticker, BtnDbBrowser);
     }
 
-    private void ShowReport()
+    private void ShowReport(string? ticker)
     {
         if (_reportView is null)
         {
@@ -175,7 +182,7 @@ public partial class MainWindow : Window, IMainActions
             //_reportView.StatusChanged      += Status;
             //_reportView.TickerDoubleClicked += (ticker, name) => ShowChart(ticker, name);
         }
-        SwitchView(_reportView, "Report", BtnReport);
+        SwitchView(_reportView, ticker, BtnReport);
     }
 
     private void ShowEditGroup()

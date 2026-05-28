@@ -3,6 +3,8 @@
 -- Migration: 001_init_schema
 -- ============================================================
 
+-- C:\Users\tien7\AppData\Local\quant\quant.duckdb
+
 -- ── stocks ──────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS stocks (
     ticker          TEXT        NOT NULL,
@@ -205,3 +207,38 @@ CREATE TABLE IF NOT EXISTS data_update_log (
 --     is_trading_day  BOOLEAN     NOT NULL DEFAULT TRUE,
 --     PRIMARY KEY (date)
 -- );
+
+--- 이 table은 spec 변경으로 인해 삭제 예정
+CREATE TABLE IF NOT EXISTS stock_tp (
+    ticker        TEXT      NOT NULL,
+    date          DATE      NOT NULL,
+    target_price  DOUBLE    NOT NULL CHECK (target_price > 0),
+    source        TEXT      NOT NULL DEFAULT 'manual',
+    note          TEXT,                                          -- 출처 URL (나중에 UI 연동)
+    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (ticker, date, source)
+);
+
+CREATE TABLE IF NOT EXISTS target_price_stocks (
+    ticker     TEXT      NOT NULL,
+    date       DATE      NOT NULL,
+    name       TEXT,
+    report_count    INTEGER,
+    avg_tgt    INTEGER,
+    min_tgt    INTEGER,
+    max_tgt    INTEGER,
+    cur_price    INTEGER,
+    upside     REAL,
+    PRIMARY KEY (ticker, date)
+);
+CREATE TABLE IF NOT EXISTS target_price_monthly (
+    ticker     TEXT,
+    ym         TEXT,   -- 'YYYYMM'
+    report_count    INTEGER,
+    avg_tgt    INTEGER,
+    min_tgt    INTEGER,
+    max_tgt    INTEGER,
+    price      INTEGER,
+    upside     REAL,
+    PRIMARY KEY (ticker, ym)
+);

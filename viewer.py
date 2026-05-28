@@ -1,14 +1,24 @@
 """
 ============================================================
-pdf_reports 테이블 뷰어
+DuckDB 범용 쿼리 실행기 (Viewer)
 ------------------------------------------------------------
-python viewer.py
-python viewer.py --status done --limit 20
-python viewer.py --has-tp --limit 20
-python viewer.py --status done --has-tp --csv result.csv
+
+Usage:
+
+--db-path "myfile.duckdb"
+    - 미지정시 기본 경로: C:/Users/tien7/AppData/Local/quant/quant.duckdb
+
+--limit 50
+    - 출력할 최대 행 수 (기본값: 50)
+    - not for SQL command, but for display limit : print(df.head(args.limit))
+
+--csv "output.csv"
+    - 쿼리 결과를 CSV로 저장
+        
+python viewer.py "SELECT * FROM pdf_reports LIMIT 20"
+python viewer.py "SELECT analyze_status, count(*) FROM pdf_reports GROUP BY 1"
+python viewer.py "SELECT * FROM daily_prices WHERE ticker='005930'" --csv samsung.csv
 python viewer.py --db-path "C:/Users/tien7/AppData/Local/quant/quant.duckdb"
-
-
 ============================================================
 """
 
@@ -29,39 +39,12 @@ def default_db_path() -> Path:
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="pdf_reports viewer")
+    p = argparse.ArgumentParser(description="DuckDB SQL runner")
+    p.add_argument("query", help="SQL query command to execute")
     p.add_argument("--db-path", default=None, help="DuckDB file path")
-    p.add_argument("--table", default="pdf_reports", help="table name")
-    p.add_argument("--status", default=None, help="analyze_status filter")
-    p.add_argument("--has-tp", action="store_true", help="target_price IS NOT NULL")
-    p.add_argument("--limit", type=int, default=50, help="row limit")
-    p.add_argument("--tail", action="store_true", help="order by id ASC (oldest first)")
     p.add_argument("--csv", default=None, help="export result to csv path")
+    p.add_argument("--limit", type=int, default=50, help="limit rows for display (default: 50)")
     return p.parse_args()
-
-
-def build_query(table: str, status: str | None, has_tp: bool, limit: int, tail: bool) -> tuple[str, list]:
-    where = []
-    params: list = []
-
-    if status:
-        where.append("analyze_status = ?")
-        params.append(status)
-    if has_tp:
-        where.append("target_price IS NOT NULL")
-
-    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
-    order_sql = "ASC" if tail else "DESC"
-
-    sql = f"""
-    SELECT id, date, ticker, target_price,analyze_status
-    FROM {table}
-    {where_sql}
-    ORDER BY id {order_sql}
-    LIMIT ?
-    """
-    params.append(limit)
-    return sql, params
 
 
 def main():
@@ -73,18 +56,17 @@ def main():
 
     con = duckdb.connect(str(db_path))
     try:
-        sql, params = build_query(args.table, args.status, args.has_tp, args.limit, args.tail)
-        df = con.execute(sql, params).fetchdf()
+        df = con.execute(args.query).fetchdf()
     finally:
         con.close()
 
     pd.set_option("display.max_colwidth", 180)
     pd.set_option("display.width", 200)
-    pd.set_option("display.max_rows", min(max(args.limit, 1), 200))
+    pd.set_option("display.max_rows", args.limit)
 
     print(f"DB: {db_path}")
     print(f"Rows: {len(df)}")
-    print(df)
+    print(df.head(args.limit))
 
     if args.csv:
         out = Path(args.csv).expanduser()

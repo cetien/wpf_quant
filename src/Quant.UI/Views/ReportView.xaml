@@ -4,6 +4,7 @@
              xmlns:local="clr-namespace:Quant.UI"
              Background="#1E1E2E">
     <UserControl.Resources>
+        <local:DbNullDoubleConverter x:Key="DbNullDoubleConverter"/>
     </UserControl.Resources>
 
     <Grid>
@@ -16,10 +17,15 @@
         <!-- 헤더 툴바 -->
         <Border Grid.Row="0" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1">
             <Grid Margin="10,0">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
                     <TextBlock Text="📄 REPORTS" FontSize="11" FontWeight="Bold"
                                Foreground="#6C7086" VerticalAlignment="Center"
                                FontFamily="Consolas" Margin="0,0,16,0"/>
+                    <Button x:Name="BtnSkipTP" Content="TP" Width="auto" Height="20" Margin="2,0,10,0"
+                            Background="#A6E3A1" Foreground="#1E1E2E"
+                            BorderThickness="0" FontWeight="Bold" FontSize="11"
+                            Cursor="Hand" Click="BtnSkipTP_Click"
+                            ToolTip="목표주가 추출작업 완료 → 나머지는 SKIP"/>
                     <Button Click="ButtonShowAll_Click"
                             Background="Transparent"
                             BorderThickness="0"
@@ -54,9 +60,6 @@
                                VerticalAlignment="Center"
                                FontFamily="Consolas"/>
                 </StackPanel>
-                <TextBlock x:Name="TxtRowCount" HorizontalAlignment="Right"
-                           FontSize="10" FontFamily="Consolas"
-                           Foreground="White" VerticalAlignment="Center"/>
             </Grid>
         </Border>
 
@@ -97,13 +100,14 @@
                       CellEditEnding="GridReport_CellEditEnding">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="date"       Binding="{Binding date, StringFormat=\{0:yyyy-MM-dd\}}"       Width="70"  IsReadOnly="True"/>
-                    <DataGridTextColumn Header="ticker"       Binding="{Binding ticker}"      Width="50"  IsReadOnly="True"/>
-                    <DataGridTextColumn Header="name"       Binding="{Binding name}"  Width="100" IsReadOnly="True"/>
+                    <!-- <DataGridTextColumn Header="ticker"       Binding="{Binding ticker}"      Width="50"  IsReadOnly="True"/> -->
                     <DataGridTextColumn Header="group"      Binding="{Binding group}"       Width="100" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="name"       Binding="{Binding name}"  Width="100" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="upside"     Binding="{Binding upside, Converter={StaticResource DbNullDoubleConverter}, ConverterParameter=F1}" Width="50" IsReadOnly="True"/>
                     <DataGridTemplateColumn Header="TP" Width="70">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding target_price, StringFormat={}{0:N0}}"
+                                <TextBlock Text="{Binding target_price, Converter={StaticResource DbNullDoubleConverter}, ConverterParameter=N0}"
                                            VerticalAlignment="Center" HorizontalAlignment="Right" Margin="4,0"/>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
@@ -116,9 +120,10 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellEditingTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="st"     Binding="{Binding analyze_status}" Width="46" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="price"     Binding="{Binding price, StringFormat={}{0:N0}}" Width="70" IsReadOnly="True"/>
                     <DataGridTextColumn Header="title"  Binding="{Binding title}"  Width="*" IsReadOnly="True"/>
                     <DataGridTextColumn Header="writer" Binding="{Binding writer}" Width="100" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="st"     Binding="{Binding analyze_status}" Width="46" IsReadOnly="True"/>
                 </DataGrid.Columns>
             </DataGrid>
         </Grid>

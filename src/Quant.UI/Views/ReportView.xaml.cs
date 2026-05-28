@@ -1,8 +1,9 @@
-﻿using Quant.Core.Infrastructure;
+﻿using OpenTK.Windowing.GraphicsLibraryFramework;
+
+using Quant.Core.Infrastructure;
 
 using System.Data;
 using System.IO;
-using System.Reflection.Emit;
 using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Controls;
@@ -13,7 +14,7 @@ namespace Quant.UI.Views;
 //TODO: TxtSliderFrom/TxtSliderTo 에 현재 범위 표시 (report 목록의 min/max 날자 이용)
 //TODO: SliderFrom/SliderTo 에서 조절한 날자 범위 이용하여 목록 filtering
 
-public partial class ReportView : UserControl
+public partial class ReportView : UserControl, INavigationAware
 {
     //public event Action<string, string>? StatusChanged;
     //public event Action<string, string>? TickerDoubleClicked;  // (ticker, name)
@@ -22,7 +23,10 @@ public partial class ReportView : UserControl
     private readonly DbManager _db;
     private DataTable _allReports = new();
 
-    private readonly string TitleForNoFilter = "- All";
+    private readonly string TitleForAll = "- All";
+    private readonly string TitleForNoTP = "- No TP";
+    private readonly string RowFilterNoTP = "target_price IS NULL AND analyze_status <> 'skip'";
+    private int needExtractCount;
 
     public ReportView(IMainActions main)
     {
@@ -30,6 +34,9 @@ public partial class ReportView : UserControl
         _db = App.DB;// main.Db;
         InitializeComponent();
         Loaded += (_, _) => OnOpen();
+
+        Ingest();
+        LoadGrids();
     }
 
     // ══════════════════════════════════════════════════════════
@@ -39,8 +46,29 @@ public partial class ReportView : UserControl
     private void OnOpen()
     {
         //MigrateTickerNamesToCode();   // 기존 DB 데이터: name → code 1회 변환
-        Ingest();
-        LoadGrids();
+        //Ingest();
+        //LoadGrids();
+    }
+
+    public void OnNavigatedTo(string id)
+    {
+        //TODO: GridCompany에서 해당 종목 선택 (id == ticker)
+
+        _allReports.DefaultView.RowFilter = string.IsNullOrEmpty(id) ? "" : $"ticker = '{id}'";
+
+        //_allReports.DefaultView.RowFilter = RowFilterNoTP;// "target_price IS NULL AND analyze_status <> 'skip'";// RowFilterNoTP;
+
+        //if (string.IsNullOrEmpty(id) || GridCompany.ItemsSource is not DataView dv) return;
+        //for (int i = 0; i < dv.Count; i++)
+        //{
+        //    if (dv[i]["id"]?.ToString() == _pendingTicker)
+        //    {
+        //        GridCompany.SelectedIndex = i;
+        //        GridCompany.ScrollIntoView(dv[i]);
+        //        _pendingTicker = null;
+        //        break;
+        //    }
+        //}
     }
 
     // ══════════════════════════════════════════════════════════
@@ -172,11 +200,11 @@ public partial class ReportView : UserControl
     {
         // (B) 동일 hash 가 다른 filepath 로 이미 존재하면 skip
         var existingId = _db.QueryFirst<int?>(
-            "SELECT id FROM pdf_reports WHERE file_hash = $1", hash);
+            "SELECT id FROM pdf_reports WHERE file_hash = $hash", new { hash });
         if (existingId.HasValue)
         {
             var sameFile = _db.QueryFirst<int?>(
-                "SELECT id FROM pdf_reports WHERE filepath = $1", filepath);
+                "SELECT id FROM pdf_reports WHERE filepath = $filepath", new { filepath });
             if (!sameFile.HasValue) return;
         }
 
@@ -208,21 +236,30 @@ public partial class ReportView : UserControl
     {
         try
         {
+            var TpIsInvalid= "r.writer = '한국IR협의회' OR r.writer LIKE '%평가정보%'";
             _allReports = _db.Query(
                 "SELECT r.id, r.date, r.ticker, s.name AS name, s.sector AS \"group\", r.title, r.writer, r.filepath, " +
-                "r.target_price, r.analyze_status " +
+                $"CASE WHEN {TpIsInvalid} THEN CAST('NaN' AS DOUBLE) ELSE r.target_price END AS target_price, " +
+                "r.analyze_status, c.current_price AS price, " +
+                $"CASE WHEN {TpIsInvalid} THEN CAST('NaN' AS DOUBLE) " +
+                "     ELSE ROUND((r.target_price / NULLIF(c.current_price, 0) - 1) * 100, 2) " +
+                "END AS upside " +
                 "FROM pdf_reports r " +
-                //"LEFT JOIN stocks s ON s.ticker = r.ticker " +
                 "LEFT JOIN v_stock_primary_sector s ON s.ticker = r.ticker " +
+                "LEFT JOIN stock_cache c ON c.ticker = r.ticker " +
+//$"WHERE {TpIsInvalid} " +
                 "ORDER BY r.date DESC, r.ticker ASC LIMIT 5000");
 
-            ApplyFilter(null, null);
+            needExtractCount = _db.Scalar<int>($"select count(*) from pdf_reports where {RowFilterNoTP}");
+            RefreshTpCount();
+
+            ApplyFilter(null, null);    // reset 종목별, 날짜별 필터
             RefreshAddtionalFilterGrid();
 
             //TODO: TxtSliderFrom/TxtSliderTo 에 min/max date 표시
             //TODO: SliderFrom/SliderTo 에 min/max date 이용하여 범위 설정
 
-            TxtRowCount.Text = $"{_allReports.Rows.Count:N0} rows";
+            //TxtRowCount.Text = $"{_allReports.Rows.Count:N0} rows";
             _main.StatusSuccess($"Total {_allReports.Rows.Count:N0}");
         }
         catch (Exception ex) { _main.StatusException(ex, "로드 오류"); }
@@ -230,6 +267,7 @@ public partial class ReportView : UserControl
 
     // ──────────────────────────────────────────────────────────
     //  GridCompany: 첫 행 고정 -All + ticker별 건수
+    //      종목 list, 날짜 list
     // ──────────────────────────────────────────────────────────
     private void RefreshAddtionalFilterGrid()
     {
@@ -240,10 +278,12 @@ public partial class ReportView : UserControl
             dt.Columns.Add("cnt", typeof(int));
             dt.Columns.Add("id", typeof(string)); // 내부 식별용 컬럼
 
-            dt.Rows.Add(TitleForNoFilter, _allReports.Rows.Count, "");  // 1행: -All
+            dt.Rows.Add(TitleForAll, _allReports.Rows.Count, "");  // 1행: -All
+            dt.Rows.Add(TitleForNoTP, needExtractCount, "");  // 2행: -No TP
             var grouped = _allReports.AsEnumerable()
                 .GroupBy(r => r[textColumn]?.ToString() ?? "")
-                .Select(g => new {
+                .Select(g => new
+                {
                     Display = g.Key,
                     Count = g.Count(),
                     Id = !string.IsNullOrEmpty(idColumn) ? g.First()[idColumn]?.ToString() ?? "" : g.Key
@@ -273,14 +313,18 @@ public partial class ReportView : UserControl
 
     // ──────────────────────────────────────────────────────────
     //  GridReport 필터
+    //      종목별, 날짜별, 또는 전체(-All) 보기
     // ──────────────────────────────────────────────────────────
     private void ApplyFilter(string? key, string? value)
     {
-        if (key is null || value == TitleForNoFilter || value is null)
+        if (key is null || value is null || value == TitleForAll)
         {
             _allReports.DefaultView.RowFilter = "";
         }
-        else
+        else if (value == TitleForNoTP)
+        {
+            _allReports.DefaultView.RowFilter = RowFilterNoTP;// "target_price IS NULL AND analyze_status <> 'skip'";// RowFilterNoTP;
+        } else
         {
             string escapedValue = value.Replace("'", "''");
             // DateOnly 컬럼과 String 비교 시 발생하는 EvaluateException 방지
@@ -290,7 +334,7 @@ public partial class ReportView : UserControl
         }
 
         GridReport.ItemsSource = _allReports.DefaultView;
-        TxtRowCount.Text = $"{_allReports.DefaultView.Count:N0} rows";
+        //TxtRowCount.Text = $"{_allReports.DefaultView.Count:N0} rows";
     }
 
     // ══════════════════════════════════════════════════════════
@@ -311,11 +355,13 @@ public partial class ReportView : UserControl
         ApplyFilter("date", row["date"]?.ToString());
     }
 
+    // GridReport 행 클릭 시 상태 표시줄에 상세 정보 출력
     private void Grid_ReportClick(object sender, SelectionChangedEventArgs e)
     {
         if (GridReport.SelectedItem is not DataRowView row) return;
+
         var ticker = row["ticker"]?.ToString() ?? "";
-        var name   = row["name"]?.ToString() ?? ticker;
+        var name = row["name"]?.ToString() ?? ticker;
         _main.StatusInfo($"{row["id"]}. {name} ({ticker}) {row["filepath"] ?? ""}");
     }
     private void Grid_ReportDoubleClick(object sender, MouseButtonEventArgs e)
@@ -351,7 +397,7 @@ public partial class ReportView : UserControl
                 //cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = Convert.ToInt64(row["id"]) });
                 //cmd.ExecuteNonQuery();
 
-                _main.StatusSuccess($"목표주가 저장: {row["ticker"]} → {row["target_price"]:N0}");
+                _main.StatusSuccess($"목표주가 저장: {row["name"]} → {row["target_price"]:N0}");
             }
             catch (Exception ex)
             {
@@ -386,7 +432,9 @@ public partial class ReportView : UserControl
                     var filepath = rowView["filepath"]?.ToString();
                     var (ok, message) = Helpers.OpenWithChrome(filepath);
                     //_main.Status(message, ok ? StatusColors.Info : StatusColors.Error);
-                } else {
+                }
+                else
+                {
                     _main.StatusInfo("no action defined for this grid");
                 }
                 return;
@@ -414,13 +462,13 @@ return;
                     }
                     catch (Exception ex)
                     {
-                        _main.StatusException(ex, "DB 삭제 오류");
+                        _main.StatusException(ex, $"fail to delete: {date}");
                     }
                 }
                 return;
         }
 
-        if (string.IsNullOrEmpty(context) || context == TitleForNoFilter) return;
+        if (string.IsNullOrEmpty(context) || context == TitleForAll || context == TitleForNoTP) return;
         _main.ActionHandler(action, context);
     }
 
@@ -438,8 +486,8 @@ return;
             "삭제 확인", MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (confirm != MessageBoxResult.Yes) return;
 
-_main.StatusInfo($"no action: delete file: {filepath}");
-return;
+        _main.StatusInfo($"no action: delete file: {filepath}");
+        return;
 
         // ── DB DELETE ──
         try
@@ -454,7 +502,7 @@ return;
         }
         catch (Exception ex)
         {
-            _main.StatusException(ex, "DB 삭제 오류");
+            _main.StatusException(ex, $"fail to delete from DB: {filepath}");
             return;
         }
 
@@ -462,15 +510,34 @@ return;
         if (!string.IsNullOrWhiteSpace(filepath) && File.Exists(filepath))
         {
             try { File.Delete(filepath); }
-            catch (Exception ex) { _main.StatusException(ex, $"파일 삭제 오류: {ex.Message}"); }
+            catch (Exception ex) { _main.StatusException(ex, $"fail to delete file: {filepath}"); }
         }
 
         // ── 메모리 테이블에서 제거 후 그리드 갱신 ──
         rowView.Row.Delete();
         _allReports.AcceptChanges();
         //RefreshAddtionalFilterGrid();
-        TxtRowCount.Text = $"{_allReports.DefaultView.Count:N0} rows";
+
+        //TxtRowCount.Text = $"{_allReports.DefaultView.Count:N0} rows";
+        RefreshTpCount();
         _main.StatusSuccess($"삭제 완료: {Path.GetFileName(filepath)}");
     }
 
+    private void RefreshTpCount()
+    {
+        var totalCount = _allReports.Rows.Count;
+        //var totalCount = _db.Scalar<int>("select count(*) from pdf_reports where 1=1");
+        //var needExtractCount = _db.Scalar<int>("select count(*) from pdf_reports where target_price is null and analyze_status='pending'");
+        //var needExtractCount = _db.Scalar<int>("select count(*) from pdf_reports where target_price is null and analyze_status!='skip'");
+        //var needExtractCount = _db.Scalar<int>($"select count(*) from pdf_reports where {RowFilterNoTP}");
+        BtnSkipTP.Content = $"{needExtractCount} / {totalCount}";
+    }
+    private void BtnSkipTP_Click(object sender, RoutedEventArgs e)
+    {
+        _db.Execute($"update pdf_reports set analyze_status='skip' where {RowFilterNoTP}");
+        LoadGrids();
+
+        //RefreshTpCount();
+        //"update pdf_reports set analyze_status='skip' where target_price is null and analyze_status!='skip'"
+    }
 }
