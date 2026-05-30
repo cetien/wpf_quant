@@ -7,7 +7,6 @@ using LiveChartsCore.SkiaSharpView.Painting;
 
 using Quant.Core.Infrastructure;
 using Quant.Core.Services;
-using Quant.UI; // Helpers 및 LabelValue 사용을 위해 추가
 
 using SkiaSharp;
 
@@ -21,8 +20,35 @@ using System.Windows.Input;
 using System.Windows.Data;
 using System.Windows.Media;
 using Quant.Core.Models;
+using Quant.UI.Common;
 
 namespace Quant.UI.Views;
+
+/*
+
+현재 종목과 
+
+--- 다른 프로젝트에서 사용하는 .py 코드
+
+        macro_df = db.query(f"""
+            SELECT indicator_code, date, value FROM macro_indicators
+            WHERE date >= CURRENT_DATE - INTERVAL {days} DAY ORDER BY date
+        """)
+
+        stock_ret = price_df.set_index("date")["adj_close"].pct_change()
+        rows = []
+        for code in macro_df["indicator_code"].unique():
+            sub = macro_df[macro_df["indicator_code"] == code].set_index("date")["value"]
+            combined = pd.concat([stock_ret, sub.pct_change()], axis=1).dropna()
+            combined.columns = ["s", "m"]
+            if len(combined) > 10:
+                rows.append({"지표": code, "상관계수": round(combined.corr().iloc[0, 1], 3)})
+        if rows:
+            cdf = pd.DataFrame(rows).sort_values("상관계수", key=abs, ascending=False)
+            st.bar_chart(cdf.set_index("지표")["상관계수"])
+
+
+ */
 
 internal record OhlcvRow(DateTime Date, double Open, double High, double Low, double Close, double AdjClose, long Volume);
 
@@ -38,7 +64,7 @@ public class GroupKindEmojiConverter : IValueConverter
         => Binding.DoNothing;
 }
 
-public partial class ChartView : UserControl
+public partial class ChartView : UserControl, ITickerNavigationAware
 {
     public event Action<string, string>? StatusChanged;
 
@@ -115,7 +141,7 @@ public partial class ChartView : UserControl
         DataContext = this;
         InitAxes();
 
-        TxtStockSearch.Text = "IDX_KOSPI";
+        //TxtStockSearch.Text = "IDX_KOSPI";
         Loaded += (_, _) =>
         {
             infoPanel = new InfoPanelBuilder(Panel_StockInfo);
@@ -127,10 +153,15 @@ public partial class ChartView : UserControl
             if (_showMacd) Helpers.HighlightButton(BtnMacd);
             if (_showRsi) Helpers.HighlightButton(BtnRsi);
             SyncDrawMargin();
-            LoadChart();
+            //LoadChart();
         };
     }
 
+    public void OnNavigatedToTicker(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return;
+        LoadTicker(id);
+    }
     // ══════════════════════════════════════════════════════════
     //  PlotArea 동기화 — Y축 라벨 너비 차이로 인한 좌우 어긋남 해소
     //  DrawMargin(Margin): 모든 차트의 PlotArea 마진을 동일값으로 고정.
@@ -1174,41 +1205,48 @@ public partial class ChartView : UserControl
         // ticker: code or name
         //  -> SearchStocks() 에서 code로 검색하여 _currentTicker에 저장
 
-       if (string.IsNullOrWhiteSpace(tickerOrName)) return;
+        if (string.IsNullOrWhiteSpace(tickerOrName)) return;
 
-        // 1. SearchStocks를 사용하여 입력된 값이 코드인지 명칭인지 판별하고 최적의 종목을 찾습니다.
-        var list = SearchStocks(tickerOrName);
-        var match = list.FirstOrDefault();
+        try
+        {
+            // 1. SearchStocks를 사용하여 입력된 값이 코드인지 명칭인지 판별하고 최적의 종목을 찾습니다.
+            var list = SearchStocks(tickerOrName);
+            var match = list.FirstOrDefault();
 
-        if (match != null)
-        {
-            // 2. 검색 결과가 있으면 해당 종목의 정식 코드와 이름을 사용
-            _currentTicker = match.Ticker;
-            
-            _isInternalTextChange = true;
-            try
+            if (match != null)
             {
-                TxtStockSearch.Text = match.Name;
-            }
-            finally
-            {
-                _isInternalTextChange = false;
-            }
-        }
-        else
-        {
-            // 3. DB에 없는 신규 종목 등의 경우 입력값을 그대로 유지
-            _currentTicker = tickerOrName.ToUpper();
-            if (!string.IsNullOrEmpty(name))
-            {
+                // 2. 검색 결과가 있으면 해당 종목의 정식 코드와 이름을 사용
+                _currentTicker = match.Ticker;
+
                 _isInternalTextChange = true;
-                try { TxtStockSearch.Text = name; }
-                finally { _isInternalTextChange = false; }
+                try
+                {
+                    TxtStockSearch.Text = match.Name;
+                }
+                finally
+                {
+                    _isInternalTextChange = false;
+                }
             }
-        }
+            else
+            {
+                // 3. DB에 없는 신규 종목 등의 경우 입력값을 그대로 유지
+                _currentTicker = tickerOrName.ToUpper();
+                if (!string.IsNullOrEmpty(name))
+                {
+                    _isInternalTextChange = true;
+                    try { TxtStockSearch.Text = name; }
+                    finally { _isInternalTextChange = false; }
+                }
+            }
 
-        // 4. 차트 로드
-        LoadChart();
+            // 4. 차트 로드
+            LoadChart();
+        }
+        catch (Exception ex)
+        {
+            Helpers.StatusException(StatusChanged, ex, "종목 로드 오류");
+        }
     }
 
     private void BtnLoad_Click(object sender, RoutedEventArgs e) => LoadTicker(TxtStockSearch.Text);

@@ -1,7 +1,7 @@
 ﻿<UserControl x:Class="Quant.UI.Views.ReportView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:Quant.UI"
+             xmlns:local="clr-namespace:Quant.UI.Common"
              Background="#1E1E2E">
     <UserControl.Resources>
         <local:DbNullDoubleConverter x:Key="DbNullDoubleConverter"/>

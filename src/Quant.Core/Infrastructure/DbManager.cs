@@ -563,26 +563,34 @@ public void InsertUser(int id, string name)
     // ──────────────────────────────────────────────────────────
     public void LogUpdate(string? ticker, DateOnly? date, string source, string status, string? errorMsg = null)
     {
-        Execute(@"
+        try
+        {
+            Execute(@"
             INSERT INTO data_update_log (ticker, date, source, status, error_msg, run_at)
             VALUES ($1, $2, $3, $4, $5, now())",
-            ticker ?? (object)DBNull.Value,
-            date is null ? DBNull.Value : date.Value.ToString("yyyy-MM-dd"),
-            source,
-            status,
-            errorMsg ?? (object)DBNull.Value);
+                ticker ?? (object)DBNull.Value,
+                date is null ? DBNull.Value : date.Value.ToString("yyyy-MM-dd"),
+                source,
+                status,
+                errorMsg ?? (object)DBNull.Value);
 
-        //using var conn = OpenConnection();
-        //using var cmd = conn.CreateCommand();
-        //cmd.CommandText = @"
-        //    INSERT INTO data_update_log (ticker, date, source, status, error_msg, run_at)
-        //    VALUES ($1, $2, $3, $4, $5, now())";
-        //cmd.Parameters.Add(new DuckDBParameter { Value = ticker ?? (object)DBNull.Value });
-        //cmd.Parameters.Add(new DuckDBParameter { Value = date is null ? DBNull.Value : date.Value.ToString("yyyy-MM-dd") });
-        //cmd.Parameters.Add(new DuckDBParameter { Value = source });
-        //cmd.Parameters.Add(new DuckDBParameter { Value = status });
-        //cmd.Parameters.Add(new DuckDBParameter { Value = errorMsg ?? (object)DBNull.Value });
-        //cmd.ExecuteNonQuery();
+            //using var conn = OpenConnection();
+            //using var cmd = conn.CreateCommand();
+            //cmd.CommandText = @"
+            //    INSERT INTO data_update_log (ticker, date, source, status, error_msg, run_at)
+            //    VALUES ($1, $2, $3, $4, $5, now())";
+            //cmd.Parameters.Add(new DuckDBParameter { Value = ticker ?? (object)DBNull.Value });
+            //cmd.Parameters.Add(new DuckDBParameter { Value = date is null ? DBNull.Value : date.Value.ToString("yyyy-MM-dd") });
+            //cmd.Parameters.Add(new DuckDBParameter { Value = source });
+            //cmd.Parameters.Add(new DuckDBParameter { Value = status });
+            //cmd.Parameters.Add(new DuckDBParameter { Value = errorMsg ?? (object)DBNull.Value });
+            //cmd.ExecuteNonQuery();
+        }
+        catch (Exception ex)
+        {
+            // 로그 기록 중 예외 발생 시 콘솔에 출력 (실제 운영에서는 파일 로깅 등으로 대체 가능)
+            Console.Error.WriteLine($"Failed to log update: {ex.Message}");
+        }
     }
 
     public void LogUpdate(string? ticker, DateOnly? date, string source, Exception ex) => LogUpdate(ticker, date, source, "Exception", ex.Message);
@@ -597,24 +605,24 @@ public void InsertUser(int id, string name)
     //-- 참고: current_data <=== SELECT MAX(date) FROM daily_prices WHERE ticker =?
     public void EnsureStockCache()
     {
-        if (!TableExists("stock_cache"))
-            return;
-
-        var latestPriceDate = MaxDate("daily_prices");
-        if (latestPriceDate is null)
-            return;
-
-        var cacheDate = MaxDate("stock_cache", dateCol: "asof_date");
-        if (cacheDate is null || cacheDate < latestPriceDate)
+        try
         {
-            try
+            if (!TableExists("stock_cache"))
+                return;
+
+            var latestPriceDate = MaxDate("daily_prices");
+            if (latestPriceDate is null)
+                return;
+
+            var cacheDate = MaxDate("stock_cache", dateCol: "asof_date");
+            if (cacheDate is null || cacheDate < latestPriceDate)
             {
                 RebuildStockCache();
             }
-            catch (Exception ex)
-            {
-                LogUpdate(null, latestPriceDate, "stock_cache", ex);
-            }
+        }
+        catch (Exception ex)
+        {
+            LogUpdate(null, null, "stock_cache", ex);
         }
     }
 

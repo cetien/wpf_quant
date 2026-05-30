@@ -1,6 +1,7 @@
 ﻿using HandyControl.Data;
 
 using Quant.Core.Infrastructure;
+using Quant.UI.Common;
 
 using System.Windows;
 using System.Windows.Controls;
@@ -9,10 +10,15 @@ using System.Windows.Media;
 
 namespace Quant.UI.Views;
 
-public interface INavigationAware
+public interface ITickerNavigationAware
 {
-    void OnNavigatedTo(string id);
+    void OnNavigatedToTicker(string ticker);
 }
+public interface IGroupNavigationAware
+{
+    void OnNavigatedToGroup(string groupId);
+}
+
 
 public interface IMainActions
 {
@@ -46,6 +52,7 @@ public partial class MainWindow : Window, IMainActions
     private PlaceholderView?   _dashboardView;
     private SearchView?        _searchView;
     private TargetPriceView?   _targetPriceView;
+    private CorrelationView?   _correlationView;
 
     //private Button[] _toolButtons = [];
     private bool     _sidePanelVisible = true;
@@ -59,12 +66,12 @@ public partial class MainWindow : Window, IMainActions
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        TxtDbPath.Text  = ShortenPath(DbManager.DbPath);
+        TxtDbPath.Text  = Helpers.ShortenPath(DbManager.DbPath);
         //_toolButtons    = [BtnDashboard, BtnChart, BtnSearch, BtnDbBrowser];
-        _allToolButtons = [BtnDashboard, BtnChart, BtnGroup, BtnSearch, BtnDbBrowser, BtnReport, BtnTargetPrice];
+        _allToolButtons = [BtnDashboard, BtnChart, BtnSearch, BtnCorrelation, BtnDbBrowser, BtnGroup, BtnReport, BtnTargetPrice];
 
-        App.Config().LastTicker = "IDX_KOSPI";
-        ShowDashboard();
+        //AppState.LastTicker = "IDX_KOSPI";
+        ShowDashboard(null);
 
         // stock_cache 갱신을 백그라운드에서 실행 — UI 블로킹 방지
         StatusInfo("stock_cache 확인 중...");
@@ -81,21 +88,25 @@ public partial class MainWindow : Window, IMainActions
 
     private void SidePanel_StockSelected(string ticker) //=> ShowChart(ticker);
     {
-        App.Config().LastTicker = ticker;
-
-        TxtStatus.Text = $"종목: {ticker}";// label;
-        if (MainContent.Content is INavigationAware navAwareView) { navAwareView.OnNavigatedTo(ticker); }
+        AppState.LastTicker = ticker;
+        TxtStatus.Text = $"selected: {ticker}";// label;
+        if (MainContent.Content is ITickerNavigationAware navAwareView) { navAwareView.OnNavigatedToTicker(ticker); }
 
     }
 
-    private void SidePanel_GroupSelected(int groupId) { }
+    private void SidePanel_GroupSelected(string groupId)
+    {
+        AppState.LastGroup = groupId;
+        TxtStatus.Text = $"selected: {groupId}";// label;
+        if (MainContent.Content is IGroupNavigationAware navAwareView) { navAwareView.OnNavigatedToGroup(groupId); }
+    }
 
     private void SidePanel_IndicatorSelected(string symbol)
     {
         ShowChart(symbol);
-        if (MainContent.Content is ChartView cv)
-            cv.LoadTicker(symbol);
-        StatusInfo($"인디케이터: {symbol}");
+        //if (MainContent.Content is ChartView cv)
+        //    cv.LoadTicker(symbol);
+        //StatusInfo($"인디케이터: {symbol}");
     }
 
     private void MenuSidePanel_Click(object sender, RoutedEventArgs e)
@@ -107,10 +118,6 @@ public partial class MainWindow : Window, IMainActions
 
     private void MenuExit_Click(object sender, RoutedEventArgs e)          => Close();
     private void MenuOptions_Click(object sender, RoutedEventArgs e)       => new OptionDialog { Owner = this }.ShowDialog();
-    private void MenuReport_Click(object sender, RoutedEventArgs e)        => ShowReport(App.Config().LastTicker);
-    private void MenuEditGroup_Click(object sender, RoutedEventArgs e)     => ShowEditGroup();
-    //private void MenuEditWatchlist_Click(object sender, RoutedEventArgs e) => ShowEditWatchlist();
-    private void MenuDbBrowser_Click(object sender, RoutedEventArgs e)     => ShowDbBrowser(App.Config().LastTicker);
     private async void MenuRebuildStockCache_Click(object sender, RoutedEventArgs e)
     {
         StatusInfo("stock_cache 재구성 중...");
@@ -125,18 +132,29 @@ public partial class MainWindow : Window, IMainActions
         }
     }
 
-    private void BtnDashboard_Click(object sender, RoutedEventArgs e)    => ShowDashboard();
-    private void BtnChart_Click(object sender, RoutedEventArgs e)        => ShowChart("");
-    private void BtnSearch_Click(object sender, RoutedEventArgs e)       => ShowSearch();
-    private void BtnDbBrowser_Click(object sender, RoutedEventArgs e)    => ShowDbBrowser(App.Config().LastTicker);
-    private void BtnGroup_Click(object sender, RoutedEventArgs e)        => ShowEditGroup();
-    private void BtnReport_Click(object sender, RoutedEventArgs e)       => ShowReport(App.Config().LastTicker);
-    private void BtnTargetPrice_Click(object sender, RoutedEventArgs e)  => ShowTargetPrice();
+    private void BtnCorrelation_Click(object sender, RoutedEventArgs e) => ShowCorrelation(null);
+    private void BtnDashboard_Click(object sender, RoutedEventArgs e)    => ShowDashboard(null);
+    private void BtnChart_Click(object sender, RoutedEventArgs e)        => ShowChart(null);
+    private void BtnSearch_Click(object sender, RoutedEventArgs e)       => ShowSearch(null);
+    private void BtnDbBrowser_Click(object sender, RoutedEventArgs e)    => ShowDbBrowser(null);
+    private void BtnGroup_Click(object sender, RoutedEventArgs e)        => ShowEditGroup(null);
+    private void BtnReport_Click(object sender, RoutedEventArgs e)       => ShowReport(null);
+    private void BtnTargetPrice_Click(object sender, RoutedEventArgs e)  => ShowTargetPrice(null);
 
-    private void ShowDashboard()
+    private void ShowCorrelation(string? ticker)
+    {
+        if (_correlationView is null)
+        {
+            _correlationView = new CorrelationView(_db);
+            _correlationView.StatusChanged += Status;
+        }
+        SwitchView(_correlationView, ticker, BtnCorrelation);
+    }
+
+    private void ShowDashboard(string? ticker)
     {
         _dashboardView ??= new PlaceholderView("⊞", "Dashboard");
-        SwitchView(_dashboardView, "Dashboard", BtnDashboard);
+        SwitchView(_dashboardView, ticker, BtnDashboard);
     }
 
     //private void ShowChart() => ShowChart(null, null);
@@ -147,12 +165,12 @@ public partial class MainWindow : Window, IMainActions
             _chartView = new ChartView(_db);
             _chartView.StatusChanged += Status;
         }
-        SwitchView(_chartView, "Chart", BtnChart);
-        if (!string.IsNullOrEmpty(ticker))
-            _chartView.LoadTicker(ticker);
+        SwitchView(_chartView, ticker, BtnChart);
+        //if (!string.IsNullOrEmpty(ticker))
+        //    _chartView.LoadTicker(ticker);
     }
 
-    private void ShowSearch()
+    private void ShowSearch(string? ticker)
     {
         if (_searchView is null)
         {
@@ -160,7 +178,7 @@ public partial class MainWindow : Window, IMainActions
             _searchView.StatusChanged  += Status;
             //_searchView.StockSelected += (ticker, name) => ShowChart(ticker, name);
         }
-        SwitchView(_searchView, "Search", BtnSearch);
+        SwitchView(_searchView, ticker, BtnSearch);
     }
 
     public void ShowDbBrowser(string? ticker)
@@ -185,7 +203,7 @@ public partial class MainWindow : Window, IMainActions
         SwitchView(_reportView, ticker, BtnReport);
     }
 
-    private void ShowEditGroup()
+    private void ShowEditGroup(string? ticker)
     {
         if (_editGroupView is null)
         {
@@ -193,7 +211,7 @@ public partial class MainWindow : Window, IMainActions
             _editGroupView.StatusChanged      += Status;
             //_editGroupView.TickerDoubleClicked += (ticker, name) => ShowChart(ticker, name);
         }
-        SwitchView(_editGroupView, "EditGroup", BtnGroup);
+        SwitchView(_editGroupView, ticker, BtnGroup);
     }
 
     public void ShowTargetPrice(string? ticker = null)
@@ -201,10 +219,10 @@ public partial class MainWindow : Window, IMainActions
         if (_targetPriceView is null)
             _targetPriceView = new TargetPriceView(_db);
 
-        SwitchView(_targetPriceView, "TargetPrice", BtnTargetPrice);
+        SwitchView(_targetPriceView, ticker, BtnTargetPrice);
 
-        if (!string.IsNullOrEmpty(ticker))
-            _targetPriceView.LoadTicker(ticker);
+        //if (!string.IsNullOrEmpty(ticker))
+        //    _targetPriceView.LoadTicker(ticker);
     }
 
     //private void ShowEditWatchlist()
@@ -217,14 +235,16 @@ public partial class MainWindow : Window, IMainActions
     //    SwitchView(_editWatchlistView, null, "Edit Watchlist");
     //}
 
-    private void SwitchView(object view, string id, Button? activeBtn)
+    private void SwitchView(object view, string? id, Button? activeBtn)
     {
         MainContent.Content = view;
         TxtStatus.Text = "";// label;
         TxtElapsed.Text     = "";
         HighlightToolButton(activeBtn);
 
-        if (view is INavigationAware navAwareView) { navAwareView.OnNavigatedTo(id); }
+        if (string.IsNullOrEmpty(id)) return;
+        if (view is ITickerNavigationAware tickerView) tickerView.OnNavigatedToTicker(id); 
+        if (view is IGroupNavigationAware groupView) groupView.OnNavigatedToGroup(id); 
     }
 
     private void HighlightToolButton(Button? active)
@@ -260,13 +280,6 @@ public partial class MainWindow : Window, IMainActions
     //    TxtStatusMsg.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
     //}
 
-    private static string ShortenPath(string path)
-    {
-        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return path.StartsWith(local, StringComparison.OrdinalIgnoreCase)
-            ? "%LOCALAPPDATA%" + path[local.Length..]
-            : path;
-    }
 
     //void IMainActions.ShowChart(string ticker)
     //{

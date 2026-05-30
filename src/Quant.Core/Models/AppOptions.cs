@@ -36,7 +36,6 @@ public class AppOptions
     /// <summary>마지막으로 조회한 종목 그룹.</summary>
     public string LastGroup { get; set; } = string.Empty;
 
-
     public Dictionary<string, string> ToDictionary()
     {
         return new()

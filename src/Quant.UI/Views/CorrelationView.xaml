@@ -1,0 +1,376 @@
+<!--  CorrelationView.xaml  -->
+<UserControl x:Class="Quant.UI.Views.CorrelationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#1E1E2E">
+
+    <!-- ══ 전체: Loading 오버레이 + 본문 ══════════════════════════════════ -->
+    <Grid>
+
+        <!-- ── 본문 ─────────────────────────────────────────────────────── -->
+        <Grid x:Name="MainGrid">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="44"/>   <!-- 0: 헤더 툴바 -->
+                <RowDefinition Height="Auto"/> <!-- 1: Summary Panel -->
+                <RowDefinition Height="1"/>    <!-- 2: 구분선 -->
+                <RowDefinition Height="*"/>    <!-- 3: Grid 영역 -->
+                <RowDefinition Height="22"/>   <!-- 4: 상태바 -->
+            </Grid.RowDefinitions>
+
+            <!-- ══ Row 0: 헤더 툴바 ════════════════════════════════════════ -->
+            <Border Grid.Row="0" Background="#252536"
+                    BorderBrush="#45475A" BorderThickness="0,0,0,1">
+                <Grid Margin="10,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+
+                        <!-- 종목 검색 -->
+                        <Grid>
+                            <TextBox x:Name="TxtStockSearch" Width="130" Height="26"
+                                     TextChanged="TxtStockSearch_TextChanged"
+                                     PreviewKeyDown="TxtStockSearch_PreviewKeyDown"
+                                     ToolTip="종목명 또는 Ticker"/>
+                            <Popup x:Name="PopupSearch"
+                                   PlacementTarget="{Binding ElementName=TxtStockSearch}"
+                                   Placement="Bottom" StaysOpen="False">
+                                <Border BorderBrush="#45475A" BorderThickness="1"
+                                        Background="#252536">
+                                    <ListBox x:Name="ListSearchResult"
+                                             Background="Transparent" BorderThickness="0"
+                                             Foreground="#CDD6F4"
+                                             PreviewMouseLeftButtonUp="ListSearchResult_PreviewMouseLeftButtonUp"
+                                             KeyDown="ListSearchResult_KeyDown">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="6,2">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="80"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Ticker}"
+                                                               Foreground="#89B4FA"
+                                                               FontWeight="SemiBold"
+                                                               FontFamily="Consolas"/>
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding Name}"
+                                                               Margin="10,0,0,0"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Border>
+                            </Popup>
+                        </Grid>
+
+                        <!-- 재계산 버튼 -->
+                        <Button Content="분석" Width="52" Height="26" Margin="6,0,0,0"
+                                Background="#89B4FA" Foreground="#1E1E2E"
+                                BorderThickness="0" FontWeight="Bold" FontSize="11"
+                                Cursor="Hand" Click="BtnAnalyze_Click"/>
+
+                        <Rectangle Fill="#45475A" Width="1" Margin="10,6"/>
+
+                        <!-- 기준 종목 표시 -->
+                        <TextBlock Text="기준:" Foreground="#6C7086"
+                                   FontFamily="Consolas" FontSize="11"
+                                   VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBlock x:Name="TxtCurrentTicker"
+                                   Text="-"
+                                   Foreground="#89B4FA" FontFamily="Consolas"
+                                   FontSize="13" FontWeight="Bold"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TxtCurrentName"
+                                   Text=""
+                                   Foreground="#6C7086" FontFamily="Consolas"
+                                   FontSize="11" VerticalAlignment="Center"
+                                   Margin="6,0,0,0"/>
+
+                        <Rectangle Fill="#45475A" Width="1" Margin="10,6"/>
+
+                        <!-- 비교대상 필터 -->
+                        <TextBlock Text="비교:" Foreground="#6C7086"
+                                   FontFamily="Consolas" FontSize="11"
+                                   VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <CheckBox x:Name="ChkKP" Content="KP"
+                                  IsChecked="True" Margin="0,0,8,0"
+                                  Foreground="#CDD6F4" FontFamily="Consolas" FontSize="11"
+                                  VerticalAlignment="Center"
+                                  Checked="FilterCheckBox_Changed"
+                                  Unchecked="FilterCheckBox_Changed"/>
+                        <CheckBox x:Name="ChkKQ" Content="KQ"
+                                  IsChecked="True" Margin="0,0,8,0"
+                                  Foreground="#CDD6F4" FontFamily="Consolas" FontSize="11"
+                                  VerticalAlignment="Center"
+                                  Checked="FilterCheckBox_Changed"
+                                  Unchecked="FilterCheckBox_Changed"/>
+                        <CheckBox x:Name="ChkUS" Content="US"
+                                  IsChecked="True" Margin="0,0,8,0"
+                                  Foreground="#CDD6F4" FontFamily="Consolas" FontSize="11"
+                                  VerticalAlignment="Center"
+                                  Checked="FilterCheckBox_Changed"
+                                  Unchecked="FilterCheckBox_Changed"/>
+                        <CheckBox x:Name="ChkETF" Content="ETF"
+                                  IsChecked="False" Margin="0,0,0,0"
+                                  Foreground="#CDD6F4" FontFamily="Consolas" FontSize="11"
+                                  VerticalAlignment="Center"
+                                  Checked="FilterCheckBox_Changed"
+                                  Unchecked="FilterCheckBox_Changed"/>
+
+                    </StackPanel>
+
+                    <!-- 우측: 분석 기간 표시 -->
+                    <TextBlock x:Name="TxtPeriodInfo"
+                               HorizontalAlignment="Right" VerticalAlignment="Center"
+                               Foreground="#45475A" FontFamily="Consolas" FontSize="10"/>
+                </Grid>
+            </Border>
+
+            <!-- ══ Row 1: Summary Panel ═════════════════════════════════════ -->
+            <Border Grid.Row="1" Background="#181825"
+                    BorderBrush="#313244" BorderThickness="0,0,0,1"
+                    Padding="12,8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="2*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 카드 1: 최고 상관 -->
+                    <Border Grid.Column="0" Background="#252536"
+                            CornerRadius="4" Margin="0,0,6,0" Padding="10,6">
+                        <StackPanel>
+                            <TextBlock Text="최고 상관"
+                                       Foreground="#6C7086" FontFamily="Consolas"
+                                       FontSize="9" FontWeight="Bold"/>
+                            <TextBlock x:Name="TxtTopCorr"
+                                       Text="-"
+                                       Foreground="#89B4FA" FontFamily="Consolas"
+                                       FontSize="12" FontWeight="Bold" Margin="0,2,0,0"/>
+                            <TextBlock x:Name="TxtTopCorrVal"
+                                       Text=""
+                                       Foreground="#6C7086" FontFamily="Consolas"
+                                       FontSize="10"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 카드 2: 최고 유사도 -->
+                    <Border Grid.Column="1" Background="#252536"
+                            CornerRadius="4" Margin="0,0,6,0" Padding="10,6">
+                        <StackPanel>
+                            <TextBlock Text="최고 유사도"
+                                       Foreground="#6C7086" FontFamily="Consolas"
+                                       FontSize="9" FontWeight="Bold"/>
+                            <TextBlock x:Name="TxtTopSim"
+                                       Text="-"
+                                       Foreground="#A6E3A1" FontFamily="Consolas"
+                                       FontSize="12" FontWeight="Bold" Margin="0,2,0,0"/>
+                            <TextBlock x:Name="TxtTopSimVal"
+                                       Text=""
+                                       Foreground="#6C7086" FontFamily="Consolas"
+                                       FontSize="10"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 카드 3: 선행 종목 -->
+                    <Border Grid.Column="2" Background="#252536"
+                            CornerRadius="4" Margin="0,0,6,0" Padding="10,6">
+                        <StackPanel>
+                            <TextBlock Text="대표 선행"
+                                       Foreground="#6C7086" FontFamily="Consolas"
+                                       FontSize="9" FontWeight="Bold"/>
+                            <TextBlock x:Name="TxtLeader"
+                                       Text="-"
+                                       Foreground="#F9E2AF" FontFamily="Consolas"
+                                       FontSize="12" FontWeight="Bold" Margin="0,2,0,0"/>
+                            <TextBlock x:Name="TxtLeaderVal"
+                                       Text=""
+                                       Foreground="#6C7086" FontFamily="Consolas"
+                                       FontSize="10"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 카드 4: 후행 종목 -->
+                    <Border Grid.Column="3" Background="#252536"
+                            CornerRadius="4" Margin="0,0,6,0" Padding="10,6">
+                        <StackPanel>
+                            <TextBlock Text="대표 후행"
+                                       Foreground="#6C7086" FontFamily="Consolas"
+                                       FontSize="9" FontWeight="Bold"/>
+                            <TextBlock x:Name="TxtFollower"
+                                       Text="-"
+                                       Foreground="#CBA6F7" FontFamily="Consolas"
+                                       FontSize="12" FontWeight="Bold" Margin="0,2,0,0"/>
+                            <TextBlock x:Name="TxtFollowerVal"
+                                       Text=""
+                                       Foreground="#6C7086" FontFamily="Consolas"
+                                       FontSize="10"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 카드 5: Similarity Summary 텍스트 -->
+                    <Border Grid.Column="4" Background="#252536"
+                            CornerRadius="4" Padding="10,6">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <TextBlock x:Name="TxtSummary"
+                                       Text="-"
+                                       Foreground="#CDD6F4" FontFamily="Consolas"
+                                       FontSize="10" TextWrapping="Wrap"
+                                       LineHeight="16"/>
+                        </ScrollViewer>
+                    </Border>
+
+                </Grid>
+            </Border>
+
+            <!-- ══ Row 2: 구분선 ════════════════════════════════════════════ -->
+            <Border Grid.Row="2" Background="#313244"/>
+
+            <!-- ══ Row 3: Grid 영역 ═════════════════════════════════════════ -->
+            <Grid Grid.Row="3">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>   <!-- Correlation Grid -->
+                    <ColumnDefinition Width="1"/>   <!-- 구분선 -->
+                    <ColumnDefinition Width="280"/> <!-- Lead-Lag Grid -->
+                </Grid.ColumnDefinitions>
+
+                <!-- ── Correlation Grid ──────────────────────────────────── -->
+                <Grid Grid.Column="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="28"/>  <!-- 섹션 헤더 -->
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Style="{StaticResource SectionHeaderBorder}">
+                        <TextBlock Text="CORRELATION  (Score 순, 상위 50)"
+                                   Foreground="#6C7086" FontFamily="Consolas"
+                                   FontSize="10" FontWeight="Bold"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+
+                    <DataGrid x:Name="GridCorrelation"
+                              Grid.Row="1"
+                              Style="{StaticResource QuantDataGrid}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              SelectionMode="Single"
+                              SelectionUnit="FullRow"
+                              MouseDoubleClick="GridCorrelation_MouseDoubleClick">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="종목"
+                                               Binding="{Binding Ticker}"
+                                               Width="70"/>
+                            <DataGridTextColumn Header="종목명"
+                                               Binding="{Binding Name}"
+                                               Width="*"/>
+                            <DataGridTextColumn Header="20일"
+                                               Binding="{Binding Corr20, StringFormat=\{0:F3\}}"
+                                               Width="48"/>
+                            <DataGridTextColumn Header="60일"
+                                               Binding="{Binding Corr60, StringFormat=\{0:F3\}}"
+                                               Width="48"/>
+                            <DataGridTextColumn Header="120일"
+                                               Binding="{Binding Corr120, StringFormat=\{0:F3\}}"
+                                               Width="48"/>
+                            <DataGridTextColumn Header="Score"
+                                               Binding="{Binding Score, StringFormat=\{0:F0\}}"
+                                               Width="44"/>
+                            <DataGridTextColumn Header="RS"
+                                               Binding="{Binding Rs, StringFormat=\{0:F1\}}"
+                                               Width="40"/>
+                            <DataGridTextColumn Header="1M%"
+                                               Binding="{Binding Ret1M, StringFormat=\{0:F1\}}"
+                                               Width="44"/>
+                            <DataGridTextColumn Header="Upside"
+                                               Binding="{Binding Upside, StringFormat=\{0:F1\}}"
+                                               Width="50"/>
+                            <DataGridTextColumn Header="%ATR"
+                                               Binding="{Binding AtrPercent, StringFormat=\{0:F1\}}"
+                                               Width="44"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+
+                <!-- 구분선 -->
+                <Border Grid.Column="1" Background="#313244"/>
+
+                <!-- ── Lead-Lag Grid ──────────────────────────────────────── -->
+                <Grid Grid.Column="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="28"/>  <!-- 섹션 헤더 -->
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Style="{StaticResource SectionHeaderBorder}">
+                        <TextBlock Text="LEAD-LAG  (상위 200 분석)"
+                                   Foreground="#6C7086" FontFamily="Consolas"
+                                   FontSize="10" FontWeight="Bold"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+
+                    <DataGrid x:Name="GridLeadLag"
+                              Grid.Row="1"
+                              Style="{StaticResource QuantDataGrid}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              SelectionMode="Single"
+                              SelectionUnit="FullRow">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="종목명"
+                                               Binding="{Binding Name}"
+                                               Width="*"/>
+                            <DataGridTextColumn Header="Lag"
+                                               Binding="{Binding BestLag, StringFormat=\{0:+0;-0;0\}}"
+                                               Width="42"/>
+                            <DataGridTextColumn Header="상관"
+                                               Binding="{Binding BestLagCorr, StringFormat=\{0:F3\}}"
+                                               Width="52"/>
+                            <DataGridTextColumn Header="판정"
+                                               Binding="{Binding LeadLagLabel}"
+                                               Width="80"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+
+            </Grid>
+
+            <!-- ══ Row 4: 상태바 ════════════════════════════════════════════ -->
+            <Border Grid.Row="4" Background="#252536" Padding="10,0">
+                <TextBlock x:Name="TxtStatus" Text=""
+                           FontSize="10" FontFamily="Consolas"
+                           Foreground="#6C7086" VerticalAlignment="Center"/>
+            </Border>
+
+        </Grid>
+
+        <!-- ── 로딩 오버레이 ──────────────────────────────────────────────── -->
+        <Grid x:Name="LoadingOverlay" Visibility="Collapsed"
+              Background="#AA1E1E2E">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock x:Name="TxtLoadingMsg"
+                           Text="분석 중..."
+                           Foreground="#CDD6F4" FontFamily="Consolas"
+                           FontSize="14" FontWeight="Bold"
+                           HorizontalAlignment="Center"/>
+                <TextBlock x:Name="TxtLoadingDetail"
+                           Text=""
+                           Foreground="#6C7086" FontFamily="Consolas"
+                           FontSize="11" HorizontalAlignment="Center"
+                           Margin="0,6,0,0"/>
+                <!-- 간단한 진행 표시: 점 애니메이션은 code-behind DispatcherTimer로 -->
+                <Border Background="#313244" CornerRadius="4"
+                        Margin="0,16,0,0" Padding="20,8">
+                    <ProgressBar x:Name="ProgressBar"
+                                 Width="220" Height="4"
+                                 IsIndeterminate="True"
+                                 Background="#252536"
+                                 Foreground="#89B4FA"
+                                 BorderThickness="0"/>
+                </Border>
+            </StackPanel>
+        </Grid>
+
+    </Grid>
+</UserControl>

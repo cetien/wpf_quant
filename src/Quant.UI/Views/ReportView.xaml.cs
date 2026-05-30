@@ -1,6 +1,7 @@
 ﻿using OpenTK.Windowing.GraphicsLibraryFramework;
 
 using Quant.Core.Infrastructure;
+using Quant.UI.Common;
 
 using System.Data;
 using System.IO;
@@ -14,7 +15,7 @@ namespace Quant.UI.Views;
 //TODO: TxtSliderFrom/TxtSliderTo 에 현재 범위 표시 (report 목록의 min/max 날자 이용)
 //TODO: SliderFrom/SliderTo 에서 조절한 날자 범위 이용하여 목록 filtering
 
-public partial class ReportView : UserControl, INavigationAware
+public partial class ReportView : UserControl, ITickerNavigationAware
 {
     //public event Action<string, string>? StatusChanged;
     //public event Action<string, string>? TickerDoubleClicked;  // (ticker, name)
@@ -35,8 +36,15 @@ public partial class ReportView : UserControl, INavigationAware
         InitializeComponent();
         Loaded += (_, _) => OnOpen();
 
-        Ingest();
-        LoadGrids();
+        try
+        {
+            Ingest();
+            LoadGrids();
+        }
+        catch (Exception ex)
+        {
+            _main.StatusException(ex, "Fail to initialize ReportView");
+        }
     }
 
     // ══════════════════════════════════════════════════════════
@@ -50,7 +58,7 @@ public partial class ReportView : UserControl, INavigationAware
         //LoadGrids();
     }
 
-    public void OnNavigatedTo(string id)
+    public void OnNavigatedToTicker(string id)
     {
         //TODO: GridCompany에서 해당 종목 선택 (id == ticker)
 

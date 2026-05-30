@@ -15,7 +15,7 @@ public partial class LeftSidePanel : UserControl
     public event Action<string>? IndicatorSelected;
 
     /// <summary>그룹 선택 시 발행 (group_id)</summary>
-    public event Action<int>?    GroupSelected;
+    public event Action<string>?    GroupSelected;
 
 	/// <summary>종목 선택 시 발행 (ticker)</summary>
 	public event Action<string>? StockSelected;

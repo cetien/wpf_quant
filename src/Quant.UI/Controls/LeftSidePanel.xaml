@@ -19,32 +19,7 @@
 
     </UserControl.Resources>
 
-    <DockPanel>
-
-        <!-- ── 패널 타이틀 바 ────────────────────────────────── -->
-        <Border DockPanel.Dock="Top"
-                Background="#1E1E2E"
-                BorderBrush="#313244" BorderThickness="0,0,0,1"
-                Height="36">
-            <DockPanel Margin="8,0">
-                <TextBlock Text="◈ WATCHPANEL"
-                           FontSize="10" FontWeight="Bold" FontFamily="Consolas"
-                           Foreground="#585B70" VerticalAlignment="Center"/>
-                <!-- 인디케이터 다운로드 버튼 -->
-                <Button DockPanel.Dock="Right"
-                        Content="⬇" Style="{StaticResource IconBtn}"
-                        ToolTip="Download Global Indicators"
-                        Command="{Binding DownloadIndicatorsCommand}"
-                        VerticalAlignment="Center"
-                        Margin="2,0,0,0"/>
-                <!-- 새로고침 버튼 -->
-                <Button DockPanel.Dock="Right"
-                        Content="⟳" Style="{StaticResource IconBtn}"
-                        ToolTip="Reload Groups"
-                        Command="{Binding LoadGroupsCommand}"
-                        VerticalAlignment="Center"/>
-            </DockPanel>
-        </Border>
+    <DockPanel Cursor="">
 
         <!-- ── 하단 상태바 ───────────────────────────────────── -->
         <Border DockPanel.Dock="Bottom"
@@ -60,12 +35,22 @@
         <!-- ── 메인 스크롤 영역 ──────────────────────────────── -->
         <ScrollViewer VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
-            <StackPanel>
+            <StackPanel Cursor="">
 
                 <!-- ════════════════════════════════════════════
                      1. Global Indicators
                      ════════════════════════════════════════════ -->
-                <TextBlock Text="GLOBAL INDICATORS" Style="{StaticResource BoldText}"/>
+                <DockPanel Margin="8,0">
+                    <!-- 인디케이터 다운로드 버튼 -->
+                    <Button DockPanel.Dock="Right"
+                        Content="⬇" Style="{StaticResource IconBtn}"
+                        ToolTip="Download Global Indicators"
+                        Command="{Binding DownloadIndicatorsCommand}"
+                        VerticalAlignment="Center" 
+                        Margin="2,0,0,0"/>
+
+                    <TextBlock Text="GLOBAL INDICATORS" Style="{StaticResource BoldText}" FontSize="16"/>
+                </DockPanel>
 
                 <Border Background="#1E1E2E" Margin="6,0,6,4"
                         CornerRadius="4" Padding="4,4">
@@ -85,13 +70,13 @@
                                     <!-- Symbol -->
                                     <TextBlock Grid.Column="0"
                                                Text="{Binding Label}"
-                                               FontSize="9" FontFamily="Consolas"
+                                               FontSize="12" FontFamily="Consolas"
                                                Foreground="#6C7086"
                                                VerticalAlignment="Center"/>
                                     <!-- Value -->
                                     <TextBlock Grid.Column="1"
                                                Text="{Binding Value, StringFormat={}{0:N1}}"
-                                               FontSize="10" FontFamily="Consolas"
+                                               FontSize="13" FontFamily="Consolas"
                                                Foreground="#CDD6F4"
                                                VerticalAlignment="Center"
                                                HorizontalAlignment="Right"/>
@@ -99,7 +84,7 @@
                                     <StackPanel Grid.Column="2" Orientation="Horizontal"
                                                 Margin="6,0,0,0" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding ChangeSign}"
-                                                   FontSize="9" FontFamily="Consolas"
+                                                   FontSize="12" FontFamily="Consolas"
                                                    VerticalAlignment="Center">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
@@ -115,7 +100,7 @@
                                             </TextBlock.Style>
                                         </TextBlock>
                                         <TextBlock Text="{Binding ChangeAbs}"
-                                                   FontSize="9" FontFamily="Consolas"
+                                                   FontSize="12" FontFamily="Consolas"
                                                    VerticalAlignment="Center" Margin="1,0,0,0">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
@@ -232,13 +217,19 @@
                         <!-- ════════════════════════════════════════════
                          2. Options
                          ════════════════════════════════════════════ -->
-                        <Border Background="#1E1E2E" Margin="6,0,6,0" CornerRadius="4">
-                            <StackPanel Orientation="Horizontal">
+                        <Border Background="#1E1E2E" CornerRadius="4">
+                            <DockPanel Margin="8,0">
+                                <!-- 새로고침 버튼 -->
+                                <Button DockPanel.Dock="Right"
+                                    Content="⟳" Style="{StaticResource IconBtn}"
+                                    ToolTip="Reload Groups"
+                                    Command="{Binding LoadGroupsCommand}"
+                                    VerticalAlignment="Center" Cursor=""/>
                                 <TextBlock Text="{Binding GroupListInfo}" Style="{StaticResource BoldText}" Foreground="#FFF5E969"/>
                                 <TextBlock Text="GROUPS" Style="{StaticResource NormalText}" Margin="8,0,10,0"/>
                                 <CheckBox Content="Sector" IsChecked="{Binding ShowSector}"/>
                                 <CheckBox Content="Theme" IsChecked="{Binding ShowTheme}"/>
-                            </StackPanel>
+                            </DockPanel>
                         </Border>
 
                         <DataGrid x:Name="GroupGrid" AutoGenerateColumns="False"

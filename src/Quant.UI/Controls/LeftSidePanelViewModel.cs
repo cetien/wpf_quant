@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 
 using Quant.Core.Infrastructure;
 using Quant.Core.Services;
+using Quant.UI.Common;
 
 using System.Collections.ObjectModel;
 using System.Data;
@@ -17,7 +18,7 @@ namespace Quant.UI.Controls;
 public class GlobalIndicatorItem : ObservableObject
 {
     public string Symbol { get; init; } = "";
-    public string Label  { get; init; } = "";
+    public string Label { get; init; } = "";
 
     private double _value;
     private double _change;
@@ -50,9 +51,9 @@ public class GlobalIndicatorItem : ObservableObject
         }
     }
 
-    public bool   IsPositive => Change >= 0;
+    public bool IsPositive => Change >= 0;
     public string ChangeSign => Change >= 0 ? "▲" : "▼";
-    public string ChangeAbs  => $"{Math.Abs(Change):F2}%";
+    public string ChangeAbs => $"{Math.Abs(Change):F2}%";
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -60,12 +61,12 @@ public class GlobalIndicatorItem : ObservableObject
 // ──────────────────────────────────────────────────────────────
 public class GroupRow
 {
-    public int    GroupId    { get; set; }
-    public string Kind       { get; set; } = "";
-    public string Name       { get; set; } = "";
-    public int    StockCount { get; set; }
-    public int    Rating     { get; set; }
-    public double Ret3m      { get; set; }
+    public int GroupId { get; set; }
+    public string Kind { get; set; } = "";
+    public string Name { get; set; } = "";
+    public int StockCount { get; set; }
+    public int Rating { get; set; }
+    public double Ret3m { get; set; }
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -73,8 +74,8 @@ public class GroupRow
 // ──────────────────────────────────────────────────────────────
 public class ScreenerRow
 {
-    public int    Id          { get; set; }
-    public string Name        { get; set; } = "";
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
     public string Description { get; set; } = "";
 
     /// <summary>
@@ -82,13 +83,20 @@ public class ScreenerRow
     /// 사용자 입력 문자열을 여기에 할당하는 것은 SQL 인젝션 경로이므로 금지.
     /// 편집 view 구현 시 반드시 파라미터 바인딩 또는 AST 빌더로 교체할 것.
     /// </summary>
-    public string SqlWhere          { get; set; } = "";
+    public string SqlWhere { get; set; } = "";
 
     /// <summary>
     /// true → fundamentals 테이블 INNER JOIN (PBR/PER/ROE 필터 사용 스크리너)
     /// false → LEFT JOIN (ETF 등 재무데이터 없는 종목 포함)
     /// </summary>
-    public bool   NeedsFundamentals { get; set; } = true;
+    public bool NeedsFundamentals { get; set; } = true;
+
+    /// <summary>
+    /// true → BuildStockExcludeFilter 미적용.
+    /// 미국 종목처럼 ticker 끝자리가 숫자가 아닌 경우 ExcludePrefStock 필터가
+    /// 모든 종목을 걸러버리므로 해당 스크리너에서는 제외 필터를 건너뜀.
+    /// </summary>
+    public bool SkipExcludeFilter { get; set; } = false;
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -97,11 +105,11 @@ public class ScreenerRow
 public class StockRow
 {
     public string Ticker { get; set; } = "";
-    public string Name   { get; set; } = "";
+    public string Name { get; set; } = "";
     public double? Ret_3m { get; set; }
     public string Market { get; set; } = "";
-    public double? RS     { get; set; }
-    public int    Rating { get; set; }
+    public double? RS { get; set; }
+    public int Rating { get; set; }
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -115,8 +123,8 @@ public partial class LeftSidePanelViewModel : ObservableObject
     public ObservableCollection<GlobalIndicatorItem> Indicators { get; } = [];
 
     // ── 옵션 ─────────────────────────────────────────────────
-    [ObservableProperty] private bool _showSector     = true;
-    [ObservableProperty] private bool _showTheme      = true;
+    [ObservableProperty] private bool _showSector = true;
+    [ObservableProperty] private bool _showTheme = true;
 
     // ── 탭: GROUPS / SCREENERS ────────────────────────────────
     /// <summary>true = GROUPS 탭, false = SCREENERS 탭</summary>
@@ -127,7 +135,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
     public bool IsScreenerTabActive => !IsGroupTabActive;
 
     // ── Groups ────────────────────────────────────────────────
-    private readonly List<GroupRow>  _allGroups = [];
+    private readonly List<GroupRow> _allGroups = [];
     public ObservableCollection<GroupRow> Groups { get; } = [];
 
     [ObservableProperty]
@@ -151,7 +159,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
     public bool HasSelectedScreener => SelectedScreener is not null;
 
     // ── Stocks ────────────────────────────────────────────────
-    private readonly List<StockRow>  _allStocks = [];
+    private readonly List<StockRow> _allStocks = [];
     public ObservableCollection<StockRow> Stocks { get; } = [];
 
     [ObservableProperty]
@@ -171,11 +179,11 @@ public partial class LeftSidePanelViewModel : ObservableObject
     [ObservableProperty] private string _stockListInfo = "Cnt";
     [ObservableProperty] private string _selectedGroupInfo = "group";
     [ObservableProperty] private string _statusText = "준비";
-    [ObservableProperty] private bool   _isBusy     = false;
+    [ObservableProperty] private bool _isBusy = false;
 
     // ── 이벤트 ───────────────────────────────────────────────
     public event Action<string>? StockSelected;
-    public event Action<int>?    GroupSelected;
+    public event Action<string>? GroupSelected;
     public event Action<string>? IndicatorSelected;
 
     // ═════════════════════════════════════════════════════════
@@ -199,7 +207,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
     {
         try
         {
-            var svc    = new IndicatorDownloadService(_db);
+            var svc = new IndicatorDownloadService(_db);
             var values = svc.LoadLatestValues();
             foreach (var (dbTicker, value, changePct) in values)
                 UpdateIndicator(dbTicker, value, changePct);
@@ -211,7 +219,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
     {
         var item = Indicators.FirstOrDefault(i => i.Symbol == symbol);
         if (item is null) return;
-        item.Value  = value;
+        item.Value = value;
         item.Change = changePct;
     }
 
@@ -222,11 +230,11 @@ public partial class LeftSidePanelViewModel : ObservableObject
     public async Task DownloadIndicatorsAsync()
     {
         if (IsBusy) return;
-        IsBusy     = true;
+        IsBusy = true;
         StatusText = "인디케이터 다운로드 중…";
         try
         {
-            var svc      = new IndicatorDownloadService(_db);
+            var svc = new IndicatorDownloadService(_db);
             var progress = new Progress<(string symbol, string msg)>(p =>
                 System.Windows.Application.Current.Dispatcher.InvokeAsync(
                     () => StatusText = $"{p.symbol}: {p.msg}"));
@@ -274,19 +282,22 @@ public partial class LeftSidePanelViewModel : ObservableObject
         });
         Screeners.Add(new ScreenerRow
         {
-            Id = 2, Name = "KOSPI · PBR < 1.5",
+            Id = 2,
+            Name = "KOSPI · PBR < 1.5",
             Description = "코스피 저PBR",
             SqlWhere = "s.market = 'KP' AND f.pbr < 1.5 AND f.pbr > 0"
         });
         Screeners.Add(new ScreenerRow
         {
-            Id = 3, Name = "ROE > 15%",
+            Id = 3,
+            Name = "ROE > 15%",
             Description = "고ROE 전체",
             SqlWhere = "f.roe > 15"
         });
         Screeners.Add(new ScreenerRow
         {
-            Id = 4, Name = "KOSDAQ · PER < 10",
+            Id = 4,
+            Name = "KOSDAQ · PER < 10",
             Description = "코스닥 저PER",
             SqlWhere = "s.market = 'KQ' AND f.per > 0 AND f.per < 10"
         });
@@ -297,6 +308,15 @@ public partial class LeftSidePanelViewModel : ObservableObject
             Description = "all korean",
             SqlWhere = "s.market = 'KP' OR s.market = 'KQ'",
             NeedsFundamentals = false
+        });
+        Screeners.Add(new ScreenerRow
+        {
+            Id = 6,
+            Name = "NYSE",
+            Description = "NYSE",
+            SqlWhere = "s.market != 'KP' AND s.market != 'KQ' AND s.security_type = 'stock'",
+            NeedsFundamentals = false,
+            SkipExcludeFilter = true   // 미국 종목은 ticker 끝자리 필터 적용 불가
         });
     }
 
@@ -316,9 +336,11 @@ public partial class LeftSidePanelViewModel : ObservableObject
     {
         try
         {
-            var excludeFilter = _db.BuildStockExcludeFilter("s", "c");
-            var needsF        = SelectedScreener?.NeedsFundamentals ?? true;
-            var fJoin         = needsF
+            var excludeFilter = SelectedScreener?.SkipExcludeFilter == true
+                ? ""
+                : _db.BuildStockExcludeFilter("s", "c");
+            var needsF = SelectedScreener?.NeedsFundamentals ?? true;
+            var fJoin = needsF
                 ? "JOIN latest_f f ON s.ticker = f.ticker AND f.rn = 1"
                 : "LEFT JOIN latest_f f ON s.ticker = f.ticker AND f.rn = 1";
             var sql = $"""
@@ -331,7 +353,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
                 FROM stocks s
                 {fJoin}
                 LEFT JOIN stock_cache c ON c.ticker  = s.ticker
-                WHERE {whereClause} {excludeFilter}
+                WHERE ({whereClause}) {excludeFilter}
                 ORDER BY s.ticker
                 """;
 
@@ -346,7 +368,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
                     Name = ChaenHelper.SafeStr(row, "name"),
                     Market = ChaenHelper.SafeStr(row, "market"),
                     Ret_3m = ChaenHelper.SafeDouble(row, "ret_3m"),
-                    RS     = ChaenHelper.SafeDouble(row, "rs"),
+                    RS = ChaenHelper.SafeDouble(row, "rs"),
                     Rating = ChaenHelper.SafeInt(row, "rating"),
                 });
             }
@@ -417,7 +439,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
         ClearStocks();
         if (value is null) return;
         SelectedGroupInfo = value.Name;
-        GroupSelected?.Invoke(value.GroupId);
+        GroupSelected?.Invoke(value.GroupId.ToString());
         LoadStocksForGroup(value.GroupId);
     }
 
@@ -444,10 +466,10 @@ public partial class LeftSidePanelViewModel : ObservableObject
                 _allStocks.Add(new StockRow
                 {
                     Ticker = ChaenHelper.SafeStr(row, "ticker"),
-                    Name   = ChaenHelper.SafeStr(row, "name"),
+                    Name = ChaenHelper.SafeStr(row, "name"),
                     Market = ChaenHelper.SafeStr(row, "market"),
                     Ret_3m = ChaenHelper.SafeDouble(row, "ret_3m"),
-                    RS     = ChaenHelper.SafeDouble(row, "rs"),
+                    RS = ChaenHelper.SafeDouble(row, "rs"),
                     Rating = ChaenHelper.SafeInt(row, "rating"),
                 });
             }
@@ -479,8 +501,8 @@ public partial class LeftSidePanelViewModel : ObservableObject
     {
         _allStocks.Clear();
         Stocks.Clear();
-        SelectedStock     = null;
-        StockSearchText   = "";
+        SelectedStock = null;
+        StockSearchText = "";
         StockSectionLabel = "";
     }
 
@@ -489,7 +511,7 @@ public partial class LeftSidePanelViewModel : ObservableObject
         if (value is not null) StockSelected?.Invoke(value.Ticker);//, value.Name);
     }
 
-    partial void OnShowSectorChanged(bool value)     => LoadGroups();
-    partial void OnShowThemeChanged(bool value)      => LoadGroups();
+    partial void OnShowSectorChanged(bool value) => LoadGroups();
+    partial void OnShowThemeChanged(bool value) => LoadGroups();
 
 }

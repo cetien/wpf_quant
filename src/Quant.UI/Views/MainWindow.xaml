@@ -70,19 +70,16 @@
             </MenuItem>
             <MenuItem Header="_View">
                 <MenuItem Header="Macro Indicator" IsEnabled="False" Foreground="#45475A"/>
-                <MenuItem Header="Report"          Click="MenuReport_Click"/>
                 <Separator/>
                 <MenuItem Header="Side Panel" IsCheckable="True" IsChecked="True"
                           Click="MenuSidePanel_Click"/>
             </MenuItem>
             <MenuItem Header="_Tool">
-                <MenuItem Header="Edit Group"     Click="MenuEditGroup_Click"/>
+                <MenuItem Header="Macro Indicator" IsEnabled="False" Foreground="#45475A"/>
                 <!-- <MenuItem Header="Edit Watchlist" Click="MenuEditWatchlist_Click"/>                          -->
             </MenuItem>
             <MenuItem Header="_Data">
                 <MenuItem Header="Rebuild StockCache" Click="MenuRebuildStockCache_Click"/>
-                <Separator/>
-                <MenuItem Header="DB Browser" Click="MenuDbBrowser_Click"/>
             </MenuItem>
         </Menu>
 
@@ -133,6 +130,15 @@
                             <TextBlock Text="&#x1F50D;" FontSize="15" HorizontalAlignment="Center"
                                        Foreground="#6C7086" FontFamily="Segoe UI Emoji"/>
                             <TextBlock Text="Search" FontSize="8" HorizontalAlignment="Center"
+                                       Foreground="#6C7086" FontFamily="Consolas" Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="BtnCorrelation" Style="{StaticResource ToolBarButton}"
+                            Click="BtnCorrelation_Click" ToolTip="상관분석">
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="&#x223C;" FontSize="15" HorizontalAlignment="Center"
+                                       Foreground="#6C7086" FontFamily="Segoe UI Symbol"/>
+                            <TextBlock Text="Corr" FontSize="8" HorizontalAlignment="Center"
                                        Foreground="#6C7086" FontFamily="Consolas" Margin="0,2,0,0"/>
                         </StackPanel>
                     </Button>

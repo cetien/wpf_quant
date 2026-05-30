@@ -6,6 +6,7 @@ using LiveChartsCore.SkiaSharpView.WPF;
 
 using Quant.Core.Infrastructure;
 using Quant.Core.Services;
+using Quant.UI.Common;
 
 using SkiaSharp;
 

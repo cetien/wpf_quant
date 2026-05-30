@@ -6,10 +6,11 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Text.RegularExpressions;
+using Quant.UI.Common;
 
 namespace Quant.UI.Views;
 
-public partial class DbBrowserView : UserControl, INavigationAware
+public partial class DbBrowserView : UserControl, ITickerNavigationAware
 {
     private static readonly string[] KnownTables =
     [
@@ -38,7 +39,7 @@ public partial class DbBrowserView : UserControl, INavigationAware
         BuildTableButtons();
     }
 
-    public void OnNavigatedTo(string id)
+    public void OnNavigatedToTicker(string id)
     {
         CheckDbConnection();
 

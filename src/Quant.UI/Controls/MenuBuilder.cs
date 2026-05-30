@@ -1,4 +1,6 @@
-﻿using System.Data;
+﻿using Quant.UI.Common;
+
+using System.Data;
 using System.Diagnostics;
 using System.Reflection.Emit;
 using System.Text.RegularExpressions;
@@ -7,7 +9,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 
-namespace Quant.UI;
+namespace Quant.UI.Common;
 
 // 메뉴 빌더: 마우스 우클릭 시 상황에 맞는 컨텍스트 메뉴를 동적으로 생성
 //

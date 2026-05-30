@@ -1,4 +1,4 @@
-﻿﻿using System.Data;
+﻿using System.Data;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -8,7 +8,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
 
-namespace Quant.UI;
+namespace Quant.UI.Common;
 
 public static class StatusColors
 {
@@ -51,7 +51,7 @@ public sealed class DbNullDoubleConverter : IValueConverter
         // price=0 → 거래정지 종목: vol 포맷만 0 허용, 나머지는 "-"
         if (d == 0.0 && fmt != "vol") return "-";
 
-        return fmt == "vol" ? (d == 0.0 ? "-" : d.ToString("N0", culture))
+        return fmt == "vol" ? d == 0.0 ? "-" : d.ToString("N0", culture)
                             : d.ToString(fmt, culture);
     }
 
@@ -95,7 +95,7 @@ public static class Helpers
     {
         if (string.IsNullOrEmpty(ticker)) return;
         var url = $"https://finance.naver.com/item/coinfo.naver?code={ticker}";
-        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = url, UseShellExecute = true }); }
+        try { Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true }); }
         catch {}
     }
 
@@ -108,6 +108,14 @@ public static class Helpers
         "theme" => "♻️",
         _       => ""
     };
+
+    public static string ShortenPath(string path)
+    {
+        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return path.StartsWith(local, StringComparison.OrdinalIgnoreCase)
+            ? "%LOCALAPPDATA%" + path[local.Length..]
+            : path;
+    }
 
     //----------------------------------------------------
     public static void Status(Action<string, string>? statusEvent, string message, string colorHex)
@@ -123,14 +131,14 @@ public static class Helpers
     //----------------------------------------------------
     public static void HighlightButton(Button btn)
     {
-        btn.Foreground = (System.Windows.Media.Brush)(btn.TryFindResource("AccentBlue")
-            ?? System.Windows.Media.Brushes.LightBlue);
+        btn.Foreground = (Brush)(btn.TryFindResource("AccentBlue")
+            ?? Brushes.LightBlue);
     }
 
     public static void HighlightButton(Button? active, IEnumerable<Button> all)
     {
         foreach (var b in all)
-            b.Foreground = System.Windows.Media.Brushes.Gray;
+            b.Foreground = Brushes.Gray;
         if (active is null) return;
         HighlightButton(active);
     }

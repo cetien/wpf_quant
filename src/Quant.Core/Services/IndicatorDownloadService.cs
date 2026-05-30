@@ -1,4 +1,4 @@
-// Services/IndicatorDownloadService.cs
+﻿// Services/IndicatorDownloadService.cs
 using Quant.Core.Infrastructure;
 
 namespace Quant.Core.Services;
@@ -20,13 +20,13 @@ public class IndicatorDownloadService
     // ticker와 yahoo symbol을 분리: DB key는 안전한 문자열, yahoo는 실제 요청 심볼
     public static readonly IReadOnlyList<IndicatorDef> IndicatorDefs =
     [
+        new("IDX_KOSPI",  "^KS11",   "KOSPI",    "KP"),
+        new("IDX_KOSDAQ", "^KQ11",   "KOSDAQ",   "KQ"),
         new("IDX_SPX",    "^GSPC",   "S&P 500",  "NYSE"),
         new("IDX_NDX",    "^IXIC",   "NASDAQ",   "NYSE"),
         new("IDX_SOX",    "^SOX",    "SOX",      "NYSE"),
-        new("IDX_KOSPI",  "^KS11",   "KOSPI",    "KP"),
-        new("IDX_KOSDAQ", "^KQ11",   "KOSDAQ",   "KQ"),
-        new("IDX_DXY",    "DXY=X",   "DXY",      "NYSE"),
         new("IDX_WTI",    "CL=F",    "WTI",      "NYSE"),
+        new("IDX_DXY",    "DXY=X",   "DXY",      "NYSE"),
     ];
 
     private readonly DbManager            _db;
