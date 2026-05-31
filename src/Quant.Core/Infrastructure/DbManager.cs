@@ -99,6 +99,7 @@ public sealed class DbManager
 
     public DbManager()
     {
+        Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
         Directory.CreateDirectory(Path.GetDirectoryName(DbPath)!);
         RunMigrations();
         // EnsureStockCache()는 생성자에서 제거 — UI 스레드 블로킹 방지
@@ -143,9 +144,9 @@ public sealed class DbManager
     /// </summary>
     public DataTable Query(string sql)
     {
-        using var conn   = OpenConnection();
-        using var cmd    = conn.CreateCommand();
-        cmd.CommandText  = sql;
+        using var conn = OpenConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = sql;
 
         using var reader = cmd.ExecuteReader();
         var dt = new DataTable();
@@ -205,8 +206,8 @@ public sealed class DbManager
     /// </summary>
     public T? Scalar<T>(string sql)
     {
-        using var conn  = OpenConnection();
-        using var cmd   = conn.CreateCommand();
+        using var conn = OpenConnection();
+        using var cmd = conn.CreateCommand();
         cmd.CommandText = sql;
         var result = cmd.ExecuteScalar();
         if (result is null || result is DBNull) return default;
@@ -257,8 +258,8 @@ public sealed class DbManager
     /// </summary>
     public int Execute(string sql)
     {
-        using var conn  = OpenConnection();
-        using var cmd   = conn.CreateCommand();
+        using var conn = OpenConnection();
+        using var cmd = conn.CreateCommand();
         cmd.CommandText = sql;
         return cmd.ExecuteNonQuery();
     }
@@ -506,8 +507,9 @@ public void InsertUser(int id, string name)
 
     public bool ExistTicker(string table, string ticker) => Exists(table, where: $"ticker='{ticker}'");
     public DateOnly? MaxDateForTicker(string table, string ticker) => MaxDate(table, where: $"ticker='{ticker}'");
-    public string SecurityTypeForTicker(string ticker) => Scalar<string>($"SELECT security_type FROM stocks WHERE ticker = '{ticker}'") ?? "stock";
-    public string MarketForTicker(string ticker) => Scalar<string>($"SELECT market FROM stocks WHERE ticker = '{ticker}'") ?? "KP";
+    //public string SecurityTypeForTicker(string ticker) => Scalar<string>($"SELECT security_type FROM stocks WHERE ticker = '{ticker}'") ?? "stock";
+    //public string MarketForTicker(string ticker) => Scalar<string>($"SELECT market FROM stocks WHERE ticker = '{ticker}'") ?? "KP";
+    public bool IsEtf(string ticker) => Scalar<string>($"SELECT security_type FROM stocks WHERE ticker = '{ticker}'")?.Equals("ETF", StringComparison.OrdinalIgnoreCase) ?? false;
 
     /// <summary>
     /// KRX 종목 여부 판별.
@@ -518,7 +520,9 @@ public void InsertUser(int id, string name)
     /// </summary>
     public bool IsKrxTicker(string ticker)
     {
-        var market = MarketForTicker(ticker);
+        //var market = MarketForTicker(ticker);
+        var market = Scalar<string>($"SELECT market FROM stocks WHERE ticker = '{ticker}'") ?? "KP";
+
         if (market == "KP" || market == "KQ")
             return true;
 
@@ -529,8 +533,7 @@ public void InsertUser(int id, string name)
     /// <summary>stocks 마스터 전체 반환 (이력·마이그레이션 검증용).</summary>
     /// Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
     public List<Stock> StockList() => Query<Stock>("SELECT * FROM stocks ORDER BY ticker");
-    public List<StockGroup> GroupList() => Query<StockGroup>("SELECT * FROM groups ORDER BY name");
-    public List<StockGroupMap> GroupMapList() => Query<StockGroupMap>("SELECT * FROM stock_group_map ORDER BY ticker");
+    //public List<GroupInfo> GroupList() => Query<GroupInfo>("SELECT * FROM groups ORDER BY name");
 
     // for StockPickerControl
     /*
@@ -1111,8 +1114,11 @@ final_select AS (
             TargetPrice = Safe(reader["target_price"]),
         };
     }
+
     public Stock? StockInfo(string ticker) => GetStockCache(ticker);
-    //public string StockName(string ticker) => StockInfo(ticker)?.Name ?? "";
+    public string StockName(string ticker) => StockInfo(ticker)?.Name ?? "";
+
+    public StockPrimaryGroup? GroupInfo(string ticker) => QueryFirst<StockPrimaryGroup>("SELECT * FROM v_stock_primary_group WHERE ticker=$ticker", new { ticker });
 
     // ──────────────────────────────────────────────────────────
     //  Data helpers

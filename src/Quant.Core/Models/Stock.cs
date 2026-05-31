@@ -1,44 +1,20 @@
 ﻿// Models/Stock.cs
 namespace Quant.Core.Models;
 
-public class Stock
+public class StockItem
 {
     public string Ticker { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+}
+
+public class Stock : StockItem
+{
     public string Market { get; set; } = string.Empty;       // KP | KQ | NYSE
     public string SecurityType { get; set; } = string.Empty; // stock | index | etf
     public DateOnly? ListedDate { get; set; }
     public int Rating { get; set; } = 5;
     public bool IsActive { get; set; } = true;
     public DateTime UpdatedAt { get; set; }
-}
-
-public class StockItem
-{
-    public string Ticker { get; set; } = "";
-    public string Name { get; set; } = "";
-}
-
-// Models/Group.cs
-public class StockGroup
-{
-    public int GroupId { get; set; }
-    public string Kind { get; set; } = string.Empty; // sector | theme
-    public string Name { get; set; } = string.Empty;
-    public string? Description { get; set; }
-    public int Rating { get; set; } = 5;
-    public bool IsActive { get; set; } = true;
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
-}
-
-// Models/StockGroupMap.cs
-public class StockGroupMap
-{
-    public string Ticker { get; set; } = string.Empty;
-    public int GroupId { get; set; }
-    public double Weight { get; set; } = 1.0;
-    public DateTime CreatedAt { get; set; }
 }
 
 // Models/StockCache.cs
@@ -90,4 +66,35 @@ public class StockCache : Stock
 
     public int ReportCount { get; set; }
     public double TargetPrice { get; set; }   // pdf_reports + stock_tp 최신값
+}
+
+
+// Models/Group.cs
+public class GroupInfo // from table: groups
+{
+    public GroupInfo() { }
+    public GroupInfo(int groupId) { GroupId = groupId; }
+
+    public int GroupId { get; set; }
+    public string Kind { get; set; } = string.Empty; // sector | theme | watch
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public int Rating { get; set; } = 5;
+    public bool IsActive { get; set; } = true;
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+
+// Models/StockGroupMap.cs
+public class StockPrimaryGroup  // from view: v_stock_primary_group
+{
+    public string Ticker { get; set; } = string.Empty;
+    public int GroupId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Market { get; set; } = string.Empty;       // KP | KQ | NYSE
+    public int StockRating { get; set; } = 5;
+    public int GroupRating { get; set; } = 5;
+    public string GroupName { get; set; } = string.Empty;
+    public string GroupKind { get; set; } = string.Empty;   // sector | theme | watch
+    public double GroupWeight { get; set; } = 1.0;
 }

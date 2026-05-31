@@ -1,6 +1,7 @@
 ﻿using HandyControl.Data;
 
 using Quant.Core.Infrastructure;
+using Quant.Core.Models;
 using Quant.UI.Common;
 
 using System.Windows;
@@ -16,7 +17,7 @@ public interface ITickerNavigationAware
 }
 public interface IGroupNavigationAware
 {
-    void OnNavigatedToGroup(string groupId);
+    void OnNavigatedToGroup(GroupInfo group);
 }
 
 
@@ -98,7 +99,8 @@ public partial class MainWindow : Window, IMainActions
     {
         AppState.LastGroup = groupId;
         TxtStatus.Text = $"selected: {groupId}";// label;
-        if (MainContent.Content is IGroupNavigationAware navAwareView) { navAwareView.OnNavigatedToGroup(groupId); }
+        if (MainContent.Content is IGroupNavigationAware navAwareView && int.TryParse(groupId, out var gid))
+            navAwareView.OnNavigatedToGroup(new GroupInfo(gid));
     }
 
     private void SidePanel_IndicatorSelected(string symbol)
@@ -185,7 +187,7 @@ public partial class MainWindow : Window, IMainActions
     {
         if (_dbBrowserView is null)
         {
-            _dbBrowserView = new DbBrowserView(_db);
+            _dbBrowserView = new DbBrowserView(this);
             //_dbBrowserView.StatusChanged  += Status;
             _dbBrowserView.ElapsedChanged += ms => TxtElapsed.Text = ms;
         }
@@ -203,15 +205,15 @@ public partial class MainWindow : Window, IMainActions
         SwitchView(_reportView, ticker, BtnReport);
     }
 
-    private void ShowEditGroup(string? ticker)
+    private void ShowEditGroup(GroupInfo? group = null)
     {
         if (_editGroupView is null)
         {
-            _editGroupView = new EditGroupView(_db);
-            _editGroupView.StatusChanged      += Status;
-            //_editGroupView.TickerDoubleClicked += (ticker, name) => ShowChart(ticker, name);
+            _editGroupView = new EditGroupView(this);
+            //_editGroupView.StatusChanged      += Status;
+            //_editGroupView.TickerDoubleClicked += (ticker, name) => ShowChart(ticker);
         }
-        SwitchView(_editGroupView, ticker, BtnGroup);
+        SwitchView(_editGroupView, group ?? new GroupInfo(0), BtnGroup);
     }
 
     public void ShowTargetPrice(string? ticker = null)
@@ -235,16 +237,26 @@ public partial class MainWindow : Window, IMainActions
     //    SwitchView(_editWatchlistView, null, "Edit Watchlist");
     //}
 
-    private void SwitchView(object view, string? id, Button? activeBtn)
+    private void SetupView(object view, Button? activeBtn)
     {
         MainContent.Content = view;
-        TxtStatus.Text = "";// label;
+        TxtStatus.Text      = "";
         TxtElapsed.Text     = "";
         HighlightToolButton(activeBtn);
+    }
 
-        if (string.IsNullOrEmpty(id)) return;
-        if (view is ITickerNavigationAware tickerView) tickerView.OnNavigatedToTicker(id); 
-        if (view is IGroupNavigationAware groupView) groupView.OnNavigatedToGroup(id); 
+    private void SwitchView(object view, string? ticker, Button? activeBtn)
+    {
+        SetupView(view, activeBtn);
+        if (!string.IsNullOrEmpty(ticker) && view is ITickerNavigationAware tv)
+            tv.OnNavigatedToTicker(ticker);
+    }
+
+    private void SwitchView(object view, GroupInfo group, Button? activeBtn)
+    {
+        SetupView(view, activeBtn);
+        if (view is IGroupNavigationAware gv)
+            gv.OnNavigatedToGroup(group);
     }
 
     private void HighlightToolButton(Button? active)
@@ -310,7 +322,13 @@ public partial class MainWindow : Window, IMainActions
                 return;
 
             case MenuAction.FindGroup:
-                StatusWarning($"Find Group: {context}");
+                var info = _db.GroupInfo(context);
+                if (info is not null)
+                {
+                    ShowEditGroup(new GroupInfo(info.GroupId));
+                    StatusWarning($"Find Group: {info.Name} -> {info.GroupName}");
+                } else
+                    StatusError($"Fail to find Group for {context}");
                 return;
 
             case MenuAction.WebInfo:
@@ -341,19 +359,20 @@ public partial class MainWindow : Window, IMainActions
 
     private void HandleDbMenuAction(MenuAction action, string ticker)
     {
-        StatusInfo($"no action defined: HandleDbMenuAction={action}, ticker={ticker}");
-        return; // for safe now - remove after testing
-
         if (MessageBox.Show($"[{ticker}]의 데이터를 삭제하시겠습니까?", "삭제 확인",
             MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
 
         try
         {
-            if (action == MenuAction.Db_RemoveTicker) _db.DeleteStockAllData(ticker);
-            else if (action == MenuAction.Db_DeletePrices) _db.DeletePriceData(ticker);
+            StatusInfo($"no action defined: HandleDbMenuAction={action}, ticker={ticker}");
+            return; // for safe now - remove after testing
 
-            StatusSuccess($"{action} 완료: {ticker}");
-            //LoadGrids(); // 변경 사항 반영을 위해 그리드 새로고침
+
+            //if (action == MenuAction.Db_RemoveTicker) _db.DeleteStockAllData(ticker);
+            //else if (action == MenuAction.Db_DeletePrices) _db.DeletePriceData(ticker);
+
+            //StatusSuccess($"{action} 완료: {ticker}");
+            ////LoadGrids(); // 변경 사항 반영을 위해 그리드 새로고침
         }
         catch (Exception ex)
         {

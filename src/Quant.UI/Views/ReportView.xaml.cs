@@ -246,14 +246,14 @@ public partial class ReportView : UserControl, ITickerNavigationAware
         {
             var TpIsInvalid= "r.writer = '한국IR협의회' OR r.writer LIKE '%평가정보%'";
             _allReports = _db.Query(
-                "SELECT r.id, r.date, r.ticker, s.name AS name, s.sector AS \"group\", r.title, r.writer, r.filepath, " +
+                "SELECT r.id, r.date, r.ticker, s.name AS name, s.group_name AS \"group\", r.title, r.writer, r.filepath, " +
                 $"CASE WHEN {TpIsInvalid} THEN CAST('NaN' AS DOUBLE) ELSE r.target_price END AS target_price, " +
                 "r.analyze_status, c.current_price AS price, " +
                 $"CASE WHEN {TpIsInvalid} THEN CAST('NaN' AS DOUBLE) " +
                 "     ELSE ROUND((r.target_price / NULLIF(c.current_price, 0) - 1) * 100, 2) " +
                 "END AS upside " +
                 "FROM pdf_reports r " +
-                "LEFT JOIN v_stock_primary_sector s ON s.ticker = r.ticker " +
+                "LEFT JOIN v_stock_primary_group s ON s.ticker = r.ticker " +
                 "LEFT JOIN stock_cache c ON c.ticker = r.ticker " +
 //$"WHERE {TpIsInvalid} " +
                 "ORDER BY r.date DESC, r.ticker ASC LIMIT 5000");
@@ -458,15 +458,17 @@ public partial class ReportView : UserControl, ITickerNavigationAware
                         MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
                     try
                     {
-_main.StatusInfo($"no action: delete file: {date}");
-return;
+                        var dtFiles = _db.Query($"SELECT filepath FROM pdf_reports WHERE date = '{date}'");
+                        foreach (DataRow row in dtFiles.Rows)
+                        {
+                            var fp = row["filepath"]?.ToString();
+                            if (!string.IsNullOrWhiteSpace(fp) && File.Exists(fp))
+                                try { File.Delete(fp); } catch { /* skip */ }
+                        }
 
                         int affected = _db.Execute("DELETE FROM pdf_reports WHERE date = $1", date);
                         _main.StatusSuccess($"삭제 완료: {affected}건");
-                        LoadGrids(); // 변경 사항 반영을 위해 그리드 새로고침
-
-                        //TODO: 파일 삭제
-                        //TODO: 파일 삭제는 별도의 스크립트로 일괄 처리 권장 (파일 경로가 DB에 저장되어 있지만 실제 파일이 존재하지 않는 경우가 많음)
+                        LoadGrids();
                     }
                     catch (Exception ex)
                     {
@@ -488,14 +490,15 @@ return;
         var filepath = rowView["filepath"]?.ToString() ?? "";
 
         // ── 확인 다이얼로그 ──
+        var company = rowView["name"]?.ToString() ?? "";
         var title = rowView["title"]?.ToString() ?? filepath;
         var confirm = MessageBox.Show(
-            $"삭제하시겠습니까?\n\n{title}\n\n• DB 레코드 삭제\n• 파일 삭제: {filepath}",
+            $"삭제하시겠습니까?\n\n• {company}\n• {title}\n\n• 파일 삭제: {filepath}",
             "삭제 확인", MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (confirm != MessageBoxResult.Yes) return;
 
-        _main.StatusInfo($"no action: delete file: {filepath}");
-        return;
+        //_main.StatusInfo($"no action: delete file: {filepath}");
+        //return;
 
         // ── DB DELETE ──
         try

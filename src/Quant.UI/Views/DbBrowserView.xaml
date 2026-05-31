@@ -21,6 +21,9 @@
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="32"/>
                     <RowDefinition Height="32"/>
+                    <RowDefinition Height="28"/>
+                    <RowDefinition Height="28"/>
+                    <RowDefinition Height="28"/>
                     <RowDefinition Height="200"/>
                 </Grid.RowDefinitions>
                 <Border Grid.Row="0" Background="#252536" Padding="12,0">
@@ -38,7 +41,32 @@
                     <ComboBoxItem Content="DELETE"/>
                 </ComboBox>
                 <TextBox x:Name="TxtWhere" Grid.Row="3" Text="ticker='000000'"/>
-                <TextBox x:Name="TxtSqlSample" Grid.Row="4" Text="SELECT * FROM stocks LIMIT 500"/>
+                <ComboBox x:Name="CmbJoin" Grid.Row="4" Background="#313244" ToolTip="JOIN"
+                          SelectionChanged="CmbSqlOption_SelectionChanged">
+                    <ComboBoxItem Content="(JOIN 없음)"       Tag="" IsSelected="True"/>
+                    <ComboBoxItem Content="JOIN stock_cache"  Tag="JOIN stock_cache c ON s.ticker=c.ticker"/>
+                    <ComboBoxItem Content="JOIN daily_prices" Tag="JOIN daily_prices p ON s.ticker=p.ticker"/>
+                    <ComboBoxItem Content="JOIN fundamentals" Tag="JOIN fundamentals f ON s.ticker=f.ticker"/>
+                    <ComboBoxItem Content="JOIN supply"       Tag="JOIN supply u ON s.ticker=u.ticker"/>
+                </ComboBox>
+                <ComboBox x:Name="CmbGroupBy" Grid.Row="5" Background="#313244" ToolTip="GROUP BY"
+                          SelectionChanged="CmbSqlOption_SelectionChanged">
+                    <ComboBoxItem Content="(GROUP BY 없음)" Tag="" IsSelected="True"/>
+                    <ComboBoxItem Content="GROUP BY ticker" Tag="ticker"/>
+                    <ComboBoxItem Content="GROUP BY rating" Tag="rating"/>
+                    <ComboBoxItem Content="GROUP BY date"   Tag="date"/>
+                    <ComboBoxItem Content="GROUP BY sector" Tag="sector"/>
+                </ComboBox>
+                <ComboBox x:Name="CmbOrderBy" Grid.Row="6" Background="#313244" ToolTip="ORDER BY"
+                          SelectionChanged="CmbSqlOption_SelectionChanged">
+                    <ComboBoxItem Content="(ORDER BY 없음)" Tag="" IsSelected="True"/>
+                    <ComboBoxItem Content="date DESC"       Tag="date DESC"/>
+                    <ComboBoxItem Content="date ASC"        Tag="date ASC"/>
+                    <ComboBoxItem Content="ticker ASC"      Tag="ticker ASC"/>
+                    <ComboBoxItem Content="name ASC"        Tag="name ASC"/>
+                    <ComboBoxItem Content="rating DESC"     Tag="rating DESC"/>
+                </ComboBox>
+                <TextBox x:Name="TxtSqlSample" Grid.Row="7" Text="SELECT * FROM stocks LIMIT 500"/>
             </Grid>
         </Border>
 
@@ -50,7 +78,7 @@
         <Grid Grid.Column="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="44"/>
-                <RowDefinition Height="44"/>
+                <RowDefinition Height="Auto" MinHeight="44"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="22"/>
             </Grid.RowDefinitions>
@@ -67,6 +95,9 @@
                         <Button Content="✕ fundamentals"   Style="{StaticResource ActionBtn}" Tag="fundamentals" Click="BtnFunction_Click" Foreground="#F38BA8"/>
                         <Button Content="✕ group"   Style="{StaticResource ActionBtn}" Tag="stock_group_map" Click="BtnFunction_Click" Foreground="#F38BA8"/>
                         <Button Content="✕ stocks"   Style="{StaticResource ActionBtn}" Tag="stocks" Click="BtnFunction_Click" Foreground="#F38BA8"/>
+                        <Button Content="update"   Style="{StaticResource ActionBtn}" Tag="UPDATE" Click="BtnCommand_Click" Foreground="#FF3A2027" Background="#FFA4ACD6"/>
+                        <Button Content="insert"   Style="{StaticResource ActionBtn}" Tag="INSERT" Click="BtnCommand_Click" Foreground="#FF3A2027" Background="#FFA4ACD6"/>
+                        <Button Content="delete"   Style="{StaticResource ActionBtn}" Tag="DELETE" Click="BtnCommand_Click" Foreground="#FF3A2027" Background="#FFA4ACD6"/>
                     </StackPanel>
                     <TextBlock x:Name="TxtTickerInfo" HorizontalAlignment="Right"
                            FontSize="10" FontFamily="Consolas"
@@ -76,17 +107,24 @@
 
             <!-- SQL 바 -->
             <Border Grid.Row="1" Background="#252536" BorderBrush="#45475A" BorderThickness="0,0,0,1">
-                <Grid Margin="8,4" VerticalAlignment="Center">
+                <Grid Margin="8,4">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="70"/>
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="TxtSql" Grid.Column="0"
                              Text="SELECT * FROM stocks WHERE 1 LIMIT 500"
+                             AcceptsReturn="True" TextWrapping="NoWrap"
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Auto"
+                             MinHeight="36" MaxHeight="200"
+                             VerticalAlignment="Stretch"
+                             FontFamily="Consolas"
                              KeyDown="TxtSql_KeyDown"/>
                     <Button Grid.Column="1" Content="▶ 실행" Margin="6,0,0,0"
                             Background="#FF3A9448" Foreground="White"
                             FontWeight="Bold" Style="{StaticResource ActionBtn}"
+                            VerticalAlignment="Top"
                             Click="BtnRun_Click"/>
                 </Grid>
             </Border>

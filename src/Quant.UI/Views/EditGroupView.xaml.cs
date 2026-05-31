@@ -5,6 +5,7 @@ using LiveChartsCore.SkiaSharpView.Painting;
 using LiveChartsCore.SkiaSharpView.WPF;
 
 using Quant.Core.Infrastructure;
+using Quant.Core.Models;
 using Quant.Core.Services;
 using Quant.UI.Common;
 
@@ -12,6 +13,8 @@ using SkiaSharp;
 
 using System.Collections.ObjectModel;
 using System.Data;
+using System.DirectoryServices.ActiveDirectory;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -19,10 +22,11 @@ using System.Xml.Linq;
 
 namespace Quant.UI.Views;
 
-public partial class EditGroupView : UserControl
+public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroupNavigationAware
 {
-    public event Action<string, string>? StatusChanged;
-    public event Action<string, string>? TickerDoubleClicked;  // ticker, name → MainWindow가 ChartView로 전달
+    private readonly IMainActions _main;
+    //public event Action<string, string>? StatusChanged;
+    //public event Action<string, string>? TickerDoubleClicked;  // ticker, name → MainWindow가 ChartView로 전달
 
     // ── LiveCharts bindings ───────────────────────────────────
     public ObservableCollection<ISeries> ChartSeries { get; } = [];
@@ -60,9 +64,12 @@ public partial class EditGroupView : UserControl
     // ── 차트 색상 매핑: ticker → SKColor (ApplyPeriod와 동기화) ──
     private Dictionary<string, SKColor> _tickerColors = [];
 
-    public EditGroupView(DbManager db)
+    public EditGroupView(IMainActions main)
     {
-        _db = db;
+        _main = main;
+        _db = App.DB;// main.Db;
+        //_db = db;
+
         InitializeComponent();
         //chkAllGroup.IsChecked = true;
         chkSectorGroup.IsChecked = true;
@@ -70,7 +77,31 @@ public partial class EditGroupView : UserControl
         //groupKindFilter = "";
         DataContext = this;
         InitAxes();
-        Loaded += (_, _) => LoadGroups();
+        //Loaded += (_, _) => LoadGroups();
+    }
+
+    public void OnNavigatedToGroup(GroupInfo group)
+    {
+        LoadGroups();
+
+        _currentGroupId = group.GroupId;
+
+        var target = _currentGroupId > 0
+            ? _groupTable?.DefaultView.Cast<DataRowView>()
+                .FirstOrDefault(r => r["group_id"]?.ToString() == _currentGroupId.ToString())
+            : _groupTable?.DefaultView.Cast<DataRowView>().FirstOrDefault();
+
+        if (target != null)
+        {
+            GridGroup.SelectedItem = target;
+            GridGroup.ScrollIntoView(target);
+        }
+    }
+    public void OnNavigatedToTicker(string ticker)
+    {
+        if (string.IsNullOrEmpty(ticker)) return;
+        if (CheckboxAddTicker.IsChecked != true) return;
+        AddTicker(ticker);
     }
 
     // ═════════════════════════════════════════════════════════
@@ -119,9 +150,9 @@ public partial class EditGroupView : UserControl
 
             var rowCount = $"{_groupTable.Rows.Count:N0}";
             GroupGridCount.Text = rowCount;
-            Helpers.StatusSuccess(StatusChanged, $"LoadGroups= {rowCount}");
+            _main.StatusSuccess($"LoadGroups= {rowCount}");
         }
-        catch (Exception ex) { Helpers.StatusException(StatusChanged, ex, "LoadGroups"); }
+        catch (Exception ex) { _main.StatusException(ex, "LoadGroups"); }
     }
 
     //private string BuildGroupKindFilter()
@@ -149,6 +180,25 @@ public partial class EditGroupView : UserControl
         GroupRatingCtrl.Rating = int.TryParse(row["rating"]?.ToString(), out var r0) ? Math.Clamp(r0, 0, 10) : 5;
         LoadTickers(gid);
         LoadChartData(gid);
+    }
+
+    private void GridGroup_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+    {
+        if (e.EditAction != DataGridEditAction.Commit) return;
+        if (e.Row.Item is not DataRowView rowView) return;
+        if (!int.TryParse(rowView["group_id"]?.ToString(), out var gid)) return;
+
+        var newVal = (e.EditingElement as TextBox)?.Text ?? "";
+        var col    = e.Column.Header?.ToString();
+        try
+        {
+            if (col == "desc")
+            {
+                _db.Execute("UPDATE groups SET description = $1, updated_at = now() WHERE group_id = $2", newVal, gid);
+                _main.StatusSuccess($"설명 저장: {rowView["name"]}");
+            }
+        }
+        catch (Exception ex) { _main.StatusException(ex, $"{col} 저장 실패"); }
     }
 
     // ═════════════════════════════════════════════════════════
@@ -237,16 +287,27 @@ public partial class EditGroupView : UserControl
 
     private void GridTicker_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
+        // TP 컬럼 더블클릭 시 편집 모드 진입 — PDF 열기 방지
+        if (GridTicker.CurrentColumn is DataGridTemplateColumn tc &&
+            tc.Header?.ToString() == "wgt") return;
+
         if (GridTicker.SelectedItem is not DataRowView row) return;
         var ticker = row["ticker"]?.ToString() ?? "";
-        var name   = row["name"]?.ToString()   ?? ticker;
-        if (!string.IsNullOrEmpty(ticker))
-            TickerDoubleClicked?.Invoke(ticker, name);
+        _main.ActionHandler(MenuAction.DrawChart, ticker);
+
+        //if (FindAncestorOrSelf<DataGridCell>(e.OriginalSource as DependencyObject)
+        //        ?.Column.Header?.ToString() == "wgt") return;
+
+        //if (GridTicker.SelectedItem is not DataRowView row) return;
+        //var ticker = row["ticker"]?.ToString() ?? "";
+        //var name   = row["name"]?.ToString()   ?? ticker;
+        //if (!string.IsNullOrEmpty(ticker))
+        //    TickerDoubleClicked?.Invoke(ticker, name);
     }
 
-    public void AddTicker(string ticker, string name)
+    public void AddTicker(string ticker)
     {
-        if (CheckboxAddTicker.IsChecked == true)
+        //if (CheckboxAddTicker.IsChecked == true)
         {
             try
             {
@@ -255,9 +316,9 @@ public partial class EditGroupView : UserControl
                     $"VALUES('{ticker}', {_currentGroupId}, 5) " +
                     $"ON CONFLICT(ticker, group_id) DO UPDATE SET weight = EXCLUDED.weight");
                 LoadTickers(_currentGroupId);
-                TxtStatus.Text = $"AddTicker: _currentGroupId={_currentGroupId}, ticker={ticker}, name={name}";
+                TxtStatus.Text = $"AddTicker: _currentGroupId={_currentGroupId}, ticker={ticker}";
             }
-            catch (Exception ex) { Helpers.StatusException(StatusChanged, ex, "오류"); }
+            catch (Exception ex) { _main.StatusException(ex, "오류"); }
         }
     }
 
@@ -295,7 +356,7 @@ public partial class EditGroupView : UserControl
         var progress = new Progress<string>(msg =>
         {
             TxtStatus.Text = msg;
-            Helpers.StatusInfo(StatusChanged, msg);
+            _main.StatusSuccess(msg);
         });
 
         try
@@ -315,7 +376,7 @@ public partial class EditGroupView : UserControl
                     errors.Add(ticker);
                     var msg = $"{prefix}: 오류 — {ex.Message}";
                     TxtStatus.Text = msg;
-                    Helpers.StatusException(StatusChanged, ex, prefix);
+                    _main.StatusException(ex, prefix);
                 }
                 if (done < total)
                     await Task.Delay(rng.Next(1500, 2501));
@@ -330,9 +391,9 @@ public partial class EditGroupView : UserControl
                 : $"완료 — {total}개 중 {errors.Count}개 오류: {string.Join(", ", errors)}";
             TxtStatus.Text = summary;
             if (errors.Count == 0)
-                Helpers.StatusSuccess(StatusChanged, summary);
+                _main.StatusSuccess(summary);
             else
-                Helpers.StatusWarning(StatusChanged, summary);
+                _main.StatusWarning(summary);
         }
         finally
         {
@@ -392,12 +453,12 @@ public partial class EditGroupView : UserControl
             ApplyPeriod();
             TxtStockCountAtGroupGrid.Text = $"{_rawData.Count}";
             TxtStatus.Text = $"[{TxtGroupNameAtChart.Text}] {_rawData.Count}개 종목";
-            Helpers.StatusSuccess(StatusChanged, TxtStatus.Text);
+            _main.StatusSuccess(TxtStatus.Text);
         }
         catch (Exception ex)
         {
             TxtStatus.Text = $"차트 오류: {ex.Message}";
-            Helpers.StatusException(StatusChanged, ex, "차트 오류");
+            _main.StatusException(ex, "차트 오류");
         }
     }
 
@@ -598,9 +659,9 @@ public partial class EditGroupView : UserControl
                 UpdateGroupCount();
                 
             TxtStatus.Text = $"제거됨: {ticker}";
-            Helpers.StatusInfo(StatusChanged, $"제거됨: {ticker}");
+            _main.StatusSuccess($"제거됨: {ticker}");
         }
-        catch (Exception ex) { TxtStatus.Text = $"제거 오류: {ex.Message}"; }
+        catch (Exception ex) { _main.StatusException(ex, "제거 오류"); }
     }
 
     //private void BtnDeleteTicker_Click(object sender, RoutedEventArgs e)
@@ -638,9 +699,9 @@ public partial class EditGroupView : UserControl
             _db.SetGroupRating(rating, _currentGroupId);
             if (_groupTable != null && GridGroup.SelectedItem is DataRowView row)
                 row.Row["rating"] = rating;
-            Helpers.StatusSuccess(StatusChanged, $"[{TxtGroupNameAtChart.Text}] rating 저장: {rating}");
+            _main.StatusSuccess($"[{TxtGroupNameAtChart.Text}] rating 저장: {rating}");
         }
-        catch (Exception ex) { Helpers.StatusException(StatusChanged, ex, "rating 저장 오류"); }
+        catch (Exception ex) { _main.StatusException(ex, "rating 저장 오류"); }
     }
 
     private void UpdateGroupCount()
@@ -669,7 +730,7 @@ public partial class EditGroupView : UserControl
     private void GridTicker_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
     {
         if (e.EditAction != DataGridEditAction.Commit) return;
-        if (e.Column.Header?.ToString() != "w") return;
+        if (e.Column.Header?.ToString() != "wgt") return;
         if (e.Row.Item is not DataRowView row) return;
 
         var ticker = row["ticker"]?.ToString() ?? "";
@@ -687,9 +748,19 @@ public partial class EditGroupView : UserControl
                         $"WHERE group_id = {_currentGroupId} AND ticker = '{ticker}'");
             row["weight"] = w;
             LoadGroups();
-            Helpers.StatusSuccess(StatusChanged, $"{ticker} weight → {w}");
+            _main.StatusSuccess($"{ticker} weight → {w}");
         }
-        catch (Exception ex) { Helpers.StatusException(StatusChanged, ex, "weight 저장 오류"); }
+        catch (Exception ex) { _main.StatusException(ex, "weight 저장 오류"); }
+    }
+
+    private static T? FindAncestorOrSelf<T>(DependencyObject? dep) where T : DependencyObject
+    {
+        while (dep != null)
+        {
+            if (dep is T t) return t;
+            dep = VisualTreeHelper.GetParent(dep);
+        }
+        return null;
     }
 
     private static T? FindVisualChild<T>(DependencyObject? parent) where T : DependencyObject
@@ -912,12 +983,12 @@ public partial class EditGroupView : UserControl
         if (dlg.ShowDialog() == true) LoadGroups();
     }
 
-    private void BtnEditGroup_Click(object sender, RoutedEventArgs e)
-    {
-        if (GridGroup.SelectedItem is not DataRowView row) { TxtStatus.Text = "그룹을 선택하세요."; return; }
-        var dlg = new GroupEditDialog(row);
-        if (dlg.ShowDialog() == true) LoadGroups();
-    }
+    //private void BtnEditGroup_Click(object sender, RoutedEventArgs e)
+    //{
+    //    if (GridGroup.SelectedItem is not DataRowView row) { TxtStatus.Text = "그룹을 선택하세요."; return; }
+    //    var dlg = new GroupEditDialog(row);
+    //    if (dlg.ShowDialog() == true) LoadGroups();
+    //}
 
     private void BtnDeleteGroup_Click(object sender, RoutedEventArgs e)
     {
@@ -930,7 +1001,7 @@ public partial class EditGroupView : UserControl
         try
         {
             _db.Execute($"DELETE FROM groups WHERE group_id = {id}");
-            Helpers.StatusError(StatusChanged, $"삭제됨: {name}");
+            _main.StatusError($"삭제됨: {name}");
             _currentGroupId = -1;
             TxtStockCountAtGroupGrid.Text =
             TxtCurrGroupNameAtGrid.Text = TxtCurrGroupNameAtGrid.Text = TxtChartInfo.Text = "";
@@ -938,6 +1009,6 @@ public partial class EditGroupView : UserControl
             ChartSeries.Clear(); _rawData.Clear();
             LoadGroups();
         }
-        catch (Exception ex) { Helpers.StatusException(StatusChanged, ex, "삭제 오류"); }
+        catch (Exception ex) { _main.StatusException(ex, "삭제 오류"); }
     }
 }

@@ -21,7 +21,7 @@
                     <TextBlock Text="🏷 GROUP EDITOR" Style="{StaticResource BoldText}"
                                Foreground="#6C7086" Margin="0,0,16,0"/>
                     <Button Content="＋ New"    Style="{StaticResource ActionBtn}" Click="BtnNewGroup_Click"/>
-                    <Button Content="✎ Edit"   Style="{StaticResource ActionBtn}" Click="BtnEditGroup_Click"/>
+                            <!-- <Button Content="✎ Edit"   Style="{StaticResource ActionBtn}" Click="BtnEditGroup_Click"/> -->
                     <Button x:Name="BtnDel" Content="✕ Delete" Style="{StaticResource ActionBtn}"
                             Click="BtnDeleteGroup_Click" Foreground="#F38BA8"/>
                 </StackPanel>
@@ -39,7 +39,7 @@
             <!-- ── 좌측: 상하 분할 ────────────────────── -->
             <Grid Grid.Column="0">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="*" MinHeight="80"/>   <!-- 좌상: 그룹 Grid -->
+                    <RowDefinition Height="260" MinHeight="80"/>   <!-- 좌상: 그룹 Grid -->
                     <RowDefinition Height="4"/>                   <!-- splitter -->
                     <RowDefinition Height="*" MinHeight="80"/>   <!-- 좌하: 티커 Grid -->
                 </Grid.RowDefinitions>
@@ -60,16 +60,17 @@
                     </Border>
                     <DataGrid x:Name="GridGroup" Grid.Row="1"
                               Style="{StaticResource QuantDataGrid}"
-                              AutoGenerateColumns="False"
-                              SelectionChanged="GridGroup_SelectionChanged">
+                              AutoGenerateColumns="False" IsReadOnly="False"
+                              SelectionChanged="GridGroup_SelectionChanged"
+                              CellEditEnding="GridGroup_CellEditEnding">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="kind"   Binding="{Binding kind}"   Width="50"/>
-                            <DataGridTextColumn Header="name"   Binding="{Binding name}"   Width="200"/>
-                            <DataGridTextColumn Header="★"   Binding="{Binding rating}"   Width="30"/>
-                            <DataGridTextColumn Header="3M %"    Binding="{Binding ret_3m, Converter={StaticResource FmtF2}, ConverterParameter=F2}"  Width="60"/>
-                            <DataGridTextColumn Header="#"   Binding="{Binding stock_count}"   Width="40"/>
-                            <DataGridTextColumn Header="desc"   Binding="{Binding description}"   Width="200"/>
-                            <DataGridTextColumn Header="active"   Binding="{Binding is_active}"   Width="30"/>
+                            <DataGridTextColumn Header="kind"   Binding="{Binding kind}"        Width="50"  IsReadOnly="True"/>
+                            <DataGridTextColumn Header="name"   Binding="{Binding name}"        Width="200" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="★"      Binding="{Binding rating}"      Width="30"  IsReadOnly="True"/>
+                            <DataGridTextColumn Header="3M %"   Binding="{Binding ret_3m, Converter={StaticResource FmtF2}, ConverterParameter=F2}" Width="60" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="#"      Binding="{Binding stock_count}" Width="40"  IsReadOnly="True"/>
+                            <DataGridTextColumn Header="desc"   Binding="{Binding description}" Width="200" IsReadOnly="False"/>
+                            <DataGridTextColumn Header="active" Binding="{Binding is_active}"   Width="30"  IsReadOnly="True"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>

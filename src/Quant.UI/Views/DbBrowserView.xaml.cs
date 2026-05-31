@@ -1,12 +1,14 @@
 ﻿using Quant.Core.Infrastructure;
+using Quant.UI.Common;
+
 using System.Data;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Text.RegularExpressions;
-using Quant.UI.Common;
 
 namespace Quant.UI.Views;
 
@@ -19,17 +21,21 @@ public partial class DbBrowserView : UserControl, ITickerNavigationAware
         "watchlists", "watchlist_items", "pdf_reports",
         "data_update_log", "trading_calendar", "options",
         "stock_tp", "target_price_stocks", "target_price_monthly",
-        "v_sectors", "v_themes", "v_active_group_map", "v_stock_primary_sector"
+        "v_sectors", "v_themes", "v_active_group_map", "v_stock_primary_group"
     ];
 
-    public event Action<string, string>? StatusChanged;
+    private readonly IMainActions _main;
+    //public event Action<string, string>? StatusChanged;
     public event Action<string>? ElapsedChanged;
 
     private readonly DbManager _db;
 
-    public DbBrowserView(DbManager db)
+    public DbBrowserView(IMainActions main)
     {
-        _db = db;
+        _main = main;
+        _db = App.DB;// main.Db;
+        //_db = db;
+
         InitializeComponent();
         Loaded += OnLoaded;
     }
@@ -42,33 +48,45 @@ public partial class DbBrowserView : UserControl, ITickerNavigationAware
     public void OnNavigatedToTicker(string id)
     {
         CheckDbConnection();
+        BuildTableButtons();
 
         //var ticker = App.Config().LastTicker;
-        TxtCurrTicker.Text = $"{_db.StockInfo(id)?.Name}:{id}";
+        TxtCurrTicker.Text = $"{_db.StockName(id)}:{id}";
         TxtWhere.Text = !string.IsNullOrWhiteSpace(id) ? $"ticker = '{id}'" : "1";
 
-        _currentTable = "daily_prices";
+        //_currentTable = "daily_prices";
         BuildSqlSample(_currentTable, "SELECT");
         RunQuery(TxtSql.Text);
     }
 
     private void BuildTableButtons()
     {
-        TableList.Children.Clear();
-        foreach (var tbl in KnownTables)
+        IEnumerable<string> tables = KnownTables;
+        if (_db.IsConnected())
         {
-            var btn = new Button
+            try
             {
-                Content = tbl,
-                //Style   = (Style)Resources["TableButton"],
-                Tag     = tbl
-            };
+                var dt = _db.Query(
+                    "SELECT table_name FROM information_schema.tables WHERE table_schema='main' ORDER BY table_type, table_name");
+                var dbTables = dt.Rows.Cast<DataRow>()
+                                 .Select(r => r[0]?.ToString() ?? "")
+                                 .Where(t => !string.IsNullOrEmpty(t))
+                                 .ToList();
+                if (dbTables.Count > 0) tables = dbTables;
+            }
+            catch { /* fallback to KnownTables */ }
+        }
+
+        TableList.Children.Clear();
+        foreach (var tbl in tables)
+        {
+            var btn = new Button { Content = tbl, Tag = tbl };
             btn.Click += TableBtn_Click;
             TableList.Children.Add(btn);
         }
     }
 
-    private string? _currentTable; // 테이블 목록에서 클릭 시 저장되는 변수라고 가정
+    private string? _currentTable = "daily_prices"; // 테이블 목록에서 클릭 시 저장
     private void TableBtn_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button btn) return;
@@ -77,8 +95,8 @@ public partial class DbBrowserView : UserControl, ITickerNavigationAware
             b.Background = Brushes.Transparent;
             b.Foreground = MakeBrush("#CDD6F4");
         }
-        btn.Background  = MakeBrush("#313244");
-        btn.Foreground  = MakeBrush("#89B4FA");
+        btn.Background = MakeBrush("#313244");
+        btn.Foreground = MakeBrush("#89B4FA");
 
         _currentTable = btn.Tag?.ToString();
         BuildSqlSample(_currentTable, "SELECT");
@@ -117,58 +135,86 @@ WHERE deleted_at IS NULL";
         BuildSqlSample(_currentTable,
             (CmbCommandType.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "SELECT");
     }
+
+
+    private void CmbSqlOption_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        BuildSqlSample(_currentTable, (CmbCommandType?.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "SELECT");
+
     private void BuildSqlSample(string? table, string commandType)
     {
-        if (TxtSql == null) return; // 초기 로드 시 null 참조 방지
+        if (TxtSql == null) return;
         if (string.IsNullOrWhiteSpace(table)) table = "[table]";
 
         string where = TxtWhere?.Text ?? "1";
 
-        TxtSql.Text = commandType switch
+        if (commandType == "SELECT")
         {
-            "SELECT" => $"SELECT * FROM {table} WHERE {where} LIMIT 500",
-            "UPDATE" => $"UPDATE {table} SET col = val WHERE {where}",
-            "INSERT" => $"INSERT INTO {table} (col1, col2) VALUES (val1, val2)",
-            "DELETE" => $"DELETE FROM {table} WHERE {where}",
-            _ => TxtSql.Text
-        };
+            string joinVal = (CmbJoin?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+            string groupVal = (CmbGroupBy?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+            string orderVal = (CmbOrderBy?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+
+            bool hasJoin = !string.IsNullOrEmpty(joinVal);
+            string from = hasJoin ? $"{table} s" : table;
+
+            string sql = $"SELECT * FROM {from}";
+            if (hasJoin) sql += $" {joinVal}";
+            sql += $" WHERE {where}";
+            if (!string.IsNullOrEmpty(groupVal)) sql += $" GROUP BY {groupVal}";
+            if (!string.IsNullOrEmpty(orderVal)) sql += $" ORDER BY {orderVal}";
+            sql += " LIMIT 500";
+
+            TxtSql.Text = sql;
+        }
+        else
+        {
+            TxtSql.Text = commandType switch
+            {
+                "UPDATE" => $"UPDATE {table} SET col = val WHERE {where}",
+                "INSERT" => $"INSERT INTO {table} (col1, col2) VALUES (val1, val2)",
+                "DELETE" => $"DELETE FROM {table} WHERE {where}",
+                _ => TxtSql.Text
+            };
+        }
     }
 
 
-    internal void BtnRun_Click(object sender, RoutedEventArgs e) => RunQuery(TxtSql.Text);
+    private string ActiveSql => TxtSql.SelectionLength > 0 ? TxtSql.SelectedText : TxtSql.Text;
+
+    internal void BtnRun_Click(object sender, RoutedEventArgs e) => RunQuery(ActiveSql);
 
     internal void TxtSql_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Return && Keyboard.Modifiers == ModifierKeys.Control)
-            RunQuery(TxtSql.Text);
+            RunQuery(ActiveSql);
     }
 
     private void RunQuery(string sql)
     {
         if (string.IsNullOrWhiteSpace(sql)) return;
         var sw = Stopwatch.StartNew();
-        StatusChanged?.Invoke("실행 중...", "#89B4FA");
+
+        _main.StatusInfo("실행 중...");
         TxtRowCount.Text = "";
         try
         {
             if (!_db.IsConnected())
             {
                 MainGrid.ItemsSource = null;
-                StatusChanged?.Invoke($"DB 없음: {DbManager.DbPath}", "#F38BA8");
+                _main.StatusError($"DB 없음: {DbManager.DbPath}");
                 return;
             }
             var dt = _db.Query(sql);
             sw.Stop();
             MainGrid.ItemsSource = dt.DefaultView;
             TxtRowCount.Text = $"{dt.Rows.Count:N0} rows  |  {dt.Columns.Count} cols";
-            StatusChanged?.Invoke("완료", "#A6E3A1");
+            _main.StatusSuccess("완료");
             ElapsedChanged?.Invoke($"{sw.ElapsedMilliseconds} ms");
         }
         catch (Exception ex)
         {
             sw.Stop();
             MainGrid.ItemsSource = null;
-            StatusChanged?.Invoke($"오류: {ex.Message}", "#F38BA8");
+            _main.StatusError($"오류: {ex.Message}");
             ElapsedChanged?.Invoke($"{sw.ElapsedMilliseconds} ms");
         }
     }
@@ -177,7 +223,7 @@ WHERE deleted_at IS NULL";
     {
         if (!_db.IsConnected())
         {
-            StatusChanged?.Invoke($"DB 파일 없음: {DbManager.DbPath}", "#F9E2AF");
+            _main.StatusError($"DB 파일 없음: {DbManager.DbPath}");
             return;
         }
         try
@@ -185,13 +231,13 @@ WHERE deleted_at IS NULL";
             var dt = _db.Query(
                 "SELECT table_name FROM information_schema.tables WHERE table_schema='main' ORDER BY table_name");
             var tables = dt.Rows.Cast<DataRow>().Select(r => r[0]?.ToString() ?? "").ToList();
-            StatusChanged?.Invoke($"DB 연결됨  |  테이블 {tables.Count}개 — 테이블 선택 또는 Ctrl+Enter로 SQL 실행", "#A6E3A1");
+            _main.StatusInfo($"DB 연결됨  |  테이블 {tables.Count}개 — 테이블 선택 또는 Ctrl+Enter로 SQL 실행");
             foreach (Button btn in TableList.Children)
                 btn.Opacity = tables.Contains(btn.Tag?.ToString() ?? "") ? 1.0 : 0.35;
         }
         catch (Exception ex)
         {
-            StatusChanged?.Invoke($"DB 연결 실패: {ex.Message}", "#F38BA8");
+            _main.StatusException(ex, "DB 연결 실패");
         }
     }
 
@@ -202,12 +248,13 @@ WHERE deleted_at IS NULL";
     {
         if (sender is not Button btn || btn.Tag is not string table) return;
 
-        var ticker = App.Config().LastTicker;
-        if (string.IsNullOrWhiteSpace(ticker) || !Helpers.TickerRegex.IsMatch(ticker)) return;
-
         string sql = $"DELETE FROM {table}";
         if (table != "stock_cache")
-            sql = $"{sql} WHERE ticker = '{ticker}'";
+        {
+            var ticker = App.Config().LastTicker;
+            if (string.IsNullOrWhiteSpace(ticker) || !Helpers.TickerRegex.IsMatch(ticker)) return;
+            sql += $" WHERE ticker = '{ticker}'";
+        }
 
         TxtSql.Text = sql; // 생성된 쿼리를 텍스트박스에 표시
 
@@ -216,5 +263,39 @@ WHERE deleted_at IS NULL";
         // {
         //     RunQuery(sql);
         // }
+    }
+
+    private void BtnCommand_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string command) return;
+        if (string.IsNullOrWhiteSpace(_currentTable)) return;
+
+        var dtInfo = _db.Query($"PRAGMA table_info({_currentTable})");
+        if (dtInfo == null || dtInfo.Rows.Count == 0) return;
+
+        string pk = dtInfo.AsEnumerable()
+                      .Where(r => Convert.ToInt32(r["pk"]) > 0)
+                      .Select(r => r["name"].ToString())
+                      .FirstOrDefault() ?? "id";
+
+        var dtColumns = _db.Query($@"
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = '{_currentTable}'
+            ORDER BY ordinal_position");
+        var cols = dtColumns.AsEnumerable()
+                     .Select(r => r.Field<string>("column_name") ?? "")
+                     .ToList();
+
+        string columns = string.Join(", ", cols);
+        string col2    = cols.Count > 1 ? cols[1] : cols[0];
+
+        TxtSql.Text = command switch
+        {
+            "UPDATE" => $"UPDATE {_currentTable} SET {col2} = '' WHERE {pk} = '0'\n -- {columns}",
+            "INSERT" => $"INSERT INTO {_currentTable} ({pk}, {col2}) VALUES ('val1', 'val2')\n -- {columns}",
+            "DELETE" => $"DELETE FROM {_currentTable} WHERE {pk} = '0'\n -- {columns}",
+            _ => TxtSql.Text
+        };
     }
 }
