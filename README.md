@@ -8,6 +8,8 @@ WPF/C# + DuckDB + Dapper 기반. 개인 Windows Local PC 전용.
 
 ## 프로젝트 구조
 ```
+start at C:\Users\tien7\source\repos\quant
+
 quant/
 ├── quant.sln
 ├── database/

@@ -275,35 +275,6 @@ public partial class LeftSidePanelViewModel : ObservableObject
         Screeners.Add(new ScreenerRow
         {
             Id = 1,
-            Name = "ETF",
-            Description = "ETF",
-            SqlWhere = "s.security_type = 'ETF'",
-            NeedsFundamentals = false
-        });
-        Screeners.Add(new ScreenerRow
-        {
-            Id = 2,
-            Name = "KOSPI · PBR < 1.5",
-            Description = "코스피 저PBR",
-            SqlWhere = "s.market = 'KP' AND f.pbr < 1.5 AND f.pbr > 0"
-        });
-        Screeners.Add(new ScreenerRow
-        {
-            Id = 3,
-            Name = "ROE > 15%",
-            Description = "고ROE 전체",
-            SqlWhere = "f.roe > 15"
-        });
-        Screeners.Add(new ScreenerRow
-        {
-            Id = 4,
-            Name = "KOSDAQ · PER < 10",
-            Description = "코스닥 저PER",
-            SqlWhere = "s.market = 'KQ' AND f.per > 0 AND f.per < 10"
-        });
-        Screeners.Add(new ScreenerRow
-        {
-            Id = 5,
             Name = "KOSPI, KOSDAQ",
             Description = "all korean",
             SqlWhere = "s.market = 'KP' OR s.market = 'KQ'",
@@ -311,12 +282,41 @@ public partial class LeftSidePanelViewModel : ObservableObject
         });
         Screeners.Add(new ScreenerRow
         {
-            Id = 6,
+            Id = 2,
             Name = "NYSE",
             Description = "NYSE",
             SqlWhere = "s.market != 'KP' AND s.market != 'KQ' AND s.security_type = 'stock'",
             NeedsFundamentals = false,
             SkipExcludeFilter = true   // 미국 종목은 ticker 끝자리 필터 적용 불가
+        });
+        Screeners.Add(new ScreenerRow
+        {
+            Id = 3,
+            Name = "ETF",
+            Description = "ETF",
+            SqlWhere = "s.security_type = 'ETF'",
+            NeedsFundamentals = false
+        });
+        Screeners.Add(new ScreenerRow
+        {
+            Id = 4,
+            Name = "KOSPI · PBR < 1.5",
+            Description = "코스피 저PBR",
+            SqlWhere = "s.market = 'KP' AND f.pbr < 1.5 AND f.pbr > 0"
+        });
+        Screeners.Add(new ScreenerRow
+        {
+            Id = 5,
+            Name = "ROE > 15%",
+            Description = "고ROE 전체",
+            SqlWhere = "f.roe > 15"
+        });
+        Screeners.Add(new ScreenerRow
+        {
+            Id = 6,
+            Name = "KOSDAQ · PER < 10",
+            Description = "코스닥 저PER",
+            SqlWhere = "s.market = 'KQ' AND f.per > 0 AND f.per < 10"
         });
     }
 

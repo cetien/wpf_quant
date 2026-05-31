@@ -72,7 +72,7 @@ public class PriceDownloadService
         }
         else if (IsKrxTicker(ticker))
         {
-            bool isEtf = GetSecurityType(ticker).Equals("ETF", StringComparison.OrdinalIgnoreCase);
+            bool isEtf = _db.IsEtf(ticker);// GetSecurityType(ticker).Equals("ETF", StringComparison.OrdinalIgnoreCase);
 
             if (isEtf)
             {
@@ -334,7 +334,7 @@ public class PriceDownloadService
     //           System.Text.RegularExpressions.Regex.IsMatch(ticker, @"^\d{4}[A-Z]\d$");
     //}
 
-    private string GetSecurityType(string ticker) => _db.SecurityTypeForTicker(ticker);
+    //private string GetSecurityType(string ticker) => _db.SecurityTypeForTicker(ticker);
     //{
     //    using var conn = _db.OpenNativeConnection();
     //    using var cmd  = conn.CreateCommand();

@@ -965,7 +965,7 @@ public partial class ChartView : UserControl, ITickerNavigationAware
                 SELECT kind, group_name, group_rating, weight
                 FROM v_active_group_map
                 WHERE ticker = '{ticker}'
-                ORDER BY group_rating DESC, kind
+                ORDER BY weight DESC, group_rating DESC
                 """);
             GridGroup.ItemsSource = dt.DefaultView;
         }

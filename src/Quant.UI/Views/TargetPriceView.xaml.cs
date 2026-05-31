@@ -199,13 +199,13 @@ public partial class TargetPriceView : UserControl
             AddChip(PanelStockInfo, $"📄 {row.ReportCount}건", "#313244", "#89B4FA");
 
         // 평균 목표주가
-        var avgTgt = latestMonthly?.AvgTgt ?? row?.AvgTgt;
+        var avgTgt = latestMonthly?.AvgTgt ?? row.AvgTgt;
         if (avgTgt.HasValue)
             AddChip(PanelStockInfo, $"⊕ avg {avgTgt.Value:N0}", "#1A2B3C", "#89B4FA", bold: true);
 
         // 범위
-        var minTgt = latestMonthly?.MinTgt ?? row?.MinTgt;
-        var maxTgt = latestMonthly?.MaxTgt ?? row?.MaxTgt;
+        var minTgt = latestMonthly?.MinTgt ?? row.MinTgt;
+        var maxTgt = latestMonthly?.MaxTgt ?? row.MaxTgt;
         if (minTgt.HasValue && maxTgt.HasValue)
             AddChip(PanelStockInfo, $"▾{minTgt.Value:N0} ~ ▴{maxTgt.Value:N0}", "#313244", "#6C7086");
 
