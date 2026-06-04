@@ -412,7 +412,7 @@
                                 Series="{Binding VolSeries}"
                                 XAxes="{Binding VolXAxes}"
                                 YAxes="{Binding VolYAxes}"
-                                ZoomMode="X"
+                                ZoomMode="None"
                                 TooltipPosition="Hidden"
                                 LegendPosition="Hidden"/>
         </Grid>
@@ -426,7 +426,7 @@
                                 Series="{Binding MacdSeries}"
                                 XAxes="{Binding MacdXAxes}"
                                 YAxes="{Binding MacdYAxes}"
-                                ZoomMode="X"
+                                ZoomMode="None"
                                 TooltipPosition="Hidden"
                                 LegendPosition="Hidden"/>
         </Grid>
@@ -440,7 +440,7 @@
                                 Series="{Binding RsiSeries}"
                                 XAxes="{Binding RsiXAxes}"
                                 YAxes="{Binding RsiYAxes}"
-                                ZoomMode="X"
+                                ZoomMode="None"
                                 TooltipPosition="Hidden"
                                 LegendPosition="Hidden"/>
         </Grid>

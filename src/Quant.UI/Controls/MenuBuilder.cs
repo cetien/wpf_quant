@@ -33,7 +33,8 @@ namespace Quant.UI.Common;
 //   MenuBuilder.Build(MenuCategory.Ticker | MenuCategory.Db, ExecuteAction)
 
 
-//<DataGrid local:PopupMenuProps.TargetColumn="ticker"
+//<DataGrid local:PopupMenuProps.TargetColumn="ticker"          TargetColumn: 화면 표시에 추가될 이름부분. (예) DrawChart - SK하이닉스
+//          local:PopupMenuProps.IdColumn="id"                  IdColumn : Action에 parameter로 전달되는 id (예) 000660
 //          local:PopupMenuProps.MenuCategory="Ticker,Db"
 //          MouseRightButtonUp="OnGridRightClick" ... />
 public static class PopupMenuProps
@@ -82,10 +83,10 @@ public enum MenuAction
     DeleteReport,
 
     Db_QueryInfo,
-    Db_DeletePrices,
-    Db_DeleteSupply,
-    Db_DeleteFundamentals,
-    Db_RemoveTicker,
+    //Db_DeletePrices,
+    //Db_DeleteSupply,
+    //Db_DeleteFundamentals,
+    //Db_RemoveTicker,
 }
 
 public static class ContextMenuHelper// ContextMenuBuilder
@@ -108,10 +109,10 @@ public static class ContextMenuHelper// ContextMenuBuilder
         new("Delete Report",  MenuCategory.Report,  MenuAction.DeleteReport),
 
         new("Query Info",     MenuCategory.Db,     MenuAction.Db_QueryInfo,  HasContext: true),
-        new("DEL prices",     MenuCategory.Db,     MenuAction.Db_DeletePrices,  HasContext: true),
-        new("DEL supply",    MenuCategory.Db,     MenuAction.Db_DeleteSupply,  HasContext: true),
-        new("DEL fundamentals", MenuCategory.Db, MenuAction.Db_DeleteFundamentals,  HasContext: true),
-        new("Remove ticker",    MenuCategory.Db,     MenuAction.Db_RemoveTicker,  HasContext: true),
+        //new("DEL prices",     MenuCategory.Db,     MenuAction.Db_DeletePrices,  HasContext: true),
+        //new("DEL supply",    MenuCategory.Db,     MenuAction.Db_DeleteSupply,  HasContext: true),
+        //new("DEL fundamentals", MenuCategory.Db, MenuAction.Db_DeleteFundamentals,  HasContext: true),
+        //new("Remove ticker",    MenuCategory.Db,     MenuAction.Db_RemoveTicker,  HasContext: true),
     ];
 
     /// <summary>

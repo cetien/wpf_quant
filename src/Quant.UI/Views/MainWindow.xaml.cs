@@ -347,12 +347,12 @@ public partial class MainWindow : Window, IMainActions
                 ShowDbBrowser(context);
                 return;
 
-            case MenuAction.Db_DeletePrices:
-            case MenuAction.Db_DeleteSupply:
-            case MenuAction.Db_DeleteFundamentals:
-            case MenuAction.Db_RemoveTicker:
-                HandleDbMenuAction(action, context);
-                return;
+            //case MenuAction.Db_DeletePrices:
+            //case MenuAction.Db_DeleteSupply:
+            //case MenuAction.Db_DeleteFundamentals:
+            //case MenuAction.Db_RemoveTicker:
+            //    HandleDbMenuAction(action, context);
+            //    return;
         }
         StatusInfo($"no action defined: action={action}, context={context}");
     }

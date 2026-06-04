@@ -120,10 +120,11 @@ public partial class ChartView : UserControl, ITickerNavigationAware
     // 신규종목 등록 팝업 상태
     private RegisterState? _pendingRegister;
 
-    private bool _isCandlestick = false;
-    private bool _showVol       = true;
-    private bool _showMacd      = true;
-    private bool _showRsi       = true;
+    private bool _isCandlestick  = false;
+    private bool _showVol        = true;
+    private bool _showMacd       = true;
+    private bool _showRsi        = true;
+    private bool _isSyncingAxes  = false;
     private readonly HashSet<int> _activeMas = [20, 60, 120];
 
     private static readonly Dictionary<int, SKColor> MaColors = new()
@@ -153,6 +154,8 @@ public partial class ChartView : UserControl, ITickerNavigationAware
             if (_showMacd) Helpers.HighlightButton(BtnMacd);
             if (_showRsi) Helpers.HighlightButton(BtnRsi);
             SyncDrawMargin();
+
+            MainChart.UpdateStarted += _ => SyncSubChartAxes();
             //LoadChart();
         };
     }
@@ -178,6 +181,24 @@ public partial class ChartView : UserControl, ITickerNavigationAware
         VolChart.DrawMargin   = margin;
         MacdChart.DrawMargin  = margin;
         RsiChart.DrawMargin   = margin;
+    }
+
+    private void SyncSubChartAxes()
+    {
+        if (_isSyncingAxes || XAxes.Count == 0) return;
+        _isSyncingAxes = true;
+        try
+        {
+            var min = XAxes[0].MinLimit;
+            var max = XAxes[0].MaxLimit;
+            foreach (var axes in new[] { VolXAxes, MacdXAxes, RsiXAxes })
+            {
+                if (axes.Count == 0) continue;
+                axes[0].MinLimit = min;
+                axes[0].MaxLimit = max;
+            }
+        }
+        finally { _isSyncingAxes = false; }
     }
 
     // ══════════════════════════════════════════════════════════
@@ -825,6 +846,7 @@ public partial class ChartView : UserControl, ITickerNavigationAware
         ChartGrid.RowDefinitions[4].Height = _showVol  ? new GridLength(100) : new GridLength(0);
         ChartGrid.RowDefinitions[5].Height = _showMacd ? new GridLength(100) : new GridLength(0);
         ChartGrid.RowDefinitions[6].Height = _showRsi  ? new GridLength(100) : new GridLength(0);
+        SyncSubChartAxes();
     }
 
     // ══════════════════════════════════════════════════════════
