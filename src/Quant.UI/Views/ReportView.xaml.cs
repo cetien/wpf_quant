@@ -4,6 +4,7 @@ using Quant.Core.Infrastructure;
 using Quant.UI.Common;
 
 using System.Data;
+using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
 using System.Windows;
@@ -38,7 +39,6 @@ public partial class ReportView : UserControl, ITickerNavigationAware
 
         try
         {
-            Ingest();
             LoadGrids();
         }
         catch (Exception ex)
@@ -82,11 +82,29 @@ public partial class ReportView : UserControl, ITickerNavigationAware
     // ══════════════════════════════════════════════════════════
     //  A. Ingest
     // ══════════════════════════════════════════════════════════
-    private void Ingest()
+
+    private async void BtnIngest_Click(object sender, RoutedEventArgs e)
     {
-        // ──────────────────────────────────────────────────────────
-        //  MD5 해시 (중복 방지용, 보안 목적 아님)
-        // ──────────────────────────────────────────────────────────
+        BtnIngest.IsEnabled = false;
+        try
+        {
+            int upserted = await Task.Run(Ingest);
+            LoadGrids();
+            if (upserted > 0)
+                await RunPdfAnalyzerAsync();
+        }
+        catch (Exception ex)
+        {
+            _main.StatusException(ex, "수집 오류");
+        }
+        finally
+        {
+            BtnIngest.IsEnabled = true;
+        }
+    }
+
+    private int Ingest()
+    {
         static string ComputeHash(string path)
         {
             using var fs = File.OpenRead(path);
@@ -94,62 +112,134 @@ public partial class ReportView : UserControl, ITickerNavigationAware
             return Convert.ToHexString(md5.ComputeHash(fs)).ToLowerInvariant();
         }
 
-        var folder = App.Config().ReportPdfFolder;
-        //var opts   = _db.LoadOptions();
-        //var folder = opts.ReportPdfFolder;
-
-        if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+        var baseFolder = App.Config().ReportPdfFolder;
+        if (string.IsNullOrWhiteSpace(baseFolder))
         {
-            _main.StatusWarning("report_pdf_folder 미설정 — Options에서 폴더를 지정하세요");
-            return;
+            Dispatcher.Invoke(() => _main.StatusWarning("report_pdf_folder 미설정 — Options에서 폴더를 지정하세요"));
+            return 0;
         }
 
-        // DB에 등록된 filepath 전체를 HashSet으로 선로드
-        // → 파일 루프 안에서 O(1) 조회, 등록 파일은 해시 계산 없이 즉시 skip
+        var spoolFolder = Path.Combine(baseFolder, "spool");
+        Directory.CreateDirectory(spoolFolder);
+
+        if (!Directory.EnumerateFiles(spoolFolder, "*.pdf").Any())
+        {
+            Dispatcher.Invoke(() => _main.StatusInfo("spool 폴더에 새 파일 없음"));
+            return 0;
+        }
+
+        // DB에 등록된 filepath HashSet (destPath 기준)
         var registered = _db.Query("SELECT filepath FROM pdf_reports")
                             .AsEnumerable()
                             .Select(r => r[0]?.ToString() ?? "")
                             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var lastDateRaw = _db.QueryFirst<string?>(
-            "SELECT value FROM options WHERE key = 'last_report_date'");
-        DateOnly lastDate = DateOnly.TryParse(lastDateRaw, out var ld) ? ld : DateOnly.MinValue;
-
-        var files = Directory.GetFiles(folder, "*.pdf", SearchOption.TopDirectoryOnly);
+        var files = Directory.GetFiles(spoolFolder, "*.pdf", SearchOption.TopDirectoryOnly);
         int upserted = 0;
-        DateOnly maxDate = lastDate;
 
-        foreach (var path in files)
+        foreach (var spoolPath in files)
         {
-            // ① 이미 등록된 파일 → skip (해시 계산 없음)
-            if (registered.Contains(path)) continue;
-
-            // ② 파일명 파싱 실패 → skip
-            var parsed = ParseFilename(Path.GetFileNameWithoutExtension(path));
+            // 파일명 파싱 실패 → skip
+            var parsed = ParseFilename(Path.GetFileNameWithoutExtension(spoolPath));
             if (parsed is null) continue;
-            var (fileDate, commpany, title, writer) = parsed.Value;
+            var (fileDate, company, title, writer) = parsed.Value;
 
-            // ③ 날짜 기준 skip
-            if (fileDate < lastDate) continue;
+            // 이동 대상 경로 계산
+            var destDir  = Path.Combine(baseFolder, fileDate.Year.ToString());
+            var destPath = Path.Combine(destDir, Path.GetFileName(spoolPath));
 
-            // ④ 파일명의 종목명(commpany)을 종목코드(code)로 변환
-            //    stocks 테이블에 없는 이름이면 원본 이름 그대로 저장
-            var code = _db.Name2Ticker(commpany);
-            var ticker = string.IsNullOrEmpty(code) ? commpany : code;
+            // 이미 DB에 등록된 경로 → spool 파일 정리 후 skip
+            if (registered.Contains(destPath))
+            {
+                TryDelete(spoolPath);
+                continue;
+            }
 
-            // ⑤ 신규 파일만 해시 계산 + upsert
-            var hash = ComputeHash(path);
-            UpsertReport(fileDate, ticker, title, writer, path, hash);
+            // 해시 계산 → 동일 내용 중복 → skip
+            var hash = ComputeHash(spoolPath);
+            var dupId = _db.QueryFirst<int?>(
+                "SELECT id FROM pdf_reports WHERE file_hash = $hash", new { hash });
+            if (dupId.HasValue)
+            {
+                TryDelete(spoolPath);
+                continue;
+            }
+
+            // 종목명 → 종목코드 변환
+            var code   = _db.Name2Ticker(company);
+            var ticker = string.IsNullOrEmpty(code) ? company : code;
+
+            // spool → baseFolder/YYYY/ 이동
+            Directory.CreateDirectory(destDir);
+            try
+            {
+                File.Move(spoolPath, destPath, overwrite: false);
+            }
+            catch (IOException)
+            {
+                if (!File.Exists(destPath)) continue; // 이동 실패 (다른 이유) → skip
+                TryDelete(spoolPath);                  // destPath 이미 존재 → 중복 제거
+            }
+
+            UpsertReport(fileDate, ticker, title, writer, destPath, hash);
             upserted++;
-
-            if (fileDate > maxDate) maxDate = fileDate;
         }
 
-        if (maxDate > lastDate)
-            _db.SaveOption("last_report_date", maxDate.ToString("yyyy-MM-dd"));
+        Dispatcher.Invoke(() =>
+        {
+            if (upserted > 0)
+                _main.StatusSuccess($"수집 완료: {upserted}건 추가");
+            else
+                _main.StatusInfo("수집 완료: 신규 파일 없음");
+        });
 
-        if (upserted > 0)
-            _main.StatusSuccess($"수집 완료: {upserted}건 추가 (기준일 → {maxDate})");
+        return upserted;
+    }
+
+    private static void TryDelete(string path)
+    {
+        try { File.Delete(path); } catch { }
+    }
+
+    private async Task RunPdfAnalyzerAsync()
+    {
+        var analyzerPath = FindPdfAnalyzerPath();
+        if (string.IsNullOrEmpty(analyzerPath))
+        {
+            _main.StatusWarning("pdf_analyzer.py 미발견 — TP 자동 추출 건너뜀");
+            return;
+        }
+
+        _main.StatusInfo("목표주가 추출 중 (pdf_analyzer.py)...");
+
+        var psi = new ProcessStartInfo("python")
+        {
+            Arguments       = $"\"{analyzerPath}\" --only-missing-tp",
+            UseShellExecute = false,
+            CreateNoWindow  = true,
+        };
+
+        using var proc = Process.Start(psi);
+        if (proc is null) return;
+        await proc.WaitForExitAsync();
+
+        LoadGrids();
+        _main.StatusSuccess("목표주가 추출 완료");
+    }
+
+    private static string FindPdfAnalyzerPath()
+    {
+        var candidates = new[]
+        {
+            // 앱 실행 폴더 옆 (배포 환경)
+            Path.Combine(AppContext.BaseDirectory, "pdf_analyzer.py"),
+            // DB와 같은 폴더 (%LOCALAPPDATA%\quant\)
+            Path.Combine(Path.GetDirectoryName(DbManager.DbPath) ?? "", "pdf_analyzer.py"),
+            // 개발 환경: bin\Debug\net*\ 에서 5단계 상위 (프로젝트 루트)
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
+                "..", "..", "..", "..", "..", "pdf_analyzer.py")),
+        };
+        return candidates.FirstOrDefault(File.Exists) ?? "";
     }
 
     // ──────────────────────────────────────────────────────────

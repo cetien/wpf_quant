@@ -337,7 +337,7 @@ public partial class MainWindow : Window, IMainActions
 
             // 2. for Group
             case MenuAction.NewGroup:
-            case MenuAction.GroupInfo:
+            //case MenuAction.GroupInfo:
             case MenuAction.DeleteGroup:
                 StatusInfo($"no action defined: Group: action={action}, context={context}");
                 return;

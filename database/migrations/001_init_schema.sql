@@ -219,26 +219,4 @@ CREATE TABLE IF NOT EXISTS stock_tp (
     PRIMARY KEY (ticker, date, source)
 );
 
-CREATE TABLE IF NOT EXISTS target_price_stocks (
-    ticker     TEXT      NOT NULL,
-    date       DATE      NOT NULL,
-    name       TEXT,
-    report_count    INTEGER,
-    avg_tgt    INTEGER,
-    min_tgt    INTEGER,
-    max_tgt    INTEGER,
-    cur_price    INTEGER,
-    upside     REAL,
-    PRIMARY KEY (ticker, date)
-);
-CREATE TABLE IF NOT EXISTS target_price_monthly (
-    ticker     TEXT,
-    ym         TEXT,   -- 'YYYYMM'
-    report_count    INTEGER,
-    avg_tgt    INTEGER,
-    min_tgt    INTEGER,
-    max_tgt    INTEGER,
-    price      INTEGER,
-    upside     REAL,
-    PRIMARY KEY (ticker, ym)
-);
+-- target_price_stocks / target_price_monthly 는 006_tp_views.sql 에서 VIEW로 정의

@@ -1436,8 +1436,8 @@ final_select AS (
         using var cmd = conn.CreateCommand();
         cmd.CommandText = _cmd_InsertOption;
 
-        var pKey = new DuckDBParameter("key", "");
-        var pValue = new DuckDBParameter("value", "");
+        var pKey   = new DuckDBParameter { Value = "" };
+        var pValue = new DuckDBParameter { Value = "" };
 
         cmd.Parameters.Add(pKey);
         cmd.Parameters.Add(pValue);

@@ -62,6 +62,10 @@
                     <DataGrid x:Name="GridGroup" Grid.Row="1"
                               Style="{StaticResource QuantDataGrid}"
                               AutoGenerateColumns="False" IsReadOnly="False"
+                              local:PopupMenuProps.TextColumn="name"
+                              local:PopupMenuProps.IdColumn="group_id"
+                              local:PopupMenuProps.MenuCategory="Group"
+                              MouseRightButtonUp="OnGridRightClick"
                               SelectionChanged="GridGroup_SelectionChanged"
                               CellEditEnding="GridGroup_CellEditEnding">
                         <DataGrid.Columns>
@@ -123,6 +127,7 @@
                               local:PopupMenuProps.TextColumn="name"
                               local:PopupMenuProps.IdColumn="ticker"
                               local:PopupMenuProps.MenuCategory="Ticker,Db"
+                              MouseRightButtonUp="OnGridRightClick"
                               SelectionChanged="GridTicker_SelectionChanged"
                               MouseDoubleClick="GridTicker_MouseDoubleClick"
                               CellEditEnding="GridTicker_CellEditEnding">

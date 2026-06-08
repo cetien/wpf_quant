@@ -21,6 +21,11 @@
                     <TextBlock Text="📄 REPORTS" FontSize="11" FontWeight="Bold"
                                Foreground="#6C7086" VerticalAlignment="Center"
                                FontFamily="Consolas" Margin="0,0,16,0"/>
+                    <Button x:Name="BtnIngest" Content="수집" Width="auto" Height="20" Margin="2,0,6,0"
+                            Background="#89DCEB" Foreground="#1E1E2E"
+                            BorderThickness="0" FontWeight="Bold" FontSize="11"
+                            Cursor="Hand" Click="BtnIngest_Click"
+                            ToolTip="spool 폴더 PDF 수집 후 목표주가 자동 추출"/>
                     <Button x:Name="BtnSkipTP" Content="TP" Width="auto" Height="20" Margin="2,0,10,0"
                             Background="#A6E3A1" Foreground="#1E1E2E"
                             BorderThickness="0" FontWeight="Bold" FontSize="11"

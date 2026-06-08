@@ -30,15 +30,15 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
 
     // ── LiveCharts bindings ───────────────────────────────────
     public ObservableCollection<ISeries> ChartSeries { get; } = [];
-    public ObservableCollection<Axis>    ChartXAxes  { get; } = [];
-    public ObservableCollection<Axis>    ChartYAxes  { get; } = [];
+    public ObservableCollection<Axis> ChartXAxes { get; } = [];
+    public ObservableCollection<Axis> ChartYAxes { get; } = [];
 
     // ── state ─────────────────────────────────────────────────
     private readonly DbManager _db;
     private DataTable? _groupTable;
-    private int  _currentGroupId = -1;
-    private int  _periodDays     = 365;
-    private bool _downloading    = false;
+    private int _currentGroupId = -1;
+    private int _periodDays = 365;
+    private bool _downloading = false;
 
     // ── color palette (Catppuccin Mocha) ─────────────────────
     private static readonly SKColor[] Palette =
@@ -118,19 +118,19 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
                 if (ticks < DateTime.MinValue.Ticks || ticks > DateTime.MaxValue.Ticks) return "";
                 return new DateTime(ticks).ToString("yy/MM/dd");
             },
-            UnitWidth       = TimeSpan.FromDays(1).Ticks,
-            LabelsPaint     = new SolidColorPaint(SKColor.Parse("#6C7086")),
+            UnitWidth = TimeSpan.FromDays(1).Ticks,
+            LabelsPaint = new SolidColorPaint(SKColor.Parse("#6C7086")),
             SeparatorsPaint = new SolidColorPaint(SKColor.Parse("#313244")),
-            TextSize        = 10,
+            TextSize = 10,
         });
         ChartYAxes.Add(new Axis
         {
-            Labeler         = v => $"{v:F1}",
-            LabelsPaint     = new SolidColorPaint(SKColor.Parse("#6C7086")),
+            Labeler = v => $"{v:F1}",
+            LabelsPaint = new SolidColorPaint(SKColor.Parse("#6C7086")),
             SeparatorsPaint = new SolidColorPaint(SKColor.Parse("#313244")),
-            TextSize        = 10,
-            Position        = LiveChartsCore.Measure.AxisPosition.End,
-            MinLimit        = 0,
+            TextSize = 10,
+            Position = LiveChartsCore.Measure.AxisPosition.End,
+            MinLimit = 0,
         });
     }
 
@@ -175,7 +175,7 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
     {
         if (GridGroup.SelectedItem is not DataRowView row) return;
         if (!int.TryParse(row["group_id"]?.ToString(), out var gid)) return;
-        _currentGroupId      = gid;
+        _currentGroupId = gid;
         TxtCurrGroupNameAtGrid.Text = TxtGroupNameAtChart.Text = row["name"]?.ToString() ?? "";
         GroupRatingCtrl.Rating = int.TryParse(row["rating"]?.ToString(), out var r0) ? Math.Clamp(r0, 0, 10) : 5;
         LoadTickers(gid);
@@ -189,7 +189,7 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
         if (!int.TryParse(rowView["group_id"]?.ToString(), out var gid)) return;
 
         var newVal = (e.EditingElement as TextBox)?.Text ?? "";
-        var col    = e.Column.Header?.ToString();
+        var col = e.Column.Header?.ToString();
         try
         {
             if (col == "desc")
@@ -329,7 +329,7 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
     private async void BtnDownloadGroup_Click(object sender, RoutedEventArgs e)
     {
         if (_currentGroupId < 0) { TxtStatus.Text = "그룹을 먼저 선택하세요."; return; }
-        if (_downloading)        { TxtStatus.Text = "다운로드 중입니다..."; return; }
+        if (_downloading) { TxtStatus.Text = "다운로드 중입니다..."; return; }
 
         var memberDt = _db.Query(
             $"SELECT m.ticker, s.name FROM stock_group_map m " +
@@ -345,13 +345,13 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
         _downloading = true;
         SetDownloadButtons(false);
 
-        var svc      = new PriceDownloadService(_db);
-        var rng      = new Random();
-        int total    = members.Count;
-        int done     = 0;
+        var svc = new PriceDownloadService(_db);
+        var rng = new Random();
+        int total = members.Count;
+        int done = 0;
         int inserted = 0;
         int successCount = 0;
-        var errors   = new List<string>();
+        var errors = new List<string>();
 
         var progress = new Progress<string>(msg =>
         {
@@ -405,7 +405,7 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
     private void SetDownloadButtons(bool enabled)
     {
         BtnDownloadGroup.IsEnabled = enabled;
-        BtnDownloadGroup.Content   = enabled ? "🔄" : "⏳";
+        BtnDownloadGroup.Content = enabled ? "🔄" : "⏳";
     }
 
     // ═════════════════════════════════════════════════════════
@@ -436,7 +436,7 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
             foreach (DataRow r in allDt.Rows)
             {
                 var ticker = r["ticker"].ToString()!;
-                var name   = r["name"].ToString()!;
+                var name = r["name"].ToString()!;
                 DateTime.TryParse(r["date"]?.ToString(), out var d);
                 double.TryParse(r["adj_close"]?.ToString(), out var p);
                 if (d == default || p <= 0) continue;
@@ -509,8 +509,12 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
             {
                 Values = new ObservableCollection<DateTimePoint>(points),
                 Stroke = new SolidColorPaint(color) { StrokeThickness = 1.5f },
-                Fill = null, GeometrySize = 0, GeometryFill = null, GeometryStroke = null,
-                LineSmoothness = 0, Name = name,
+                Fill = null,
+                GeometrySize = 0,
+                GeometryFill = null,
+                GeometryStroke = null,
+                LineSmoothness = 0,
+                Name = name,
             });
             _chartedTickers.Add(ticker);
             lastValues.Add((name, points.Last().Value ?? 100.0));
@@ -520,7 +524,7 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
 
         if (lastValues.Count > 0)
         {
-            var best  = lastValues.MaxBy(x => x.last);
+            var best = lastValues.MaxBy(x => x.last);
             var worst = lastValues.MinBy(x => x.last);
             TxtChartInfo.Text = $"▲ {best.label}  {best.last - 100:+0.0;-0.0}%   ▼ {worst.label}  {worst.last - 100:+0.0;-0.0}%";
         }
@@ -592,8 +596,12 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
         {
             Values = new ObservableCollection<DateTimePoint>(points),
             Stroke = new SolidColorPaint(SKColor.Parse("#585B70")) { StrokeThickness = 1f },
-            Fill = null, GeometrySize = 0, GeometryFill = null, GeometryStroke = null,
-            LineSmoothness = 0, Name = "KOSPI",
+            Fill = null,
+            GeometrySize = 0,
+            GeometryFill = null,
+            GeometryStroke = null,
+            LineSmoothness = 0,
+            Name = "KOSPI",
         });
     }
 
@@ -652,12 +660,12 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
             cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = _currentGroupId });
             cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = ticker });
             cmd.ExecuteNonQuery();
-                
-                _rawData.Remove(ticker);
+
+            _rawData.Remove(ticker);
             LoadTickers(_currentGroupId);
-                ApplyPeriod();
-                UpdateGroupCount();
-                
+            ApplyPeriod();
+            UpdateGroupCount();
+
             TxtStatus.Text = $"제거됨: {ticker}";
             _main.StatusSuccess($"제거됨: {ticker}");
         }
@@ -792,15 +800,15 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
         var pos = e.GetPosition(ChartAreaGrid);
 
         // Row 0 = 헤더(28px), Row 1 = 차트 본체
-        double headerH   = ChartAreaGrid.RowDefinitions[0].ActualHeight;
-        double chartH    = ChartAreaGrid.RowDefinitions[1].ActualHeight;
-        double chartW    = ChartAreaGrid.ActualWidth;
+        double headerH = ChartAreaGrid.RowDefinitions[0].ActualHeight;
+        double chartH = ChartAreaGrid.RowDefinitions[1].ActualHeight;
+        double chartW = ChartAreaGrid.ActualWidth;
 
         // 마우스가 차트 본체 안에 있는지 확인
         if (pos.Y < headerH || pos.Y > headerH + chartH)
         {
             EgCrosshairCanvas.Visibility = Visibility.Collapsed;
-            EgTooltipPanel.Visibility    = Visibility.Collapsed;
+            EgTooltipPanel.Visibility = Visibility.Collapsed;
             return;
         }
 
@@ -814,7 +822,7 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
         EgCrossV.X1 = cx; EgCrossV.Y1 = 0;
         EgCrossV.X2 = cx; EgCrossV.Y2 = chartH;
         // 가로선
-        EgCrossH.X1 = 0;      EgCrossH.Y1 = cy;
+        EgCrossH.X1 = 0; EgCrossH.Y1 = cy;
         EgCrossH.X2 = chartW; EgCrossH.Y2 = cy;
 
         // ── Ticks → DateTime 변환 ──────────────────────────
@@ -866,7 +874,7 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
             if (match == default) continue;
 
             var baseClose = prices.First().close;
-            double rel    = Math.Round(match.close / baseClose * 100.0, 2);
+            double rel = Math.Round(match.close / baseClose * 100.0, 2);
             tooltipRows.Add((name, rel, color));
         }
 
@@ -885,17 +893,17 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
             var row = new StackPanel { Orientation = Orientation.Horizontal };
             row.Children.Add(new TextBlock
             {
-                Text       = "● ",
+                Text = "● ",
                 FontFamily = new System.Windows.Media.FontFamily("Consolas"),
-                FontSize   = 10,
+                FontSize = 10,
                 Foreground = new System.Windows.Media.SolidColorBrush(wpfColor),
                 VerticalAlignment = VerticalAlignment.Center,
             });
             row.Children.Add(new TextBlock
             {
-                Text       = $"{name,-12}  {rel,7:F2}  ({diff:+0.00;-0.00}%)",
+                Text = $"{name,-12}  {rel,7:F2}  ({diff:+0.00;-0.00}%)",
                 FontFamily = new System.Windows.Media.FontFamily("Consolas"),
-                FontSize   = 10,
+                FontSize = 10,
                 Foreground = new System.Windows.Media.SolidColorBrush(wpfColor),
                 VerticalAlignment = VerticalAlignment.Center,
             });
@@ -940,7 +948,7 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
             if (match == default) continue;
 
             var baseClose = prices.First().close;
-            double rel    = Math.Round(match.close / baseClose * 100.0, 2);
+            double rel = Math.Round(match.close / baseClose * 100.0, 2);
             tooltipRows.Add((name, rel, color));
         }
 
@@ -957,17 +965,17 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
             var row = new StackPanel { Orientation = Orientation.Horizontal };
             row.Children.Add(new TextBlock
             {
-                Text       = "● ",
+                Text = "● ",
                 FontFamily = new System.Windows.Media.FontFamily("Consolas"),
-                FontSize   = 10,
+                FontSize = 10,
                 Foreground = new System.Windows.Media.SolidColorBrush(wpfColor),
                 VerticalAlignment = VerticalAlignment.Center,
             });
             row.Children.Add(new TextBlock
             {
-                Text       = $"{name,-12}  {rel,7:F2}  ({diff:+0.00;-0.00}%)",
+                Text = $"{name,-12}  {rel,7:F2}  ({diff:+0.00;-0.00}%)",
                 FontFamily = new System.Windows.Media.FontFamily("Consolas"),
-                FontSize   = 10,
+                FontSize = 10,
                 Foreground = new System.Windows.Media.SolidColorBrush(wpfColor),
                 VerticalAlignment = VerticalAlignment.Center,
             });
@@ -994,7 +1002,7 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
     {
         if (GridGroup.SelectedItem is not DataRowView row) { TxtStatus.Text = "그룹을 선택하세요."; return; }
         var name = row["name"]?.ToString() ?? "";
-        var id   = row["group_id"]?.ToString() ?? "0";
+        var id = row["group_id"]?.ToString() ?? "0";
         if (MessageBox.Show($"그룹 [{name}]을 삭제하시겠습니까?",
                 "삭제 확인", MessageBoxButton.YesNo, MessageBoxImage.Warning)
             != MessageBoxResult.Yes) return;
@@ -1010,5 +1018,33 @@ public partial class EditGroupView : UserControl, ITickerNavigationAware, IGroup
             LoadGroups();
         }
         catch (Exception ex) { _main.StatusException(ex, "삭제 오류"); }
+    }
+
+    private void OnGridRightClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        ContextMenuHelper.ShowGridMenu(sender, e, ExecuteAction);
+    }
+
+    private void ExecuteAction(MenuAction action, string? context, object source)
+    {
+        if (source is not DataGrid grid || grid.SelectedItem is not DataRowView rowView) return;
+
+        if (grid == GridGroup)
+        {
+            switch (action)
+            {
+                case MenuAction.NewGroup:
+                    BtnNewGroup_Click(source, new RoutedEventArgs());
+                    return;
+                case MenuAction.DeleteGroup:
+                    BtnDeleteGroup_Click(source, new RoutedEventArgs());
+                    return;
+            }
+        }
+        else if (grid == GridTicker)
+        {
+            if (string.IsNullOrEmpty(context)) return;
+            _main.ActionHandler(action, context);
+        }
     }
 }

@@ -76,7 +76,7 @@ public enum MenuAction
     WebInfo,
 
     NewGroup,
-    GroupInfo,
+    //GroupInfo,
     DeleteGroup,
 
     OpenReport,
@@ -102,7 +102,7 @@ public static class ContextMenuHelper// ContextMenuBuilder
         new("Web Info", MenuCategory.Ticker, MenuAction.WebInfo, HasContext: true),
 
         new("New Group",     MenuCategory.Group,  MenuAction.NewGroup),
-        new("Group Info",  MenuCategory.Group,  MenuAction.GroupInfo,  HasContext: true),
+        //new("Group Info",  MenuCategory.Group,  MenuAction.GroupInfo,  HasContext: true),
         new("DeleteGroup",  MenuCategory.Group,  MenuAction.DeleteGroup,  HasContext: true),
 
         new("Open Report",  MenuCategory.Report,  MenuAction.OpenReport),
