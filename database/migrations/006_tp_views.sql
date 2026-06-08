@@ -19,21 +19,31 @@ DROP TABLE IF EXISTS target_price_monthly;
 DROP VIEW  IF EXISTS target_price_monthly;
 
 -- PDF 리포트 월별 집계 (내부용)
+-- price: 해당 월의 마지막 종가 (daily_prices), 없으면 stock_cache 현재가로 fallback
 CREATE OR REPLACE VIEW v_tp_monthly_pdf AS
+WITH monthly_price AS (
+    SELECT ticker,
+           strftime('%Y%m', date) AS ym,
+           arg_max(close, date)   AS price
+    FROM   daily_prices
+    GROUP  BY ticker, strftime('%Y%m', date)
+)
 SELECT
     r.ticker,
-    strftime('%Y%m', r.date)                                              AS ym,
-    COUNT(*)                                                              AS report_count,
-    ROUND(AVG(r.target_price))::INTEGER                                  AS avg_tgt,
-    MIN(r.target_price)::INTEGER                                         AS min_tgt,
-    MAX(r.target_price)::INTEGER                                         AS max_tgt,
-    c.current_price::INTEGER                                             AS price,
-    ROUND((AVG(r.target_price) / NULLIF(c.current_price, 0) - 1) * 100, 2) AS upside
+    strftime('%Y%m', r.date)                                                         AS ym,
+    COUNT(*)                                                                          AS report_count,
+    ROUND(AVG(r.target_price))::INTEGER                                              AS avg_tgt,
+    MIN(r.target_price)::INTEGER                                                     AS min_tgt,
+    MAX(r.target_price)::INTEGER                                                     AS max_tgt,
+    COALESCE(mp.price, c.current_price)::INTEGER                                    AS price,
+    ROUND((AVG(r.target_price) / NULLIF(COALESCE(mp.price, c.current_price), 0) - 1) * 100, 2) AS upside
 FROM pdf_reports r
-LEFT JOIN stock_cache c ON c.ticker = r.ticker
+LEFT JOIN monthly_price mp ON mp.ticker = r.ticker
+                          AND mp.ym     = strftime('%Y%m', r.date)
+LEFT JOIN stock_cache c    ON c.ticker  = r.ticker
 WHERE r.target_price IS NOT NULL
   AND r.analyze_status NOT IN ('skip')
-GROUP BY r.ticker, strftime('%Y%m', r.date), c.current_price;
+GROUP BY r.ticker, strftime('%Y%m', r.date), mp.price, c.current_price;
 
 -- 통합 뷰: PDF 우선, PDF 없는 (ticker, ym)은 supplement로 보완
 CREATE OR REPLACE VIEW target_price_monthly AS
