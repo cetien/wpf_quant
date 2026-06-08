@@ -44,7 +44,7 @@ public record TpMonthlyRow
     public float? Upside { get; init; }
 }
 
-public partial class TargetPriceView : UserControl
+public partial class TargetPriceView : UserControl, ITickerNavigationAware
 {
     // ── LiveCharts 바인딩 속성 ────────────────────────────────
     public ObservableCollection<ISeries> TpSeries    { get; } = [];
@@ -118,6 +118,8 @@ public partial class TargetPriceView : UserControl
             Position        = LiveChartsCore.Measure.AxisPosition.End,
         });
     }
+
+    public void OnNavigatedToTicker(string ticker) => LoadTicker(ticker);
 
     // ══════════════════════════════════════════════════════════
     //  종목 로드
