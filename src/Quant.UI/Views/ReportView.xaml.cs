@@ -509,7 +509,7 @@ public partial class ReportView : UserControl, ITickerNavigationAware
                     row["target_price"] = DBNull.Value;
                     row.Row.EndEdit();
 
-                    _db.Execute("UPDATE pdf_reports SET target_price = NULL, analyze_status = NULL WHERE id = $1",
+                    _db.Execute("UPDATE pdf_reports SET target_price = NULL, analyze_status = 'done' WHERE id = $1",
                         Convert.ToInt64(row["id"]));
                     needExtractCount = _db.Scalar<int>($"select count(*) from pdf_reports where {SqlWhereNoTP}");
                     RefreshTpCount();
