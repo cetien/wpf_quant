@@ -10,6 +10,7 @@ using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 
 namespace Quant.UI.Views;
 
@@ -27,7 +28,8 @@ public partial class ReportView : UserControl, ITickerNavigationAware
 
     private readonly string TitleForAll = "- All";
     private readonly string TitleForNoTP = "- No TP";
-    private readonly string RowFilterNoTP = "target_price IS NULL AND analyze_status <> 'skip'";
+    private readonly string RowFilterNoTP    = "target_price IS NULL AND analyze_status <> 'skip'";
+    private readonly string SqlWhereNoTP     = "target_price IS NULL AND (analyze_status IS NULL OR analyze_status <> 'skip') AND writer <> '한국IR협의회' AND writer NOT LIKE '%평가정보%'";
     private int needExtractCount;
 
     public ReportView(IMainActions main)
@@ -91,7 +93,10 @@ public partial class ReportView : UserControl, ITickerNavigationAware
             int upserted = await Task.Run(Ingest);
             LoadGrids();
             if (upserted > 0)
+            {
                 await RunPdfAnalyzerAsync();
+                LoadGrids();
+            }
         }
         catch (Exception ex)
         {
@@ -334,9 +339,9 @@ public partial class ReportView : UserControl, ITickerNavigationAware
     {
         try
         {
-            var TpIsInvalid= "r.writer = '한국IR협의회' OR r.writer LIKE '%평가정보%'";
+            var TpIsInvalid= "r.writer = '한국IR협의회' OR r.writer LIKE '%평가정보%' OR r.analyze_status = 'skip'";
             _allReports = _db.Query(
-                "SELECT r.id, r.date, r.ticker, s.name AS name, s.group_name AS \"group\", r.title, r.writer, r.filepath, " +
+                "SELECT r.id, r.date, r.ticker, COALESCE(s.name, r.ticker) AS name, s.group_name AS \"group\", r.title, r.writer, r.filepath, " +
                 $"CASE WHEN {TpIsInvalid} THEN CAST('NaN' AS DOUBLE) ELSE r.target_price END AS target_price, " +
                 "r.analyze_status, c.current_price AS price, " +
                 $"CASE WHEN {TpIsInvalid} THEN CAST('NaN' AS DOUBLE) " +
@@ -348,7 +353,7 @@ public partial class ReportView : UserControl, ITickerNavigationAware
 //$"WHERE {TpIsInvalid} " +
                 "ORDER BY r.date DESC, r.ticker ASC LIMIT 5000");
 
-            needExtractCount = _db.Scalar<int>($"select count(*) from pdf_reports where {RowFilterNoTP}");
+            needExtractCount = _db.Scalar<int>($"select count(*) from pdf_reports where {SqlWhereNoTP}");
             RefreshTpCount();
 
             ApplyFilter(null, null);    // reset 종목별, 날짜별 필터
@@ -480,22 +485,54 @@ public partial class ReportView : UserControl, ITickerNavigationAware
         if (e.EditAction != DataGridEditAction.Commit) return;
         if (e.Row.Item is not DataRowView row) return;
 
+        var textBox = e.EditingElement as TextBox
+                   ?? (VisualTreeHelper.GetChildrenCount(e.EditingElement) > 0
+                       ? VisualTreeHelper.GetChild(e.EditingElement, 0) as TextBox
+                       : null);
+        var editedText = textBox?.Text?.Trim();
+        var isEmpty = string.IsNullOrEmpty(editedText) || editedText == "NaN";
+
+        if (isEmpty)
+        {
+            // WPF 커밋 차단 — "" → double 바인딩 변환 실패(빨간 테두리) 방지
+            e.Cancel = true;
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    // 편집 모드 종료 (CancelEdit은 CellEditEnding 재진입 없음)
+                    GridReport.CancelEdit(DataGridEditingUnit.Cell);
+                    GridReport.CancelEdit(DataGridEditingUnit.Row);
+
+                    // DataRow 값 직접 초기화
+                    row.Row.BeginEdit();
+                    row["target_price"] = DBNull.Value;
+                    row.Row.EndEdit();
+
+                    _db.Execute("UPDATE pdf_reports SET target_price = NULL, analyze_status = NULL WHERE id = $1",
+                        Convert.ToInt64(row["id"]));
+                    needExtractCount = _db.Scalar<int>($"select count(*) from pdf_reports where {SqlWhereNoTP}");
+                    RefreshTpCount();
+                    _main.StatusInfo($"목표주가 삭제: {row["name"]}");
+                }
+                catch (Exception ex)
+                {
+                    _main.StatusException(ex, "TP 저장 오류");
+                }
+            }), System.Windows.Threading.DispatcherPriority.Background);
+            return;
+        }
+
         // 바인딩 소스 업데이트가 완료된 후 실행 (Background 우선순위)
         Dispatcher.BeginInvoke(new Action(() =>
         {
             try
             {
                 _db.Execute("UPDATE pdf_reports SET target_price = $1, analyze_status = 'done' WHERE id = $2",
-                    Convert.ToDouble(row["target_price"]), Convert.ToInt64(row["id"]));
-
-                //using var conn = _db.OpenNativeConnection();
-                //using var cmd = conn.CreateCommand();
-                //cmd.CommandText = "UPDATE pdf_reports SET target_price = $1, analyze_status = 'done' WHERE id = $2";
-                //cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = Convert.ToDouble(row["target_price"]) });
-                //cmd.Parameters.Add(new DuckDB.NET.Data.DuckDBParameter { Value = Convert.ToInt64(row["id"]) });
-                //cmd.ExecuteNonQuery();
-
-                _main.StatusSuccess($"목표주가 저장: {row["name"]} → {row["target_price"]:N0}");
+                    Convert.ToDouble(editedText), Convert.ToInt64(row["id"]));
+                needExtractCount = _db.Scalar<int>($"select count(*) from pdf_reports where {SqlWhereNoTP}");
+                RefreshTpCount();
+                _main.StatusSuccess($"목표주가 저장: {row["name"]} → {editedText}");
             }
             catch (Exception ex)
             {
@@ -633,9 +670,11 @@ public partial class ReportView : UserControl, ITickerNavigationAware
         //var needExtractCount = _db.Scalar<int>($"select count(*) from pdf_reports where {RowFilterNoTP}");
         BtnSkipTP.Content = $"{needExtractCount} / {totalCount}";
     }
+    private void BtnRefresh_Click(object sender, RoutedEventArgs e) => LoadGrids();
+
     private void BtnSkipTP_Click(object sender, RoutedEventArgs e)
     {
-        _db.Execute($"update pdf_reports set analyze_status='skip' where {RowFilterNoTP}");
+        _db.Execute($"update pdf_reports set analyze_status='skip' where {SqlWhereNoTP}");
         LoadGrids();
 
         //RefreshTpCount();
